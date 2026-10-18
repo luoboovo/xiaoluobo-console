@@ -229,6 +229,12 @@ function renderMotion(next) {
 }
 if(params.has('preview')) document.body.classList.add('preview-mode');
 if(output && ['background','counter','customers'].includes(output)) document.body.classList.add('layer-output', 'output-'+output);
+function drawQueueOverflow() {
+  if(!showsCustomers)return;
+  const remaining=Math.max(0,(state?.queue_count || 0)-120);
+  $('queue-overflow').style.display=building || remaining>0?'block':'none';
+  $('queue-overflow').textContent='还有 '+remaining+(burgerRecipe()?' 位在等汉堡':cafeRecipe()?' 位在等咖啡':stirRecipe()?' 位在等香锅':' 位在等面');
+}
 function applyLayout() {
   for(const [key,item] of Object.entries(layout.modules)) {
     const el=document.querySelector(`[data-module="${key}"]`);
@@ -239,7 +245,7 @@ function applyLayout() {
   const sources=NoodleLayout.stations(layout,state?.template?.workflow);
   const rating=layout.props.rating;
   $('shop-rating').style.transform=`translate(${rating.x}px,${rating.y}px) scale(${rating.scale})`;
-  for (const [key, id] of [['stats','game-stats'],['gift_rule','gift-rule'],['thief_board','thief-board'],['sign_top','sign-top'],['sign_title','sign-title'],['sign_bottom','sign-bottom'],['cash_text','cash-total']]) {
+  for (const [key, id] of [['stats','game-stats'],['gift_rule','gift-rule'],['thief_board','thief-board'],['sign_top','sign-top'],['sign_title','sign-title'],['sign_bottom','sign-bottom'],['cash_text','cash-total'],['queue_overflow','queue-overflow']]) {
     const item = layout.props[key];
     $(id).style.transform = `translate(${item.x}px,${item.y}px) scale(${item.scale})`;
   }
@@ -285,6 +291,7 @@ function applyLayout() {
   stir.applyLayout();
   if(stirRecipe()||burgerRecipe())drawObjects();
   if(state?.sealed && !building)$('water-fridge').disabled=true;
+  drawQueueOverflow();
   drawChef();
 }
 function drawChef() {
@@ -421,7 +428,7 @@ function render(next,force=false) {
       actor.departureTimer=setTimeout(()=>{if(actors.get(person.id)===actor){actor.remove();actors.delete(person.id);}},Math.max(0,4200-(Date.now()-person.at)));
     }
   });
-  $('queue-overflow').style.display=state.queue_count>120?'block':'none';$('queue-overflow').textContent='还有 '+(state.queue_count-120)+(burgerRecipe()?' 位在等汉堡':cafeRecipe()?' 位在等咖啡':' 位在等面');
+  drawQueueOverflow();
   }
   if(state.mode!=='running' && drag.drag) {drag.up(true);keyboardDrag=false;drawObjects();}
   highlight();

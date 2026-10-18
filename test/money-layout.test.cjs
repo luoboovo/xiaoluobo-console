@@ -61,7 +61,7 @@ test('写盘失败不扣钱、不增加榜单，金额溢出不消耗金币', as
 test('旧布局补齐手、文字、榜单与酱料，所有对象位置大小可验证和保存', async t => {
   const { dir, shop } = await fixture(t);
   const layout = structuredClone(Layout.defaults);
-  const keys = ['chef','stats','gift_rule','thief_board','sign_top','sign_title','sign_bottom','cash_text','ketchup','salad','mayo'];
+  const keys = ['chef','stats','gift_rule','thief_board','sign_top','sign_title','sign_bottom','cash_text','ketchup','salad','mayo','queue_overflow'];
   for (const key of keys) delete layout.props[key];
   const next = Layout.validate(layout);
   for (const key of keys) {
@@ -71,7 +71,7 @@ test('旧布局补齐手、文字、榜单与酱料，所有对象位置大小�
   }
   await shop.save({ ...shop.config, layout:next });
   assert.deepEqual((await new NoodleShop(dir).init()).config.layout, next);
-  assert.equal(Layout.itemModule('thief_board'), 'customers'); assert.equal(Layout.itemModule('sign_title'), 'background'); assert.equal(Layout.itemModule('chef'), 'counter');
+  assert.equal(Layout.itemModule('queue_overflow'), 'customers'); assert.equal(Layout.itemModule('thief_board'), 'customers'); assert.equal(Layout.itemModule('sign_title'), 'background'); assert.equal(Layout.itemModule('chef'), 'counter');
   const rest = Chef.pose(null, false, {x:120,y:80,scale:1});
   assert.deepEqual(rest.hand, {x:875,y:482});
   assert.deepEqual(Chef.pose({x:300,y:400},false,{x:120,y:80,scale:1}).hand, {x:300,y:400});

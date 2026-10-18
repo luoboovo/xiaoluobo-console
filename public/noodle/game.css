@@ -77,5 +77,5 @@ body.no-shop #stage{visibility:hidden}body.no-shop{background:transparent!import
 
 .thief-board{position:absolute;left:24px;top:200px;width:230px;padding:12px 14px;border:2px solid #b98956;border-radius:12px;background:#fff7e0ed;color:#65402b;z-index:8;transform-origin:0 0}
 .thief-board>strong{display:block;text-align:center;font-size:18px;margin-bottom:8px}.thief-board ol{list-style:none;padding:0;margin:0;display:grid;gap:6px}.thief-board li{display:flex;gap:8px;justify-content:space-between;font-size:13px}.thief-board li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.thief-board li b{white-space:nowrap;font-variant-numeric:tabular-nums}
-#game-stats,#gift-rule,#cash-total,[data-layout-item^="sign_"]{transform-origin:50% 50%}
+#game-stats,#gift-rule,#queue-overflow,#cash-total,[data-layout-item^="sign_"]{transform-origin:50% 50%}
 .building [data-layout-item="chef"]{pointer-events:auto;cursor:move}.building .chef-arm-module{z-index:20}

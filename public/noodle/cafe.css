@@ -1,7 +1,7 @@
 .cafe .shop-sign{top:60px;height:124px}
 .cafe .shop-sign b{color:#58694d}
 .cafe .workspace-bowl.selected:after{display:none}
-.cafe .cooking-status,.cafe .game-toast,.cafe .queue-overflow,.cafe .customer-reaction{display:none!important}
+.cafe .cooking-status,.cafe .game-toast,.cafe .customer-reaction{display:none!important}
 .cafe .workspace-object:focus-visible,.cafe .template-tool:focus-visible{outline:2px solid #9cbaac;outline-offset:3px}
 .cafe .garnish-jasmine{left:34px;top:43px;width:56px;height:40px}
 .cafe .milk-in-cup .garnish-jasmine{top:15px}

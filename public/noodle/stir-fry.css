@@ -10,7 +10,7 @@
 .stir-fry .workspace-bowl.selected:after{display:none}
 .stir-fry .workspace-bowl:before{display:none}
 .stir-fry .trash-bin img{left:0;width:100%;height:100%;object-fit:contain}
-.stir-fry .game-toast,.stir-fry .cooking-status,.stir-fry .queue-overflow,.stir-fry .customer-reaction{display:none!important}
+.stir-fry .game-toast,.stir-fry .cooking-status,.stir-fry .customer-reaction{display:none!important}
 .stir-fry .shop-rating{font-size:10px;padding:5px 10px;border-radius:10px}
 .stir-fry .shop-rating strong{font-size:17px}.stir-fry .shop-rating span{font-size:16px}.stir-fry .shop-rating b{font-size:13px}
 #stir-cabinet{position:absolute;z-index:7;pointer-events:auto}

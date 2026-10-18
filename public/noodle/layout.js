@@ -1,7 +1,7 @@
 (function(root) {
   const modules = ['background', 'counter', 'customers'];
   const kinds = ['noodles', 'sauce', 'bowl'];
-  const props = ['fridge', 'trash', 'cash', 'tray', 'dough', 'scallions', 'cilantro', 'rating', 'jasmine', 'milk', 'bun_lid', 'chef', 'stats', 'gift_rule', 'thief_board', 'sign_top', 'sign_title', 'sign_bottom', 'cash_text', 'ketchup', 'salad', 'mayo'];
+  const props = ['fridge', 'trash', 'cash', 'tray', 'dough', 'scallions', 'cilantro', 'rating', 'jasmine', 'milk', 'bun_lid', 'chef', 'stats', 'gift_rule', 'thief_board', 'sign_top', 'sign_title', 'sign_bottom', 'cash_text', 'ketchup', 'salad', 'mayo', 'queue_overflow'];
   const defaults = {
     modules: Object.fromEntries(modules.map(key => [key, { x: 0, y: 0, scale: 1, visible: true }])),
     stations: Object.fromEntries(kinds.map(key => [key, { side: key === 'noodles' ? 'left' : 'right', x: 0, y: 0, scale: 1, locked: true }])),
@@ -59,7 +59,7 @@
   }
   const toStage = (point, module) => ({ x: point.x * module.scale + module.x, y: point.y * module.scale + module.y });
   const fromStage = (point, module) => ({ x: (point.x - module.x) / module.scale, y: (point.y - module.y) / module.scale });
-  const itemModule = key => ['rating','stats','gift_rule','thief_board'].includes(key) ? 'customers' : ['fridge', 'trash','sign_top','sign_title','sign_bottom'].includes(key) ? 'background' : 'counter';
+  const itemModule = key => ['rating','stats','gift_rule','thief_board','queue_overflow'].includes(key) ? 'customers' : ['fridge', 'trash','sign_top','sign_title','sign_bottom'].includes(key) ? 'background' : 'counter';
   const itemConfig = (layout, key) => kinds.includes(key) ? layout.stations[key] : layout.props[key];
   function propRect(layout, key, workflow) {
     const bases = { fridge: [layout.trash?.side === 'left' ? 995 : 275, 174, 145, 180], trash: [layout.trash?.side === 'left' ? 112 : 1128, 252, 128, 160], cash: [1010, 491, 116, 102], tray: [320*1280/1200, 370*720/740, 540*1280/1200, 210*720/740], dough:[225,355,150,104], scallions:[1010,345,92,70], cilantro:[1110,345,92,70], jasmine:[970,337,115,94], milk:[1100,320,106,122] };

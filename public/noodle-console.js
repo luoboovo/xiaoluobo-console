@@ -3,7 +3,7 @@ import { state, gifts, currentGift, switchView } from './app.js';
 let shop, draft, draftSign, editing = false, selected = 'counter', selectedItem = '', saving = false;
 const names = { background: '背景', counter: '桌台', customers: '顾客' };
 const itemNames = { fridge: '冰柜', trash: '垃圾桶', cash: '钱匣', noodles: '煮面锅', sauce: '臊子桶', bowl: '碗架', tray: '放碗托盘', dough: '削面板', scallions: '葱花', cilantro: '香菜', rating: '店铺评分 / 五星牌', jasmine:'茉莉花',milk:'牛奶壶' };
-Object.assign(itemNames,{chef:'机械臂 / 手',stats:'排队 / 出餐显示牌',gift_rule:'排队礼物文字',thief_board:'偷钱榜单',sign_top:'招牌上方小字',sign_title:'招牌标题文字',sign_bottom:'招牌下方小字',cash_text:'钱匣金额文字',ketchup:'番茄酱',salad:'沙拉酱',mayo:'蛋黄酱'});
+Object.assign(itemNames,{queue_overflow:'剩余排队提示牌',chef:'机械臂 / 手',stats:'排队 / 出餐显示牌',gift_rule:'排队礼物文字',thief_board:'偷钱榜单',sign_top:'招牌上方小字',sign_title:'招牌标题文字',sign_bottom:'招牌下方小字',cash_text:'钱匣金额文字',ketchup:'番茄酱',salad:'沙拉酱',mayo:'蛋黄酱'});
 const frame = $('#noodle-frame');
 let presetStamp = '', renamingPreset = null, creatingTemplate = null, deletingTemplate = null, deletingPreset = null;
 const post = () => frame.contentWindow.postMessage({ type: 'noodle-builder', enabled: editing, selected, item: selectedItem, layout: draft || shop?.config.layout, sign: draftSign || shop?.config.sign }, location.origin);

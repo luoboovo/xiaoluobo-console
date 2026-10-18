@@ -319,7 +319,7 @@ async function startServer(options = {}) {
   obs = new ObsIntegration(origin, options.obsOptions);
   hime = new HimeIntegration(origin, options.himeOptions);
   diagnostics?.log('info','server.listening',{origin});
-  diagnostics?.sample(()=>({platform:services.platform,liveStatus:services.state.live.status,pendingGifts,clients:clients.size,customers:noodle.queue.length,objects:noodle.objects.length,people:overtime.state.people.length,mediaBatches:overtime.mediaQueue.length}));
+  diagnostics?.sample(()=>({platform:services.platform,liveStatus:services.state.live.status,douyin:services.platform==='douyin'?services.douyinStats:undefined,pendingGifts,clients:clients.size,customers:noodle.queue.length,objects:noodle.objects.length,people:overtime.state.people.length,mediaBatches:overtime.mediaQueue.length}));
   const keepAlive = setInterval(() => { for (const client of clients) write(client,': heartbeat\n\n'); }, 15000);
   let physicsPending=false;
   // Physics only waits on feeding's own queue, so slow gift batches no longer freeze falling food.

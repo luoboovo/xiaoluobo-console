@@ -29,7 +29,7 @@ async function drag(selector, dx, dy) {
 async function shot(name, target=win) {
   await target.webContents.executeJavaScript(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`);
   await delay(200);
-  await fs.writeFile(path.join(root,'artifacts','v2.5.6-'+name+'.png'),(await target.webContents.capturePage()).toPNG());
+  await fs.writeFile(path.join(root,'artifacts','v2.5.8-'+name+'.png'),(await target.webContents.capturePage()).toPNG());
 }
 app.whenReady().then(async()=>{
   const dir = await fs.mkdtemp(path.join(root,'work','shop-layout-smoke-'));
@@ -42,19 +42,27 @@ app.whenReady().then(async()=>{
       await runtime.noodle.action({action:'preset_create',name,template_id:template.id});
     }
     await runtime.noodle.action({action:'save',config:{...runtime.noodle.config,sign:{top:'欢迎光临',title:name,bottom:'今天也要开心'},thief_min:20,thief_max:20}});
+    await runtime.noodle.action({action:'clear_queue'});
     await runtime.noodle.action({action:'start'}); await runtime.noodle.saveWallet(600); runtime.noodle.publish();
     await win.loadURL(runtime.url+'/#noodle');
     await waitFor(()=>run(`document.querySelector('#noodle-frame')?.contentDocument?.querySelector('#cash-balance')?.textContent==='600 元'`),name+'载入');
+    assert.equal(await run(`getComputedStyle(document.querySelector('#noodle-frame').contentDocument.querySelector('#queue-overflow')).display`),'none',name+'人数未满时隐藏余位牌');
     await run(`document.querySelector('#thief-min').value='10';document.querySelector('#thief-max').value='10';document.querySelector('#thief-range-form').requestSubmit()`);
     await waitFor(()=>runtime.noodle.config.thief_min===10&&runtime.noodle.config.thief_max===10,'保存偷钱金额');
     await waitFor(()=>run(`!document.querySelector('#noodle-build').disabled`),'金额保存完成');
     await run(`document.querySelector('#noodle-build').click()`);
     await waitFor(()=>run(`document.querySelector('#noodle-frame').contentDocument.body.classList.contains('building')`),'搭建模式');
-    for (const [key,id] of [['chef','chef-hand'],['stats','game-stats'],['gift_rule','gift-rule'],['thief_board','thief-board'],['sign_title','sign-title'],['sign_top','sign-top'],['sign_bottom','sign-bottom'],['cash_text','cash-total']]) {
-      await drag('#'+id,32,16);
+    await waitFor(()=>run(`getComputedStyle(document.querySelector('#noodle-frame').contentDocument.querySelector('#queue-overflow')).display!=='none'`),'无顾客也可搭建余位牌');
+    for (const [key,id] of [['chef','chef-hand'],['stats','game-stats'],['gift_rule','gift-rule'],['queue_overflow','queue-overflow'],['thief_board','thief-board'],['sign_title','sign-title'],['sign_top','sign-top'],['sign_bottom','sign-bottom'],['cash_text','cash-total']]) {
+      await drag('#'+id,key==='queue_overflow'?160:32,16);
       const changed = await run(`({key:document.querySelector('#builder-item').value,x:Number(document.querySelector('#module-x').value),y:Number(document.querySelector('#module-y').value)})`);
       assert.equal(changed.key,key,name+': '+id+'可选中'); assert.ok(changed.x>0&&changed.y>0,name+': '+id+'可移动');
     }
+    await run(`document.querySelector('#builder-item').value='queue_overflow';document.querySelector('#builder-item').dispatchEvent(new Event('change'))`);
+    const queueWheel=await center('#queue-overflow');
+    win.webContents.sendInputEvent({type:'mouseMove',...queueWheel}); await delay(100);
+    win.webContents.sendInputEvent({type:'mouseWheel',...queueWheel,deltaY:-80,deltaX:0});
+    await waitFor(()=>run(`document.querySelector('#builder-item').value==='queue_overflow'&&Number(document.querySelector('#module-scale').value)!==100`),'余位牌滚轮缩放');
     await run(`document.querySelector('#builder-item').value='sign_title';document.querySelector('#builder-item').dispatchEvent(new Event('change'))`);
     const wheel = await center('#sign-title');
     win.webContents.sendInputEvent({type:'mouseMove',...wheel}); await delay(100);
@@ -64,7 +72,9 @@ app.whenReady().then(async()=>{
     await run(`document.querySelector('#noodle-save').click()`);
     await waitFor(()=>run(`document.querySelector('#builder-fields').hidden`),'保存场景');
     const saved = structuredClone(runtime.noodle.config.layout);
-    for(const key of ['chef','stats','gift_rule','thief_board','sign_title','sign_top','sign_bottom','cash_text'])assert.ok(saved.props[key].x>0,name+': 已保存 '+key);
+    for(const key of ['chef','stats','gift_rule','thief_board','sign_title','sign_top','sign_bottom','cash_text','queue_overflow'])assert.ok(saved.props[key].x>0,name+': 已保存 '+key);
+    assert.notEqual(saved.props.queue_overflow.scale,1);
+    await waitFor(()=>run(`getComputedStyle(document.querySelector('#noodle-frame').contentDocument.querySelector('#queue-overflow')).display==='none'`),'退出搭建隐藏0位示例');
     await waitFor(()=>run(`!document.querySelector('[data-shop-test="thief"]').disabled`),'保存后礼物按钮恢复');
     await run(`document.querySelector('[data-shop-test="thief"]').click()`);
     await waitFor(()=>runtime.noodle.balance===590,'偷钱匣');
@@ -84,9 +94,13 @@ app.whenReady().then(async()=>{
       await act('burger_patty',{bowl_id:item.id,batch_id:batch.id});await act('burger_close',{bowl_id:item.id});
       await waitFor(()=>run(`document.querySelector('#noodle-frame').contentDocument.querySelectorAll('.layer-ketchup_layer,.layer-salad_layer,.layer-mayo_layer').length===3`),'三种酱料图层');
     }
+    runtime.noodle.enqueue('排队演示',140);
+    await waitFor(()=>run(`document.querySelector('#noodle-frame').contentDocument.querySelector('#queue-overflow').textContent.includes('还有 20 位在等')&&getComputedStyle(document.querySelector('#noodle-frame').contentDocument.querySelector('#queue-overflow')).display!=='none'`),name+'真实余位牌');
     await win.loadURL(runtime.url+'/?verify='+Date.now()+'#noodle');
     await waitFor(()=>run(`document.querySelector('#noodle-frame')?.contentDocument?.querySelector('#cash-balance')?.textContent==='590 元'`),'刷新持久化');
     assert.deepEqual(runtime.noodle.config.layout,saved);
+    const queueTransform=saved.props.queue_overflow;
+    assert.equal(await run(`document.querySelector('#noodle-frame').contentDocument.querySelector('#queue-overflow').style.transform`),`translate(${queueTransform.x}px, ${queueTransform.y}px) scale(${queueTransform.scale})`);
     const visible = await run(`(()=>{const d=document.querySelector('#noodle-frame').contentDocument;return ['game-stats','gift-rule','thief-board'].every(id=>getComputedStyle(d.getElementById(id)).display!=='none'&&d.getElementById(id).getBoundingClientRect().width>0)})()`);
     assert.equal(visible,true,name+'显示牌和榜单可见');
     await waitFor(()=>run(`Array.from(document.querySelector('#noodle-frame').contentDocument.images).filter(img=>img.getClientRects().length&&!img.closest('[hidden]')).every(img=>img.complete&&img.naturalWidth)`),'图片加载');
@@ -102,11 +116,14 @@ app.whenReady().then(async()=>{
     const actual=await scene.webContents.executeJavaScript(`document.querySelector('#sign-title').style.transform`);
     const item=runtime.noodle.config.layout.props.sign_title;
     assert.equal(actual,`translate(${item.x}px, ${item.y}px) scale(${item.scale})`);
+    const queueItem=runtime.noodle.config.layout.props.queue_overflow;
+    assert.equal(await scene.webContents.executeJavaScript(`document.querySelector('#queue-overflow').style.transform`),`translate(${queueItem.x}px, ${queueItem.y}px) scale(${queueItem.scale})`);
+    if(layer==='customers') assert.match(await scene.webContents.executeJavaScript(`document.querySelector('#queue-overflow').textContent`),/还有 20 位在等汉堡/);
   }
   await scene.loadURL(runtime.url+'/noodle/');
   await waitFor(()=>scene.webContents.executeJavaScript(`document.querySelector('#cash-balance').textContent==='590 元'&&Array.from(document.images).filter(img=>img.getClientRects().length&&!img.closest('[hidden]')).every(img=>img.complete&&img.naturalWidth)`),'独立画面素材');
   await shot('独立画面',scene);
   assert.deepEqual(errors,[]);
-  await fs.writeFile(path.join(root,'artifacts','v2.5.6-界面验证.json'),JSON.stringify({passed:true,packageRoot,results,errors},null,2));
-  console.log('五种模板手、牌子、文字真实拖拽，文字滚轮缩放、偷钱榜单、三种酱料、保存与独立输出验证通过');
+  await fs.writeFile(path.join(root,'artifacts','v2.5.8-界面验证.json'),JSON.stringify({passed:true,packageRoot,results,errors},null,2));
+  console.log('五种模板余位牌与原有对象真实拖拽、缩放、0位搭建、140人真实计数、保存、刷新与独立输出验证通过');
 }).catch(async error=>{console.error(error);if(win)await shot('失败');process.exitCode=1;}).finally(async()=>{scene?.destroy();win?.destroy();await runtime?.close();app.exit(process.exitCode||0);});

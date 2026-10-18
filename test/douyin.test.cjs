@@ -13,10 +13,10 @@ const {bindings}=require('../lib/platform-games.cjs');
 const {SHOP_GIFTS}=require('../lib/noodle/config.cjs');
 const numeric=(key,value)=>Buffer.concat([varint(key*8),varint(value)]);
 const fixtureMessage=(method,body,id)=>Buffer.concat([field(1,method),field(2,body),numeric(3,id)]);
-function giftFrame(count=1,messageId=1,end=0){
-  const person=Buffer.concat([numeric(1,'9007199254740993'),field(3,'抖音观众'),field(9,field(1,'https://p3.douyinpic.com/face.png'))]);
-  const gift=Buffer.concat([numeric(5,463),numeric(10,1),numeric(12,1),field(16,'小心心')]);
-  const body=Buffer.concat([numeric(2,463),numeric(5,count),field(7,person),numeric(9,end),numeric(11,999),field(15,gift)]);
+function giftFrame(count=1,messageId=1,end=0,{commonId,uid='9007199254740993',giftId=463,groupId=999}={}){
+  const person=Buffer.concat([numeric(1,uid),field(3,'抖音观众'),field(9,field(1,'https://p3.douyinpic.com/face.png'))]);
+  const gift=Buffer.concat([numeric(5,giftId),numeric(10,1),numeric(12,1),field(16,'小心心')]);
+  const body=Buffer.concat([...(commonId===undefined?[]:[field(1,numeric(2,commonId))]),numeric(2,giftId),numeric(5,count),field(7,person),numeric(9,end),numeric(11,groupId),field(15,gift)]);
   const response=Buffer.concat([field(1,fixtureMessage('WebcastGiftMessage',body,messageId)),field(5,'ack-context'),numeric(9,1)]);
   return Buffer.concat([numeric(2,'9007199254740995'),field(7,'msg'),field(8,gzipSync(response))]);
 }
@@ -82,6 +82,21 @@ test('连送累计只结算增量，重复推送、末帧和乱序不额外触�
   }
   assert.deepEqual(counts,[1,1,2]);assert.equal(counts.reduce((a,b)=>a+b,0),4);
 });
+
+test('零值消息ID不把后续不同观众、不同礼物误判为重复，有效ID仍去重',()=>{
+  const counter=new GiftCounter(),accepted=[];
+  for(const index of [1,2,3,2]){
+    const message=decodeFrame(giftFrame(1,0,0,{commonId:1000+index,uid:String(9000+index),giftId:460+index,groupId:0})).messages[0];
+    const event=counter.accept(message);if(event)accepted.push(event);
+  }
+  assert.deepEqual(accepted.map(event=>event.giftId),[461,462,463]);
+  assert.deepEqual(accepted.map(event=>event.transactionId),['1001','1002','1003']);
+  const noId=new GiftCounter();
+  for(const uid of ['9001','9002']){
+    const message=decodeFrame(giftFrame(1,0,0,{commonId:0,uid,groupId:0})).messages[0];
+    assert.equal(message.messageId,'');assert.equal(noId.accept(message).count,1);
+  }
+});
 test('两个平台的默认玩法礼物全部存在且各自唯一，加班规则覆盖六种作用',()=>{
   for(const [platform,file]of [['bilibili','gifts.json'],['douyin','douyin-gifts.json']]){
     const catalog=require('../data/'+file).list,defaults=bindings(platform,catalog);
@@ -91,7 +106,9 @@ test('两个平台的默认玩法礼物全部存在且各自唯一，加班规�
   }
 });
 test('集成：平台切换暂停旧玩法，礼物和统计隔离，旧平台页面不能写入新平台',async t=>{
-  const dir=await temporary(t);let app=await startServer({dataDir:dir});t.after(()=>app.close());
+  const dir=await temporary(t);let sample;
+  const diagnostics={log(){},context(){},sample(provider){sample=provider;}};
+  let app=await startServer({dataDir:dir,diagnostics});t.after(()=>app.close());
   const post=(route,body,platform)=>fetch(app.url+route,{method:'POST',headers:{'Content-Type':'application/json',...(platform?{'X-Luobo-Platform':platform}:{})},body:JSON.stringify(body)});
   const biliGift=app.noodle.config.gift_id;
   assert.ok(app.noodle.config.thief_gift);assert.notEqual(app.noodle.config.gift_id,app.noodle.config.water_gift.gift_id);
@@ -108,7 +125,10 @@ test('集成：平台切换暂停旧玩法，礼物和统计隔离，旧平台�
   await post('/api/noodle/action',{action:'pause'},'douyin');
   assert.equal(app.noodle.queue.length,2);assert.equal(app.noodle.queue[0].uid,'9007199254740993');assert.equal(app.overtime.state.people.length,1);
   assert.equal(app.overtime.state.people[0].uid,'9007199254740993');assert.equal(app.overtime.state.people[0].added,'120');
+  assert.deepEqual(sample().douyin,{frames:0,giftMessages:3,acceptedGiftMessages:2,suppressedGiftMessages:1,giftUnits:2});
+  assert.equal(JSON.stringify(sample()).includes('9007199254740993'),false);
   assert.equal((await post('/api/platform',{platform:'bilibili'})).status,200);assert.equal(app.noodle.config.gift_id,biliGift);assert.equal(app.noodle.queue.length,0);assert.equal(app.overtime.state.people.length,0);
+  assert.equal(sample().douyin,undefined);
   await app.noodle.save({...app.noodle.config,thief_gift:null});
   await app.close();app=await startServer({dataDir:dir});assert.equal(app.noodle.config.thief_gift,null);
   await post('/api/platform',{platform:'douyin'});assert.equal(app.overtime.state.people.length,1);
@@ -118,7 +138,10 @@ test('抖音传输：本机生成连接、心跳、解码、ACK和取消隔离�
   class FakeSocket extends EventEmitter{constructor(url,options){super();this.readyState=1;this.sent=[];socket=this;queueMicrotask(()=>this.emit('open'));}send(bytes){this.sent.push(bytes);}close(){this.readyState=3;this.emit('close');}}
   const service=await new ConsoleServices({dataDir:dir,seedDir:path.join(__dirname,'..','data'),douyin:{bootstrap:async()=>({url:'wss://webcast5-ws-web-lf.douyin.com/webcast/im/push/v2/?room_id=123',headers:{Cookie:'not-exported'},roomId:'123',title:'测试直播'}),account:async()=>({loggedIn:true,name:'已保存登录态'}),cancel(){}},DouyinSocket:FakeSocket}).init();t.after(()=>service.close());
   await service.selectPlatform('douyin');await service.connectLive('123');await new Promise(resolve=>setImmediate(resolve));
-  assert.equal(service.state.live.status,'connecting');socket.emit('message',giftFrame());assert.equal(service.state.live.status,'connected');assert.equal(service.events[0].giftName,'小心心');assert.equal(service.events[0].count,1);assert.ok(socket.sent.length>=2);
+  assert.equal(service.state.live.status,'connecting');socket.emit('message',giftFrame(1,0,0,{commonId:1001,groupId:0}));assert.equal(service.state.live.status,'connected');assert.equal(service.events[0].giftName,'小心心');assert.equal(service.events[0].count,1);assert.ok(socket.sent.length>=2);
+  for(const index of [2,3,2])socket.emit('message',giftFrame(1,0,0,{commonId:1000+index,uid:String(9000+index),giftId:462+index,groupId:0}));
+  assert.equal(service.state.stats.gift,3);assert.deepEqual(service.events.map(event=>event.giftId),[465,464,463]);
+  assert.deepEqual(service.douyinStats,{frames:4,giftMessages:4,acceptedGiftMessages:3,suppressedGiftMessages:1,giftUnits:3});
   assert.ok(!JSON.stringify(service.state).includes('not-exported'));
   await service.selectPlatform('bilibili');socket.emit('message',giftFrame(2,2));assert.equal(service.events.length,0);assert.equal(service.state.live.status,'disconnected');
 });
