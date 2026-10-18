@@ -1,0 +1,142 @@
+{
+  "format": "xiaoluobo-template",
+  "schema": 1,
+  "name": "麻辣香锅",
+  "version": "1.0.4",
+  "workflow": "stir-fry",
+  "dish_name": "麻辣香锅",
+  "cook_seconds": 4,
+  "sign": {
+    "top": "",
+    "title": "麻辣香锅",
+    "bottom": ""
+  },
+  "layout": {
+    "modules": {
+      "background": {
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "visible": true
+      },
+      "counter": {
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "visible": true
+      },
+      "customers": {
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "visible": true
+      }
+    },
+    "stations": {
+      "noodles": {
+        "side": "right",
+        "x": 289,
+        "y": 71,
+        "scale": 0.7,
+        "locked": true
+      },
+      "sauce": {
+        "side": "right",
+        "x": -313,
+        "y": 182,
+        "scale": 0.9,
+        "locked": true
+      },
+      "bowl": {
+        "side": "left",
+        "x": -54,
+        "y": -13,
+        "scale": 0.8,
+        "locked": true
+      }
+    },
+    "props": {
+      "fridge": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "trash": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "cash": {
+        "x": -674,
+        "y": -36,
+        "scale": 0.9
+      },
+      "tray": {
+        "x": -103,
+        "y": 0,
+        "scale": 0.8
+      },
+      "dough": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "scallions": {
+        "x": -313,
+        "y": 182,
+        "scale": 0.9
+      },
+      "cilantro": {
+        "x": -313,
+        "y": 182,
+        "scale": 0.9
+      },
+      "rating": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "jasmine": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "milk": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      }
+    },
+    "trash": {
+      "side": "right"
+    }
+  },
+  "assets": {
+    "background": "assets/background.png",
+    "ingredient_sheet": "assets/ingredient_sheet.png",
+    "cabinet": "assets/cabinet.png",
+    "fridge": "assets/fridge.png",
+    "counter": "assets/counter.png",
+    "tray": "assets/tray.png",
+    "cola": "assets/cola.png",
+    "iced_tea": "assets/iced_tea.png",
+    "pot": "assets/pot.png",
+    "bowl_stack": "assets/bowl_stack.png",
+    "bowl_empty": "assets/bowl_empty.png",
+    "bowl": "assets/bowl.png",
+    "bowl_sesame": "assets/bowl_sesame.png",
+    "bowl_scallions": "assets/bowl_scallions.png",
+    "bowl_sesame_scallions": "assets/bowl_sesame_scallions.png",
+    "bowl_cilantro": "assets/bowl_cilantro.png",
+    "bowl_sesame_cilantro": "assets/bowl_sesame_cilantro.png",
+    "bowl_scallions_cilantro": "assets/bowl_scallions_cilantro.png",
+    "bowl_all": "assets/bowl_all.png",
+    "sesame": "assets/sesame.png",
+    "scallions": "assets/scallions.png",
+    "cilantro": "assets/cilantro.png",
+    "portion_sesame": "assets/portion_sesame.png",
+    "portion_scallions": "assets/portion_scallions.png",
+    "portion_cilantro": "assets/portion_cilantro.png",
+    "trash": "assets/trash.png"
+  }
+}

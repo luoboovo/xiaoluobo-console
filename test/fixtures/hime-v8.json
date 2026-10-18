@@ -1,0 +1,14 @@
+{
+  "name": "untitledv2.json",
+  "current_scene": "Scene 2",
+  "scene_order": [{"name":"Scene 1"},{"name":"Scene 2"},{"name":"wDouble Scene 1"}],
+  "current_transition": "淡出",
+  "Desktop Audio": {"id":"wasapi_output_capture","settings":{"device_id":"default"}},
+  "Mic/Aux": {"id":"wasapi_input_capture","settings":{"device_id":"default"}},
+  "sources": [
+    {"prev_ver":536870916,"name":"Scene 1","uuid":"scene-one","id":"scene","versioned_id":"scene","canvas_uuid":"main-canvas","mixers":0,"flags":0,"volume":1,"enabled":true,"hotkeys":{},"private_settings":{},"settings":{"custom_size":false,"cx":0,"cy":0,"id_counter":0,"items":[]}},
+    {"name":"Scene 2","uuid":"scene-two","id":"scene","canvas_uuid":"main-canvas","settings":{"id_counter":1,"items":[{"name":"原图片","source_uuid":"image-one","id":1,"visible":true,"locked":false,"rot":0,"scale_ref":{"x":2248,"y":720},"align":5,"bounds_type":3,"bounds_align":0,"bounds_crop":false,"crop_left":0,"crop_top":0,"crop_right":0,"crop_bottom":0,"pos":{"x":12,"y":20},"scale":{"x":0.8,"y":0.8},"bounds":{"x":1280,"y":720},"scale_filter":"disable","blend_method":"default","blend_type":"normal","show_transition":{"duration":0},"hide_transition":{"duration":0},"private_settings":{}}]}},
+    {"name":"原图片","uuid":"image-one","id":"image_source","settings":{"file":"existing.png"}},
+    {"name":"wDouble Scene 1","id":"scene","settings":{"items":[{"name":"Scene 1","source_uuid":"scene-one","id":1,"pos":{"x":0,"y":0},"scale":{"x":1,"y":1},"bounds":{"x":1280,"y":720}}]}}
+  ]
+}

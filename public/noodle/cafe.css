@@ -1,0 +1,24 @@
+.cafe .shop-sign{top:60px;height:124px}
+.cafe .shop-sign b{color:#58694d}
+.cafe .workspace-bowl.selected:after{display:none}
+.cafe .cooking-status,.cafe .game-toast,.cafe .queue-overflow,.cafe .customer-reaction{display:none!important}
+.cafe .workspace-object:focus-visible,.cafe .template-tool:focus-visible{outline:2px solid #9cbaac;outline-offset:3px}
+.cafe .garnish-jasmine{left:34px;top:43px;width:56px;height:40px}
+.cafe .milk-in-cup .garnish-jasmine{top:15px}
+/* 对齐新素材的透明留白，让桌面和托盘覆盖实际操作区域。 */
+.cafe .counter>img{left:-.512%;top:-145px;width:101.024%;height:850px;object-fit:fill}
+.cafe .bowl-area img{left:-.795%;top:-23.87%;width:101.59%;height:148.97%}
+.cafe .pot-station .machine-cup{position:absolute;left:39%;top:58%;width:32%;height:34%;object-fit:contain;filter:none;z-index:1}
+.cafe .pot-station.brewing:after{content:'';position:absolute;left:49%;top:51%;width:3%;height:16%;border-radius:4px;background:#6f351a;z-index:2;animation:coffee-flow .7s ease-in-out infinite}
+.cafe .ingredient[data-kind="milk"]{width:78px;height:95px}
+.cafe .ingredient-target{filter:drop-shadow(0 0 8px #ffe4a4)}
+.cafe-effects{position:absolute;inset:0;z-index:18;pointer-events:none;transform-origin:0 0}
+.cafe-effect{position:absolute;width:0;height:0;animation:cafe-effect 1200ms both;animation-delay:var(--cafe-age,0ms)}
+.milk-pour>img{position:absolute;left:5px;top:-108px;width:94px;height:112px;object-fit:contain;transform:rotate(-35deg);transform-origin:35% 80%}
+.milk-stream{position:absolute;left:5px;top:-47px;width:7px;height:45px;border-radius:5px;background:#fff8e8;box-shadow:0 0 2px #fff;animation:milk-flow 1200ms both;animation-delay:var(--cafe-age,0ms);transform-origin:50% 0}
+.jasmine-drop>img{position:absolute;left:-27px;top:-75px;width:54px;height:54px;object-fit:contain;animation:jasmine-fall 1200ms both;animation-delay:var(--cafe-age,0ms)}
+@keyframes coffee-flow{0%,100%{opacity:.6;transform:scaleX(.6)}50%{opacity:1;transform:scaleX(1)}}
+@keyframes milk-flow{0%,10%,100%{transform:scaleY(0);opacity:0}22%,80%{transform:scaleY(1);opacity:1}90%{transform:scaleY(.3);opacity:.4}}
+@keyframes jasmine-fall{0%{transform:translateY(-15px);opacity:0}15%{opacity:1}75%,100%{transform:translateY(50px) scale(.6);opacity:0}}
+@keyframes cafe-effect{0%{opacity:0}15%,80%{opacity:1}100%{opacity:0}}
+@media(prefers-reduced-motion:reduce){.cafe-effect,.cafe .pot-station.brewing:after{display:none}}

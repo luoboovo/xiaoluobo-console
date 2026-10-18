@@ -1,0 +1,43 @@
+.burger .shop-sign{left:330px;top:32px;width:620px;height:100px;padding:0}
+.burger .shop-sign b{color:#9c291e}
+.burger .counter{left:15px;right:auto;top:390px;width:1250px;height:365px;overflow:visible}
+.burger .counter>img{position:static;width:100%;height:100%;object-fit:fill}
+.burger .bowl-area{overflow:visible}
+.burger .bowl-area>img{inset:0;width:100%;height:100%;object-fit:fill}
+.burger .workspace-bowl{width:125px;height:105px}
+.burger .workspace-bowl:before{bottom:5px}
+.burger .workspace-bowl.selected:after{top:13px;height:85px;border-width:2px}
+.burger-tool{cursor:grab}
+.burger-tool>span{position:absolute;left:50%;bottom:-12px;transform:translateX(-50%);white-space:nowrap;font-size:11px;color:#6d2a1e;background:#fff6e7de;padding:2px 7px;border-radius:6px;pointer-events:none}
+.burger .station{overflow:visible}
+.burger-batches{position:absolute;display:flex;justify-content:center;gap:4px;pointer-events:none}
+#burger-oven-batches{left:16%;top:49%;width:68%;height:22%}
+#burger-griddle-batches{left:9%;top:26%;width:82%;height:25%}
+.burger-batch{position:relative;flex:1;max-width:24%;height:100%}
+.burger-batch>img{width:100%;height:100%;object-fit:contain;filter:none}
+.burger-batch>small{position:absolute;left:50%;bottom:-14px;transform:translateX(-50%);color:#fff6dc;background:#793e25df;font-size:10px;white-space:nowrap;border-radius:4px;padding:1px 4px}
+.burger-batch.ready>small{background:#326a3fe8}
+.burger-stack{position:absolute;inset:0;pointer-events:none}
+.burger-layer{position:absolute;left:3px;width:119px;height:42px;object-fit:fill;pointer-events:none}
+.burger-layer.layer-bun_top{height:54px}
+.burger-layer.layer-cheese{height:27px}
+.burger-layer.layer-lettuce{left:0;width:125px;height:30px}
+.burger-layer.layer-tomato{left:9px;width:107px;height:30px}
+.burger-layer.layer-mustard_layer{left:12px;width:101px;height:16px}
+.burger-result{position:absolute;inset:-8px -3px;width:131px;height:113px;object-fit:contain;pointer-events:none}
+.burger-layer.layer-egg_splat{left:15px;width:95px;height:35px}
+.burger-layer.layer-leaf{left:12px;width:101px;height:30px}
+.burger-layer.layer-cockroach{left:40px;width:45px;height:45px}
+.throw-cockroach{width:70px;height:70px}
+.throw-cockroach .throw-projectile{display:none}
+.cockroach-walk{position:absolute;inset:0;background-size:200% 200%;background-repeat:no-repeat;transform:rotate(var(--angle));pointer-events:none;animation:cockroach-steps .48s steps(1,end) infinite}
+.throw-cockroach.arriving{animation:cockroach-arrive .65s ease-out both;animation-delay:var(--age)}
+.throw-cockroach.dragging .cockroach-walk,.building .cockroach-walk{animation-play-state:paused}
+@keyframes cockroach-steps{0%,100%{background-position:0 0}25%{background-position:100% 0}50%{background-position:0 100%}75%{background-position:100% 100%}}
+@keyframes cockroach-arrive{from{opacity:0;transform:translate(calc(-50% + var(--travel-x)),-150px)}to{opacity:1;transform:translate(-50%,-50%)}}
+@media(prefers-reduced-motion:reduce){.cockroach-walk,.throw-cockroach.arriving{animation:none}}
+#burger-ghost{position:absolute;width:90px;height:65px;z-index:80;pointer-events:none;filter:drop-shadow(0 4px 3px #653a2933)}
+#burger-ghost>img{width:100%;height:100%;object-fit:contain}
+.burger .trash-bin img{left:0;width:100%;height:100%;object-fit:contain}
+
+.burger-layer.layer-ketchup_layer,.burger-layer.layer-salad_layer,.burger-layer.layer-mayo_layer{left:12px;width:101px;height:16px}

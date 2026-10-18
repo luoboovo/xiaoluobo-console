@@ -1,0 +1,45 @@
+[hidden]{display:none!important}
+.stir-fry .shop-sign{left:368px;top:25px;width:544px;height:111px;padding:0}
+.stir-fry .shop-sign b{font-family:STKaiti,KaiTi,serif;font-size:49px!important;color:#913426;letter-spacing:10px!important}
+.stir-fry .counter{left:154px;right:auto;top:418px;width:868px;height:337px;overflow:visible}
+.stir-fry .counter>img{position:static;width:100%;height:100%;object-fit:fill}
+.stir-fry .bowl-area{overflow:visible;pointer-events:auto}
+.stir-fry .bowl-area>img{inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none}
+.stir-fry .workspace-bowl{width:110px;height:84px}
+.stir-fry .bowl-art{left:0;top:0;width:100%;height:100%}
+.stir-fry .workspace-bowl.selected:after{display:none}
+.stir-fry .workspace-bowl:before{display:none}
+.stir-fry .trash-bin img{left:0;width:100%;height:100%;object-fit:contain}
+.stir-fry .game-toast,.stir-fry .cooking-status,.stir-fry .queue-overflow,.stir-fry .customer-reaction{display:none!important}
+.stir-fry .shop-rating{font-size:10px;padding:5px 10px;border-radius:10px}
+.stir-fry .shop-rating strong{font-size:17px}.stir-fry .shop-rating span{font-size:16px}.stir-fry .shop-rating b{font-size:13px}
+#stir-cabinet{position:absolute;z-index:7;pointer-events:auto}
+#stir-cabinet-art{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#stir-ingredients{position:absolute;left:5.7%;right:5.7%;top:21.7%;height:40.9%;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(3,1fr);gap:4px}
+#stir-ingredients button{border:0;border-radius:8px;padding:0;background:transparent;touch-action:none}
+#stir-ingredients button:hover:not(:disabled){box-shadow:inset 0 0 15px #fff4bc8c;outline:1px solid #ffefae8a}
+#stir-fridge-shelves{position:absolute;pointer-events:none}
+#stir-fridge-shelves button{position:absolute;left:10%;width:80%;height:35%;background:none;border:0;pointer-events:auto;touch-action:none}
+#stir-fridge-shelves button:first-child{top:17%}#stir-fridge-shelves button:last-child{top:54%}
+.building #stir-fridge-shelves{pointer-events:none}.building #stir-fridge-shelves button,.building #stir-ingredients button{pointer-events:none}
+#stir-basket-food{position:absolute;inset:4% 4% 20%;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.food-sprite{display:inline-block;width:50px;height:52px;background-size:400% 300%;background-repeat:no-repeat;flex-shrink:0;pointer-events:none}
+#stir-basket-food .food-sprite{margin-right:-12px}
+#stir-wok-food{display:none;position:absolute;left:13%;top:13%;width:264px;height:84px;transform:scale(var(--stir-pot-scale,1));transform-origin:0 0;pointer-events:none}
+.stir-fry #stir-wok-food{display:block}.stir-fry #game-noodles>img{filter:none}
+#stir-wok-food .food-sprite,.stir-ghost-mix .food-sprite{position:absolute;width:43px;height:46px;filter:drop-shadow(0 2px 1px #26151066);transition:filter 1.3s}
+#stir-wok-food.cooked .food-sprite{filter:saturate(1.05) brightness(.87)}#stir-wok-food.cooked .food-sprite[data-category=meat],.stir-ghost-mix.cooked .food-sprite[data-category=meat]{filter:sepia(.82) saturate(.7) brightness(.7)}
+.mixing .food-sprite{animation:mix-food 1050ms ease-in-out infinite;animation-delay:var(--mix-delay)}
+.stir-spatula{display:none;position:absolute;left:54%;top:8%;width:4%;height:45%;background:linear-gradient(90deg,#777e75,#e1e4d7,#788076);border:1px solid #677165;border-radius:5px;pointer-events:none}
+.stir-spatula:after{content:'';position:absolute;bottom:-15%;left:-90%;width:275%;height:35%;border-radius:7px 7px 15px 15px;background:linear-gradient(90deg,#8a9389,#d8ded1,#909c90);border:2px solid #657065}
+.stir-cooking .stir-spatula{display:block;animation:stir-spatula 1050ms ease-in-out infinite}.stir-ready{filter:drop-shadow(0 0 5px #ffb94e77)}
+#stir-effects{position:absolute;inset:0;pointer-events:none;z-index:18}
+.garnish-pour{position:absolute;width:64px;height:58px;animation:garnish-pour 1050ms ease-in-out both;transform-origin:75% 70%}.garnish-pour img{width:100%;height:100%;object-fit:contain}
+.sprinkle-particle{position:absolute;animation:garnish-fall 780ms ease-in both;animation-delay:var(--fall-delay)}.sesame-particle{width:4px;height:2px;background:#ffe2a2;border:1px solid #cfa463;border-radius:50%}.herb-particle{width:14px;height:10px;object-fit:contain}
+#stir-ghost{position:absolute;width:80px;height:80px;pointer-events:none;z-index:100}#stir-ghost>img{width:100%;height:100%;object-fit:contain}.stir-ghost-mix{position:relative;transform:scale(.38);transform-origin:0 0;top:24px}
+.layer-output #stir-ghost{display:none}.layer-output #stir-cabinet,.layer-output #stir-fridge-shelves button{pointer-events:none}
+@keyframes mix-food{0%,100%{transform:translate(0,0) rotate(0deg)}25%{transform:translate(var(--mix-x),var(--mix-up)) rotate(var(--mix-roll))}56%{transform:translate(calc(var(--mix-x)*-.65),-5px) rotate(calc(var(--mix-roll)*-.55))}78%{transform:translate(calc(var(--mix-x)*.35),-12px) rotate(7deg)}}
+@keyframes stir-spatula{0%,100%{transform:translate(20px,1px)}30%{transform:translate(-37px,28px) rotate(-12deg)}65%{transform:translate(-8px,-19px) rotate(9deg)}}
+@keyframes garnish-pour{0%{opacity:0;transform:translate(0,-22px) rotate(0deg)}20%{opacity:1;transform:translate(0,0) rotate(0deg)}45%,72%{opacity:1;transform:translate(0,7px) rotate(28deg)}100%{opacity:0;transform:translate(0,-18px) rotate(0deg)}}
+@keyframes garnish-fall{0%{opacity:0;transform:translate(0,-25px)}18%,80%{opacity:1}100%{opacity:0;transform:translate(var(--fall-x),45px)}}
+@media(prefers-reduced-motion:reduce){.mixing .food-sprite,.stir-cooking .stir-spatula,.garnish-pour,.sprinkle-particle{animation:none!important}}

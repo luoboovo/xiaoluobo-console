@@ -1,0 +1,12 @@
+node_modules/
+release/
+.local-data/
+.live-verification/
+work/
+artifacts/
+.claude/
+.env
+.env.*
+!.env.example
+*.before-*
+*.log

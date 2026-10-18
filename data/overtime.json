@@ -1,0 +1,38 @@
+{
+  "initial_text": "60",
+  "time_unit": "分钟",
+  "clear_lock_default_unlocked": true,
+  "gift_rules": [
+    {
+      "gift_name": "小花花",
+      "operation": "add",
+      "value": 30,
+      "gift_id": 31026
+    },
+    {
+      "gift_name": "人气票",
+      "operation": "multiply",
+      "value": 2,
+      "gift_id": 34102
+    },
+    {
+      "gift_name": "送花花",
+      "operation": "divide",
+      "value": 2,
+      "gift_id": 35638
+    },
+    {
+      "gift_name": "舰长一号",
+      "operation": "clear",
+      "value": 1,
+      "gift_id": 33978
+    },
+    {
+      "gift_name": "电影票",
+      "operation": "lock_toggle",
+      "value": 1,
+      "gift_id": 32125
+    }
+  ],
+  "initial_minutes": "60"
+}

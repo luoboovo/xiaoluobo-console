@@ -1,0 +1,52 @@
+const {app,BrowserWindow}=require('electron');
+const fs=require('node:fs/promises'),path=require('node:path'),assert=require('node:assert/strict');
+const root=path.join(__dirname,'..'),packageRoot=process.env.LUOBO_SMOKE_PACKAGE||root;
+const tag='v'+require(path.join(packageRoot,'package.json')).version.replaceAll('.','');
+const sessionDir=path.join(root,'.live-verification','feeding-'+tag+'-'+process.pid);require('node:fs').mkdirSync(sessionDir,{recursive:true});app.setPath('userData',sessionDir);
+const {startServer}=require(path.join(packageRoot,'server.cjs'));
+let runtime,dir,win,output;const errors=[],windows=[],operations=[];
+app.on('window-all-closed',()=>{});
+const delay=ms=>new Promise(r=>setTimeout(r,ms));
+async function waitFor(check,label){const until=Date.now()+12000;while(Date.now()<until){if(await check())return;await delay(50);}throw Error('界面验证超时：'+label);}
+async function open(url){const w=new BrowserWindow({show:false,width:1440,height:1000,webPreferences:{offscreen:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:false,autoplayPolicy:'no-user-gesture-required'}});windows.push(w);w.webContents.on('console-message',(_event,details)=>{if(details.level==='error')errors.push(details.message);});await w.loadURL(url);return w;}
+app.whenReady().then(async()=>{
+  dir=await fs.mkdtemp(path.join(root,'work','feeding-desktop-'));runtime=await startServer({dataDir:dir});const original=runtime.feeding.action.bind(runtime.feeding);runtime.feeding.action=async input=>{operations.push(input.action);return original(input);};win=await open(runtime.url+'/#feeding');
+  await waitFor(()=>win.webContents.executeJavaScript(`document.querySelectorAll('#feeding-themes button').length===5`),'吃吃吃配置');
+  assert.equal(await win.webContents.executeJavaScript(`document.querySelector('#feeding-settings').firstElementChild.id==='feeding-custom-settings' && document.querySelector('#feeding-custom-settings').open && !document.querySelector('#feeding-rule-template')`),true);
+  const frame=win.webContents.mainFrame.framesInSubtree.find(frame=>frame.url.includes('/feeding/?preview'));
+  await waitFor(()=>frame.executeJavaScript('typeof state!=="undefined" && sprites.size===10'),'游戏画面');await delay(1600);
+  const point=await frame.executeJavaScript(`(()=>{const s=[...sprites.values()][0],r=canvas.getBoundingClientRect();return {start:{x:r.x+s.x*scale,y:r.y+s.y*scale},end:{x:r.x+state.consumer.x*scale,y:r.y+state.consumer.y*scale}}})()`);
+  const parentRect=await win.webContents.executeJavaScript(`(()=>{const r=document.querySelector('#feeding-frame').getBoundingClientRect();return {x:r.x,y:r.y}})()`);
+  const start={x:Math.round(parentRect.x+point.start.x),y:Math.round(parentRect.y+point.start.y)},end={x:Math.round(parentRect.x+point.end.x),y:Math.round(parentRect.y+point.end.y)};
+  win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...start});win.webContents.sendInputEvent({type:'mouseMove',...end});await delay(100);win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...end});
+  await waitFor(()=>runtime.feeding.state.eaten===1,'真实鼠标拖拽投喂');assert.equal(runtime.feeding.state.count,9);
+  const capture=await open(runtime.url+'/feeding/?capture=1');await waitFor(()=>capture.webContents.executeJavaScript('typeof state!=="undefined" && state.count===9'),'透明来源同步');
+  const transparency=await capture.webContents.executeJavaScript('getComputedStyle(document.body).backgroundColor');assert.equal(transparency,'rgba(0, 0, 0, 0)');
+  const eaterStart=await frame.executeJavaScript(`(()=>{const r=canvas.getBoundingClientRect();return {x:r.x+state.consumer.x*scale,y:r.y+state.consumer.y*scale}})()`);
+  const nearby=await frame.executeJavaScript(`(()=>{const s=[...sprites.values()].sort((a,b)=>Math.hypot(a.x-state.consumer.x,a.y-state.consumer.y)-Math.hypot(b.x-state.consumer.x,b.y-state.consumer.y))[0],r=canvas.getBoundingClientRect();return {x:r.x+s.x*scale,y:r.y+s.y*scale}})()`);
+  const eaterMouse={x:Math.round(parentRect.x+eaterStart.x),y:Math.round(parentRect.y+eaterStart.y)},foodMouse={x:Math.round(parentRect.x+nearby.x),y:Math.round(parentRect.y+nearby.y)},beforeEater=runtime.feeding.state.eaten;
+  win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...eaterMouse});win.webContents.sendInputEvent({type:'mouseMove',...foodMouse});
+  await waitFor(()=>runtime.feeding.state.eaten>beforeEater,'拿着食用者吃食物');
+  await waitFor(()=>frame.executeJavaScript(`drag?.kind==='consumer' && state.eaten>${beforeEater}`),'吃掉食物后仍能继续拖食用者');
+  win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...foodMouse});await delay(200);
+  const afterEater=runtime.feeding.state.count;
+  await win.webContents.executeJavaScript(`document.querySelector('#feeding-add').click()`);await waitFor(()=>runtime.feeding.state.count===afterEater+100,'手动加减');await waitFor(()=>capture.webContents.executeJavaScript(`state.count===${afterEater+100}`),'来源同步加减');
+  await win.webContents.executeJavaScript(`document.querySelector('#feeding-themes [data-theme="stars_jar"]').click();document.querySelector('#feeding-settings').requestSubmit()`);await waitFor(()=>runtime.feeding.state.config.active_theme_id==='stars_jar','主题切换保存');
+  await win.webContents.executeJavaScript(`document.querySelector('[data-generate-panel="feeding"]').click()`);await waitFor(()=>runtime.overtime.state.config.gift_panels.length===1,'吃吃吃生成礼物面板');await waitFor(()=>win.webContents.executeJavaScript(`!document.querySelector('#gift-rules-view').hidden && document.querySelectorAll('#gift-panel-list form').length===1`),'面板模块');
+  await fs.writeFile(path.join(root,'artifacts',tag+'-gift-panels.png'),(await win.webContents.capturePage()).toPNG());
+  await win.webContents.executeJavaScript(`document.querySelector('[data-view="overtime"]').click();document.querySelector('[data-generate-panel="overtime"]').click()`);await waitFor(()=>runtime.overtime.state.config.gift_panels.length===2,'加班机生成礼物面板');
+  await win.webContents.executeJavaScript(`document.querySelector('[data-view="noodle"]').click();document.querySelector('[data-generate-panel="noodle"]').click()`);await waitFor(()=>runtime.overtime.state.config.gift_panels.length===3,'店铺生成礼物面板');
+  await waitFor(()=>win.webContents.executeJavaScript(`!document.querySelector('#gift-rules-view').hidden && document.querySelectorAll('#gift-panel-list form').length===3 && !document.querySelector('[data-generate-panel="noodle"]').disabled`),'全部面板生成完成');
+  const panel=runtime.overtime.state.config.gift_panels[0],panelWindow=await open(runtime.url+'/overtime/?panel='+panel.id+'&capture=1');await waitFor(()=>panelWindow.webContents.executeJavaScript(`document.body.textContent.includes('投喂')`),'生成面板直播画面');
+  await runtime.feeding.action({action:'consumer',x:1200,y:60});
+  await win.webContents.executeJavaScript(`document.querySelector('[data-view="feeding"]').click()`);
+  await win.webContents.executeJavaScript(`document.querySelector('#feeding-start').click()`);
+  await waitFor(()=>runtime.feeding.state.mode==='running','开始游戏');
+  const gift=runtime.feeding.state.config.gift_food_rules[0],before=runtime.feeding.state.count+runtime.feeding.state.eaten;runtime.services.addGift({uid:123,user:'测试观众',giftId:gift.gift_id,giftName:gift.gift_name,count:2,transactionId:'smoke'});await waitFor(()=>runtime.feeding.state.count+runtime.feeding.state.eaten===before+2,'共用直播送礼结算');
+  runtime.services.addEvent('chat','测试观众','投喂',{uid:'456'});await waitFor(()=>runtime.feeding.state.count+runtime.feeding.state.eaten===before+3,'共用直播弹幕结算');
+  await win.webContents.executeJavaScript(`document.querySelector('[data-view="feeding"]').click()`);
+  await waitFor(()=>win.webContents.executeJavaScript(`!document.querySelector('#feeding-view').hidden`),'吃吃吃页面可见');win.webContents.invalidate();await delay(700);await fs.writeFile(path.join(root,'artifacts',tag+'-feeding.png'),(await win.webContents.capturePage()).toPNG());await fs.writeFile(path.join(root,'artifacts',tag+'-feeding-transparent.png'),(await capture.webContents.capturePage()).toPNG());
+  assert.deepEqual(errors,[]);output={version:require(path.join(packageRoot,'package.json')).version,packaged:packageRoot!==root,realPointerFeeding:true,dragConsumerEating:true,customSettingsFirst:true,giftSchemeRemoved:true,transparentBrowserSource:true,sourceSync:true,themes:true,giftPanels:['feeding','overtime','noodle'],giftEvents:true,chatEvents:true,errors};
+}).catch(async error=>{process.exitCode=1;let ui;try{ui=await win.webContents.executeJavaScript(`({hash:location.hash,mode:document.querySelector('#feeding-mode').textContent,button:document.querySelector('#feeding-start').outerHTML,toast:document.querySelector('#toast').textContent,visible:!document.querySelector('#feeding-view').hidden,onclick:String(document.querySelector('#feeding-start').onclick)})`);await fs.writeFile(path.join(root,'artifacts',tag+'-error.png'),(await win.webContents.capturePage()).toPNG());}catch{}output={error:error.stack,errors,ui,operations};}).finally(async()=>{
+  await fs.writeFile(path.join(root,'artifacts',tag+'-desktop.json'),JSON.stringify(output,null,2));for(const win of windows)if(!win.isDestroyed())win.destroy();await runtime?.close();if(dir){assert.ok(path.resolve(dir).startsWith(path.resolve(root,'work')+path.sep+'feeding-desktop-'));await fs.rm(dir,{recursive:true,force:true});}app.exit(process.exitCode||0);
+});

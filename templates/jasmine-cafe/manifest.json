@@ -1,0 +1,137 @@
+{
+  "format": "xiaoluobo-template",
+  "schema": 1,
+  "name": "茉莉咖啡厅",
+  "version": "1.0.2",
+  "workflow": "jasmine-latte",
+  "dish_name": "茉莉花拿铁",
+  "cook_seconds": 2,
+  "sign": {
+    "top": "",
+    "title": "",
+    "bottom": ""
+  },
+  "layout": {
+    "modules": {
+      "background": {
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "visible": true
+      },
+      "counter": {
+        "x": 169,
+        "y": 200,
+        "scale": 0.72,
+        "visible": true
+      },
+      "customers": {
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "visible": true
+      }
+    },
+    "stations": {
+      "noodles": {
+        "side": "left",
+        "x": 944,
+        "y": 4,
+        "scale": 1.25,
+        "locked": true
+      },
+      "sauce": {
+        "side": "right",
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "locked": true
+      },
+      "bowl": {
+        "side": "right",
+        "x": -1058,
+        "y": 27,
+        "scale": 0.85,
+        "locked": true
+      }
+    },
+    "props": {
+      "fridge": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "trash": {
+        "x": -12,
+        "y": 252,
+        "scale": 0.85
+      },
+      "cash": {
+        "x": -780,
+        "y": -48,
+        "scale": 0.9
+      },
+      "tray": {
+        "x": 25,
+        "y": 0,
+        "scale": 1
+      },
+      "dough": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "scallions": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "cilantro": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "rating": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "jasmine": {
+        "x": -701,
+        "y": 1,
+        "scale": 1.1
+      },
+      "milk": {
+        "x": -979,
+        "y": -16,
+        "scale": 1.05
+      }
+    },
+    "trash": {
+      "side": "right"
+    }
+  },
+  "assets": {
+    "background": "assets/background.png",
+    "counter": "assets/counter.png",
+    "tray": "assets/tray.png",
+    "trash": "assets/trash.png",
+    "cash": "assets/cash.png",
+    "bowl_stack": "assets/bowl_stack.png",
+    "coffee_machine": "assets/coffee_machine.png",
+    "jasmine": "assets/jasmine.png",
+    "portion_jasmine": "assets/portion_jasmine.png",
+    "milk": "assets/milk.png",
+    "cup_empty": "assets/cup_empty.png",
+    "cup_coffee": "assets/cup_coffee.png",
+    "cup_jasmine": "assets/cup_jasmine.png",
+    "cup_latte": "assets/cup_latte.png",
+    "cup_milk": "assets/cup_milk.png",
+    "cup_coffee_milk": "assets/cup_coffee_milk.png",
+    "evil_bowl": "assets/evil_bowl.png",
+    "egg": "assets/egg.png",
+    "leaf": "assets/leaf.png",
+    "egg_splat": "assets/egg_splat.png",
+    "bowl": "assets/cup_latte.png"
+  }
+}

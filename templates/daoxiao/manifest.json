@@ -1,0 +1,109 @@
+{
+  "format": "xiaoluobo-template",
+  "schema": 1,
+  "name": "刀削面馆",
+  "version": "1.0.1",
+  "workflow": "knife-noodles",
+  "dish_name": "刀削面",
+  "cook_seconds": 5,
+  "sign": {
+    "top": "",
+    "title": "刀削面馆",
+    "bottom": ""
+  },
+  "layout": {
+    "modules": {
+      "background": {
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "visible": true
+      },
+      "counter": {
+        "x": 210,
+        "y": 240,
+        "scale": 0.67,
+        "visible": true
+      },
+      "customers": {
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "visible": true
+      }
+    },
+    "stations": {
+      "noodles": {
+        "side": "left",
+        "x": 110,
+        "y": 45,
+        "scale": 0.85,
+        "locked": true
+      },
+      "sauce": {
+        "side": "right",
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "locked": true
+      },
+      "bowl": {
+        "side": "right",
+        "x": -100,
+        "y": -60,
+        "scale": 0.95,
+        "locked": true
+      }
+    },
+    "props": {
+      "fridge": {
+        "x": -150,
+        "y": 130,
+        "scale": 1.25
+      },
+      "trash": {
+        "x": 0,
+        "y": 110,
+        "scale": 1
+      },
+      "cash": {
+        "x": 125,
+        "y": -28,
+        "scale": 1
+      },
+      "tray": {
+        "x": 0,
+        "y": 8,
+        "scale": 0.86
+      },
+      "dough": {
+        "x": 694,
+        "y": 95,
+        "scale": 0.8
+      },
+      "scallions": {
+        "x": -145,
+        "y": 7,
+        "scale": 1
+      },
+      "cilantro": {
+        "x": -145,
+        "y": 7,
+        "scale": 1
+      }
+    },
+    "trash": {
+      "side": "right"
+    }
+  },
+  "assets": {
+    "background": "assets/background.png",
+    "dough": "assets/dough.png",
+    "pot": "assets/pot.png",
+    "pot_empty": "assets/pot_empty.png",
+    "raw": "assets/raw.png",
+    "bowl": "assets/bowl.png",
+    "scallions": "assets/scallions.png",
+    "cilantro": "assets/cilantro.png"
+  }
+}

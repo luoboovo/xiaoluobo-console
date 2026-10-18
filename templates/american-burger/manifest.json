@@ -1,0 +1,199 @@
+{
+  "format": "xiaoluobo-template",
+  "schema": 1,
+  "name": "美式汉堡店",
+  "version": "1.0.3",
+  "workflow": "burger",
+  "dish_name": "美式汉堡",
+  "cook_seconds": 4,
+  "sign": {
+    "top": "",
+    "title": "美式汉堡店",
+    "bottom": ""
+  },
+  "layout": {
+    "modules": {
+      "background": {
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "visible": true
+      },
+      "counter": {
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "visible": true
+      },
+      "customers": {
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "visible": true
+      }
+    },
+    "stations": {
+      "noodles": {
+        "side": "left",
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "locked": true
+      },
+      "sauce": {
+        "side": "right",
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "locked": true
+      },
+      "bowl": {
+        "side": "right",
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "locked": true
+      }
+    },
+    "props": {
+      "fridge": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "trash": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "cash": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "tray": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "dough": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "scallions": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "cilantro": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "rating": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "jasmine": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "milk": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "bun_lid": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "chef": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "stats": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "gift_rule": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "thief_board": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "sign_top": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "sign_title": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "sign_bottom": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "cash_text": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "ketchup": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "salad": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      },
+      "mayo": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      }
+    },
+    "trash": {
+      "side": "right"
+    }
+  },
+  "assets": {
+    "background": "assets/background.png",
+    "counter": "assets/counter-v2.png",
+    "griddle": "assets/griddle.png",
+    "oven": "assets/oven.png",
+    "bun_raw": "assets/bun_raw.png",
+    "bun_bottom": "assets/bun_bottom.png",
+    "bun_top": "assets/bun_top.png",
+    "patty_raw": "assets/patty_raw.png",
+    "patty_cooked": "assets/patty_cooked.png",
+    "tomato": "assets/tomato.png",
+    "lettuce": "assets/lettuce.png",
+    "cheese": "assets/cheese.png",
+    "mustard": "assets/mustard.png",
+    "mustard_layer": "assets/mustard_layer.png",
+    "tray": "assets/tray.png",
+    "bowl": "assets/burger.png",
+    "dirty_burger": "assets/dirty_burger.png",
+    "cockroach_burger": "assets/cockroach_burger.png",
+    "cockroach": "assets/cockroach.png",
+    "cockroach_walk": "assets/cockroach_walk.png",
+    "ketchup": "assets/ketchup.png",
+    "salad": "assets/salad.png",
+    "mayo": "assets/mayo.png"
+  }
+}
