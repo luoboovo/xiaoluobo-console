@@ -14,6 +14,7 @@ const { HimeIntegration } = require('./lib/hime.cjs');
 const { uploadMedia, serveMedia } = require('./lib/overtime-media.cjs');
 const { createPlatformGames } = require('./lib/platform-games.cjs');
 const { uploadAsset,serveAsset } = require('./lib/feeding-assets.cjs');
+const { pruneAssets,assetNames } = require('./lib/asset-cleanup.cjs');
 const { generatePanel } = require('./lib/game-panels.cjs');
 const { WebSocketServer } = require('ws');
 const {MODES:LOTTERY_MODES}=require('./lib/lottery.cjs');
@@ -44,6 +45,14 @@ async function startServer(options = {}) {
   let actions = Promise.resolve(), giftBatch, pendingGifts=0, liveStamp='';
   // Every state-changing operation runs in order; a failed step never blocks the next one.
   const enqueue = work => { const run = actions.then(work); actions = run.catch(() => {}); return run; };
+  // 上传素材只增不减会占满系统盘；启动时和改完设置后，清理已不在任何规则里的素材。
+  let pruneTimer,pruning=Promise.resolve();
+  const prune=()=>{pruning=pruning.then(async()=>{for(const game of Object.values(games)){
+    const result=await pruneAssets(game.dir,assetNames(game.overtime.state,game.feeding.state)).catch(error=>{diagnostics?.log('warn','assets.prune_failed',{error});return {removed:0};});
+    if(result.removed)diagnostics?.log('info','assets.pruned',{dir:path.basename(game.dir),...result});
+  }});return pruning;};
+  const schedulePrune=()=>{clearTimeout(pruneTimer);pruneTimer=setTimeout(prune,30000);pruneTimer.unref();};
+  prune();
   const avatars = createAvatarCache(services);
   const clients = new Set();
   const write = (res, frame) => {
@@ -232,11 +241,11 @@ async function startServer(options = {}) {
     '/api/login/qr': async () => ({ image: await QRCode.toDataURL(await services.loginQr(), { width: 256, margin: 2, color: { dark: '#243d54', light: '#ffffff' } }) }),
     '/api/login/poll': () => services.loginPoll(),
     '/api/feeding/motion': input => ({ok:true,accepted:feeding.motion(input)}),
-    '/api/feeding/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>feeding.action(input)))}),
+    '/api/feeding/action': async (input,scoped) => {const state=await enqueue(scoped(()=>feeding.action(input)));schedulePrune();return {ok:true,state};},
     '/api/lottery/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>lotteryFor(input.game).action(input)))}),
     '/api/number-bomb/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>numberBomb.action(input)))}),
     '/api/panels/generate': async (input,scoped) => ({ok:true,panel:await enqueue(scoped(()=>generatePanel(input.game,{noodle,overtime,feeding})))}),
-    '/api/overtime/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>overtime.action(input)))}),
+    '/api/overtime/action': async (input,scoped) => {const state=await enqueue(scoped(()=>overtime.action(input)));schedulePrune();return {ok:true,state};},
     '/api/noodle/motion': input => ({ok:true,accepted:noodle.motion(input)}),
     '/api/noodle/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>noodle.action(input)))}),
     '/api/templates/import': async (input,scoped) => ({ok:true,...await enqueue(scoped(()=>noodle.installTemplate(input)))}),
@@ -419,7 +428,7 @@ async function startServer(options = {}) {
   }, 15000);
   const close = async () => {
     for (const timer of [lotteryTimer, physicsTimer, keepAlive, sealTimer, cleanupTimer, overtimeTimer, checkpointTimer]) clearInterval(timer);
-    services.close(); await actions;
+    clearTimeout(pruneTimer); services.close(); await actions; await pruning;
     for(const game of Object.values(games)){game.overtime.close();await game.overtime.checkpoint();await game.feeding.close();await game.numberBomb.close();for(const target of Object.values(game.lottery))await target.close();}
     await services.flush();
     mediaListeners.clear();clearTimeout(broadcastTimer);clearTimeout(peopleTimer); pendingStates.clear(); pendingMessages.length = 0; avatars.clear();
