@@ -89,6 +89,40 @@ test('直播突发送礼分批结算并完整保存，单批数量有界，画�
   assert.equal(JSON.parse(await fs.readFile(app.overtime.file,'utf8')).remaining,'63600');
 });
 
+test('带头像的礼物与弹幕、进场交错到达时仍合并成批，抽奖头像按到达顺序更新', async t => {
+  const {dir} = await fixture(t);
+  const app = await startServer({dataDir:dir,seedDir:path.join(dir,'seed')});
+  t.after(() => app.close());
+  app.overtime.clock = () => 0;
+  await app.overtime.action({action:'start'});
+  app.noodle.mode = 'running'; app.noodle.config.gift_id = 90001; app.noodle.config.water_gift = null;
+  await app.lottery.wheel.action({action:'enroll',open:true});
+  const batchSizes = [];
+  const receiveBatch = app.overtime.receiveBatch.bind(app.overtime);
+  app.overtime.receiveBatch = events => { batchSizes.push(events.length); return receiveBatch(events); };
+  const face = name => `https://i0.hdslb.com/bfs/face/${name}.jpg`;
+  // uid 7 joins first, then sends a gift with a newer avatar; uid 8 sends an avatar before joining without one.
+  app.services.addEvent('chat','七号','参加',{uid:7,face:face('seven-old')});
+  app.services.addGift({...gift(90001,'face-7'),uid:7,user:'七号',face:face('seven-new')});
+  app.services.addGift({...gift(90001,'face-8'),uid:8,user:'八号',face:face('eight')});
+  app.services.addEvent('chat','八号','参加',{uid:8});
+  for (let i = 0; i < 600; i++) {
+    const uid = 100 + i % 50;
+    app.services.addGift({...gift(90001,'mixed-' + i),uid,user:'观众' + uid,face:face('v' + uid)});
+    if (i % 3 === 0) app.services.addEvent('chat','观众' + uid,'冲冲冲',{uid,face:face('v' + uid)});
+    if (i % 5 === 0) app.services.addEvent('member','新观众' + i,'进入了直播间',{uid:5000 + i,face:face('m' + i)});
+  }
+  const response = await fetch(app.url + '/api/overtime/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'pause'})});
+  assert.equal(response.status,200);
+  assert.equal(batchSizes.reduce((sum,n)=>sum+n,0),602);
+  assert.ok(batchSizes.length <= 10, `602份礼物拆成了${batchSizes.length}批`);
+  assert.equal(app.overtime.remaining(),(60n + 602n) * 60n);
+  assert.equal(app.noodle.queue.length,602);
+  const players = app.lottery.wheel.state.players;
+  assert.equal(players.find(p => p.id === 'uid:7').face,face('seven-new'));
+  assert.equal(players.find(p => p.id === 'uid:8').face,face('eight'));
+});
+
 test('批量素材按礼物顺序和数量排队，失败保存不提前播放', async t => {
   const {dir,machine} = await fixture(t);
   const first = {asset:'a'.repeat(64)+'.png',name:'a.png',kind:'image',duration:120};
@@ -109,6 +143,57 @@ test('批量素材按礼物顺序和数量排队，失败保存不提前播放',
   assert.equal(machine.mediaCue.asset,first.asset);
   assert.deepEqual(machine.mediaQueue.map(item => [item.media.asset,item.count]),[[first.asset,999n],[second.asset,2n],[first.asset,3n]]);
   assert.equal(machine.state.people[0].added,'60180');
+});
+
+test('同一批多位观众重复送礼累计正确，保存失败不改动原观众列表', async t => {
+  const {dir,machine} = await fixture(t);
+  t.after(() => machine.close());
+  const viewer = (uid, id) => ({...gift(90001,id),uid,user:'观众'+uid,face:`https://i0.hdslb.com/${uid}.png`});
+  await machine.receiveBatch([viewer(1,'a'),viewer(2,'b')]);
+  const before = structuredClone(machine.state.people), list = machine.state.people;
+  const events = [viewer(2,'c'),viewer(3,'d'),viewer(2,'e'),viewer(1,'f'),viewer(3,'g'),viewer(3,'g')];
+  const file = machine.file;
+  machine.file = path.join(dir,'blocked'); await fs.mkdir(machine.file);
+  await assert.rejects(machine.receiveBatch(events));
+  assert.equal(machine.state.people,list); assert.deepEqual(machine.state.people,before);
+  machine.file = file;
+  await machine.receiveBatch(events);
+  assert.deepEqual(machine.state.people.map(p => [p.uid,p.added]),[[1,'120'],[2,'180'],[3,'120']]);
+  assert.deepEqual(machine.state.history.map(r => r.uid),[3,1,2,3,2,2,1]);
+  assert.equal(machine.state.history[1].face,'https://i0.hdslb.com/1.png');
+  assert.deepEqual(before.map(p => [p.uid,p.added]),[[1,'60'],[2,'60']]);
+});
+
+test('加班机浮窗不接收观众列表，控制台观众列表每秒最多一次且最终一致', async t => {
+  const {dir} = await fixture(t);
+  const app = await startServer({dataDir:dir,seedDir:path.join(dir,'seed')});
+  const {WebSocket} = require('ws'), sockets = [];
+  t.after(async () => { for (const ws of sockets) ws.terminate(); await app.close(); });
+  app.overtime.clock = () => 0;
+  await app.overtime.action({action:'start'});
+  app.overtime.state.people = Array.from({length:1000},(_,i)=>({key:'uid:'+(9000+i),uid:9000+i,user:'老观众'+i,simulated:false,face:'',added:'60',reduced:'0'}));
+  const connect = async query => {
+    const frames = [], ws = new WebSocket(app.url.replace('http','ws')+'/api/events/socket?'+query,{headers:{Origin:app.url}});
+    ws.on('message',data => { const text = String(data); for (const part of text.split('\n\n')) if (part.startsWith('event: overtime\n')) frames.push({at:Date.now(),data:JSON.parse(part.slice(part.indexOf('data: ')+6))}); });
+    await new Promise((resolve,reject) => { ws.once('open',resolve); ws.once('error',reject); }); sockets.push(ws); return frames;
+  };
+  const overlay = await connect('overtime=1'), consoleFrames = await connect('console=1');
+  await new Promise(resolve => setTimeout(resolve,150));
+  assert.equal(consoleFrames[0].data.people.length,1000);
+  for (let wave = 0; wave < 6; wave++) {
+    for (let i = 0; i < 20; i++) app.services.addGift({...gift(90001,`wave-${wave}-${i}`),uid:wave*100+i+1,user:'新观众'});
+    await new Promise(resolve => setTimeout(resolve,150));
+  }
+  await new Promise(resolve => setTimeout(resolve,1300));
+  assert.ok(overlay.length > 1);
+  for (const frame of overlay) { assert.equal(frame.data.people,undefined); assert.equal(frame.data.history,undefined); assert.ok(frame.data.config.gift_rules.length); }
+  assert.equal(overlay.at(-1).data.remaining,String((60n+120n)*60n));
+  const withPeople = consoleFrames.slice(1).filter(frame => frame.data.people);
+  assert.ok(withPeople.length >= 1 && withPeople.length <= 3, `观众列表推送了${withPeople.length}次`);
+  for (let i = 1; i < withPeople.length; i++) assert.ok(withPeople[i].at - withPeople[i-1].at >= 900);
+  assert.equal(withPeople.at(-1).data.people.length,1120);
+  assert.equal(consoleFrames.at(-1).data.remaining,String((60n+120n)*60n));
+  assert.ok(consoleFrames.at(-1).data.history.length > 0);
 });
 
 test('去重保留有效交易、清除过期交易并限制记录数量，未匹配礼物不改状态', async t => {

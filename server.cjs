@@ -59,6 +59,29 @@ async function startServer(options = {}) {
     const frame=frameOf(type, data);
     for (const client of clients) if (accepts(client, type, data)) write(client,frame);
   };
+  // Overtime frames carry every viewer (about 1 MB for 5,000 viewers). Overlays never read the viewer list or
+  // history, and the console's statistics refresh at most once a second, so a gift burst no longer pushes and
+  // re-parses that list ten times a second in every window.
+  const OVERTIME_PEOPLE_MS = 1000;
+  let peopleSent = null, peopleSentAt = 0, peopleTimer = null;
+  const overlayOvertime = state => ({...state, people:undefined, history:undefined});
+  const deliverOvertime = state => {
+    if (!clients.size) return;
+    let overlay, consoleFrame, consoleHasPeople = false;
+    for (const client of clients) {
+      if (!accepts(client, 'overtime', state)) continue;
+      if (client.channel) { write(client, overlay ??= frameOf('overtime', overlayOvertime(state))); continue; }
+      if (!consoleFrame) {
+        const now = Date.now(), changed = state.people !== peopleSent;
+        consoleHasPeople = changed && (state.people.length <= 200 || now - peopleSentAt >= OVERTIME_PEOPLE_MS);
+        if (consoleHasPeople) { peopleSent = state.people; peopleSentAt = now; }
+        else if (changed && !peopleTimer) peopleTimer = setTimeout(() => { peopleTimer = null; broadcast('overtime'); }, OVERTIME_PEOPLE_MS - (now - peopleSentAt));
+        // A frame without `people` keeps the list the console already has.
+        consoleFrame = frameOf('overtime', consoleHasPeople ? state : {...state, people:undefined});
+      }
+      write(client, consoleFrame);
+    }
+  };
   const pendingStates = new Map(), pendingMessages = [];
   let broadcastTimer;
   const broadcast = (type, data) => {
@@ -71,7 +94,7 @@ async function startServer(options = {}) {
     if (broadcastTimer) return;
     broadcastTimer = setTimeout(() => {
       broadcastTimer = null;
-      for (const [key, latest] of pendingStates){const kind=key.split(':')[0];deliver(kind, kind === 'noodle' ? noodle.snapshot() : kind === 'overtime' ? overtime.snapshot() : kind === 'feeding' ? feeding.snapshot() : latest);}
+      for (const [key, latest] of pendingStates){const kind=key.split(':')[0];if(kind==='overtime'){deliverOvertime(overtime.snapshot());continue;}deliver(kind, kind === 'noodle' ? noodle.snapshot() : kind === 'feeding' ? feeding.snapshot() : latest);}
       pendingStates.clear();
       if (pendingMessages.length) {
         const frame = pendingMessages.map(event => frameOf('message', event)).join('');
@@ -91,53 +114,59 @@ async function startServer(options = {}) {
   services.on('event', event => {
     if(event.type==='system')diagnostics?.log('warn','system.message',{message:event.text,platform:services.platform});
     if (event.uid && event.face) noodle.rememberFace(event);
-    if(event.face){
-      const targets=[...Object.values(lottery),numberBomb];
-      actions=actions.then(async()=>{for(const target of targets)await target.rememberFace(event);}).catch(error=>services.addEvent('system','',`游戏头像：${error.message}`));
+    const chat=event.type==='chat';
+    if (event.type !== 'gift' && !event.face && !chat) { broadcast('message', event); return; }
+    if (event.type === 'gift') pendingGifts++;
+    // Gifts, chat and avatar updates share one ordered batch. Queuing avatars and chat as separate steps
+    // split a busy room's gifts into one batch (and one full save) per gift. Manual actions still close the batch.
+    if (!giftBatch || giftBatch.tail !== actions || giftBatch.events.length >= 128) {
+      const batch = {events:[],gifts:0,noodle,overtime,feeding,numberBomb,lotteries:Object.values(lottery)};
+      const receive = actions.then(async () => {
+        const started=performance.now();
+        diagnostics?.context({operation:'gift.batch',batchSize:batch.gifts,pendingGifts});
+        try {
+        if (giftBatch === batch) giftBatch = null;
+        const faceTargets=[...batch.lotteries,batch.numberBomb];
+        // Number bomb and lottery never take gifts, so they replay avatars and chat in arrival order.
+        for(const {event,face} of batch.events){
+          if(event.face)for(const target of faceTargets)await target.rememberFace(event).catch(error=>services.addEvent('system','',`游戏头像：${error.message}`));
+          if(event.type!=='chat')continue;
+          await Promise.resolve().then(()=>batch.numberBomb.receiveChat({...event,face})).catch(error=>services.addEvent('system','',`数字炸弹：${error.message}`));
+          await Promise.resolve().then(async()=>{for(const target of batch.lotteries)await target.receiveChat({...event,face});}).catch(error=>services.addEvent('system','',`抽奖：${error.message}`));
+        }
+        const events = batch.events.filter(item=>item.event.type==='gift').map(({event:gift}) => ({...gift,face:batch.noodle.faces.get(gift.uid) || gift.face}));
+        const overtimeError = error => services.addEvent('system', '', `加班机：${error.message}`);
+        if(events.length)await batch.overtime.receiveBatch(events,overtimeError).catch(overtimeError);
+        // Feeding counts both gifts and chat, so only a chat that changes feeding splits its gift run.
+        const feedingError=error=>services.addEvent('system','',`吃吃吃：${error.message}`);
+        let run=[],index=0;
+        for(const {event} of batch.events){
+          if(event.type==='gift'){run.push(events[index++]);continue;}
+          if(event.type!=='chat'||!batch.feeding.chatRules(event).length)continue;
+          if(run.length){await batch.feeding.receiveBatch(run).catch(feedingError);run=[];}
+          await Promise.resolve().then(()=>batch.feeding.receiveChat(event)).catch(feedingError);
+        }
+        if(run.length)await batch.feeding.receiveBatch(run).catch(feedingError);
+        // Re-read avatars here: newer ones may arrive while the earlier stages save.
+        for (const gift of events) await batch.noodle.receive({...gift,face:batch.noodle.faces.get(gift.uid) || gift.face},false).catch(error => services.addEvent('system','',error.message));
+        await new Promise(resolve => setImmediate(resolve));
+        } finally {
+          pendingGifts-=batch.gifts;
+          const elapsedMs=Math.round(performance.now()-started);
+          if(elapsedMs>=1000)diagnostics?.log('warn','gift.slow_batch',{elapsedMs,count:batch.gifts,pendingGifts});
+          diagnostics?.context({operation:null,pendingGifts});
+        }
+      });
+      actions = receive.catch(error => services.emit('event', { type: 'system', text: error.message, time: Date.now() }));
+      batch.tail = actions; giftBatch = batch;
     }
-    if (event.type === 'gift') {
-      pendingGifts++;
-      // A manual action breaks the batch so gifts cannot cross a reset, save or platform switch.
-      if (!giftBatch || giftBatch.tail !== actions || giftBatch.events.length >= 128) {
-        const batch = {events:[],noodle,overtime,feeding};
-        const receive = actions.then(async () => {
-          const started=performance.now();
-          diagnostics?.context({operation:'gift.batch',batchSize:batch.events.length,pendingGifts});
-          try {
-          if (giftBatch === batch) giftBatch = null;
-          const events = batch.events.map(gift => ({...gift,face:batch.noodle.faces.get(gift.uid) || gift.face}));
-          const overtimeError = error => services.addEvent('system', '', `加班机：${error.message}`);
-          await batch.overtime.receiveBatch(events,overtimeError).catch(overtimeError);
-          await batch.feeding.receiveBatch(events).catch(error=>services.addEvent('system','',`吃吃吃：${error.message}`));
-          for (const gift of events) await batch.noodle.receive({...gift,face:batch.noodle.faces.get(gift.uid) || gift.face},false).catch(error => services.addEvent('system','',error.message));
-          await new Promise(resolve => setImmediate(resolve));
-          } finally {
-            pendingGifts-=batch.events.length;
-            const elapsedMs=Math.round(performance.now()-started);
-            if(elapsedMs>=1000)diagnostics?.log('warn','gift.slow_batch',{elapsedMs,count:batch.events.length,pendingGifts});
-            diagnostics?.context({operation:null,pendingGifts});
-          }
-        });
-        actions = receive.catch(error => services.emit('event', { type: 'system', text: error.message, time: Date.now() }));
-        batch.tail = actions; giftBatch = batch;
-      }
-      giftBatch.events.push(event);
-    }
-    if(event.type==='chat'){
-      const bomb=numberBomb;
-      const bombFace=safeFace(event.face)||noodle.faces.get(event.uid)||noodle.faces.get(String(event.uid))||'';
-      actions=actions.then(()=>bomb.receiveChat({...event,face:bombFace})).catch(error=>services.addEvent('system','',`数字炸弹：${error.message}`));
-      const targets=Object.values(lottery);
-      const face=safeFace(event.face)||noodle.faces.get(event.uid)||noodle.faces.get(String(event.uid))||'';
-      actions=actions.then(async()=>{for(const target of targets)await target.receiveChat({...event,face});}).catch(error=>services.addEvent('system','',`抽奖：${error.message}`));
-      const target=feeding;
-      actions=actions.then(()=>target.receiveChat(event)).catch(error=>services.addEvent('system','',`吃吃吃：${error.message}`));
-    }
+    giftBatch.events.push({event,face:chat?safeFace(event.face)||noodle.faces.get(event.uid)||noodle.faces.get(String(event.uid))||'':''});
+    if (event.type === 'gift') giftBatch.gifts++;
     broadcast('message', event);
   });
   for(const [platform,game]of Object.entries(games)){
     const current=listener=>(...args)=>{if(services.platform===platform)listener(...args);};
-    game.noodle.on('state',current(state=>broadcast('noodle',state)));
+    game.noodle.on('change',current(()=>broadcast('noodle')));
     game.noodle.on('motion',current(motion=>broadcast('noodle-motion',motion)));
     game.feeding.on('state',current(state=>broadcast('feeding',state)));
     game.numberBomb.on('state',current(state=>broadcast('number-bomb',state)));
@@ -157,7 +186,7 @@ async function startServer(options = {}) {
       if(!LOTTERY_MODES.includes(key)){client.destroy();clients.delete(client);return;}
       client.lotteryGame=key;return send(client,'lottery',lottery[key].snapshot());
     }
-    if(client.channel==='overtime')return send(client,'overtime',overtime.snapshot());
+    if(client.channel==='overtime')return send(client,'overtime',overlayOvertime(overtime.snapshot()));
     const scene=client.channel==='scene';
     if(!scene)send(client,'state',services.state);
     send(client,'noodle',noodle.snapshot());
@@ -191,7 +220,7 @@ async function startServer(options = {}) {
         await numberBomb.deactivate();
         await services.selectPlatform(input.platform);
         ({noodle,overtime,feeding,lottery,numberBomb}=games[input.platform]);
-        pendingStates.clear();pendingMessages.length=0;avatars.clear();
+        pendingStates.clear();pendingMessages.length=0;avatars.clear();peopleSent=null;
         broadcast('state',services.state);broadcast('noodle',noodle.snapshot());broadcast('overtime',overtime.snapshot());broadcast('overtime-media',null);
         broadcast('feeding',feeding.snapshot());
         broadcast('number-bomb',numberBomb.snapshot());
@@ -393,7 +422,7 @@ async function startServer(options = {}) {
     services.close(); await actions;
     for(const game of Object.values(games)){game.overtime.close();await game.overtime.checkpoint();await game.feeding.close();await game.numberBomb.close();for(const target of Object.values(game.lottery))await target.close();}
     await services.flush();
-    mediaListeners.clear();clearTimeout(broadcastTimer); pendingStates.clear(); pendingMessages.length = 0; avatars.clear();
+    mediaListeners.clear();clearTimeout(broadcastTimer);clearTimeout(peopleTimer); pendingStates.clear(); pendingMessages.length = 0; avatars.clear();
     for (const client of clients) client.end();
     const stopped = new Promise(resolve => server.close(resolve)); server.closeAllConnections(); await stopped;
     await images.close();

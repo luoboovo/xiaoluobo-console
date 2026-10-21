@@ -288,7 +288,8 @@ $('#overtime-import-file').addEventListener('change', async event => {
   try { if (file.size > 100000) throw new Error('配置文件过大'); const data = JSON.parse(await file.text()); await action({ action:'import', config:data.config || data }); timeDirty = rulesDirty = false; timeStamp = rulesStamp = ''; render(machine); toast('加班机配置已导入，当前时间和统计保留'); } catch (error) { toast(error.message,true); } finally { event.target.value = ''; }
 });
 window.addEventListener('gifts-loaded', () => { Array.from(ruleList.children).forEach(giftButton); panelList.querySelectorAll('.panel-entry').forEach(giftButton); });
-window.addEventListener('overtime-state', event => render(event.detail));
+// During gift bursts the server sends the viewer list at most once a second; frames without it keep the current list.
+window.addEventListener('overtime-state', event => { const next = event.detail; if (!Object.hasOwn(next,'people')) next.people = machine?.people || []; render(next); });
 window.addEventListener('generated-gift-panel',async()=>{try{const next=await api('/api/overtime/state');if(panelsDirty){const drafts=panelDrafts(),existing=new Set(drafts.map(p=>p.id));machine=next;machine.config.gift_panels=[...drafts,...next.config.gift_panels.filter(p=>!existing.has(p.id))];panelsDirty=false;panelsStamp='';renderPanels();panelsDirty=true;panelList.querySelectorAll('.panel-save-note').forEach(note=>note.hidden=false);}else{panelsStamp='';render(next);}}catch(e){toast(e.message,true);}});
 window.addEventListener('before-generate-panel',event=>{if(event.detail==='overtime'&&rulesDirty){event.preventDefault();toast('请先保存礼物规则，再生成礼物面板',true);}});
 window.addEventListener('overtime-clock', event => clock(event.detail));

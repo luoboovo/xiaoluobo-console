@@ -137,7 +137,8 @@ test('服务整合：真实新旧礼物共用直播连接，事件同步、跨�
     assert.match(new TextDecoder().decode((await reader.read()).value),/event: overtime/);
     runtime.services.liveMessage({cmd:'SEND_GIFT',data:{uname:'直播观众',uid:123,giftId:1,giftName:'加班花',num:2,tid:'live-1'}});
     const update = new TextDecoder().decode((await reader.read()).value);
-    assert.match(update,/直播观众/); controller.abort();
+    // Overlays get the new time without the viewer list; the console and state API still carry viewers.
+    assert.match(update,/"remaining":"7200"/); assert.doesNotMatch(update,/直播观众|"people"|"history"/); controller.abort();
     const state = await (await fetch(runtime.url+'/api/overtime/state')).json(); assert.equal(state.people[0].uid,123); assert.equal(state.people[0].added,'3600');
     for (const page of ['/overtime/','/overtime/shared.js','/overtime/overlay.js','/overtime/overlay.css','/overtime/radish.svg','/overtime-console.js','/overtime-console.css']) assert.equal((await fetch(runtime.url+page)).status,200,page);
     assert.equal((await fetch(runtime.url+'/api/overtime/export')).status,200);

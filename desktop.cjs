@@ -57,9 +57,18 @@ else {
     const mediaBoundsPath = path.join(dataDir,'overtime-media-window.json');
     let mediaBounds = await loadBounds(mediaBoundsPath);
     const quitIfOnlyMedia = () => { if (BrowserWindow.getAllWindows().every(win => win === mediaWindow)) app.quit(); };
+    // A hidden media window keeps its renderer and last image or video decoded; release it after a minute without media.
+    let mediaIdleTimer;
     const showMedia = cue => {
       if (closing) return;
-      if (!cue) { mediaWindow?.hide(); return; }
+      clearTimeout(mediaIdleTimer);
+      if (!cue) {
+        if (!mediaWindow || mediaWindow.isDestroyed()) return;
+        mediaWindow.hide();
+        const idle = mediaWindow;
+        mediaIdleTimer = setTimeout(() => { if (!closing && idle === mediaWindow && !idle.isDestroyed() && !idle.isVisible() && !runtime.overtime.mediaCue) idle.close(); }, Number(process.env.LUOBO_MEDIA_IDLE_MS) || 60000);
+        return;
+      }
       if (mediaWindow && !mediaWindow.isDestroyed()) { mediaWindow.showInactive(); return; }
       mediaSize = {width:mediaBounds.width || 640,height:mediaBounds.height || 360};
       const workArea = screen.getPrimaryDisplay().workArea;
