@@ -11,7 +11,7 @@ const PNG_LIMITS = [
   [/^noodle\/assets\/(?:bowl-area|shop-seal|counter)\.png$/, Infinity],
   [/^noodle\/assets\/payment-coin\.png$/, 512],
   [/^noodle\/assets\//, 1024],
-  [/^app-icon\.png$/, 512]
+  [/^app-icon\.png$/, 128]
 ];
 const pngLimit = name => PNG_LIMITS.find(([pattern]) => pattern.test(name.replaceAll(path.sep, '/')))?.[1] ?? Infinity;
 const root = path.join(__dirname, '..');

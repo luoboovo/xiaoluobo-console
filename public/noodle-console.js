@@ -3,7 +3,7 @@ import { state, gifts, currentGift, switchView } from './app.js';
 let shop, draft, draftSign, editing = false, selected = 'counter', selectedItem = '', saving = false;
 const names = { background: '背景', counter: '桌台', customers: '顾客' };
 const itemNames = { fridge: '冰柜', trash: '垃圾桶', cash: '钱匣', noodles: '煮面锅', sauce: '臊子桶', bowl: '碗架', tray: '放碗托盘', dough: '削面板', scallions: '葱花', cilantro: '香菜', rating: '店铺评分 / 五星牌', jasmine:'茉莉花',milk:'牛奶壶' };
-Object.assign(itemNames,{queue_overflow:'剩余排队提示牌',chef:'机械臂 / 手',stats:'排队 / 出餐显示牌',gift_rule:'排队礼物文字',thief_board:'偷钱榜单',sign_top:'招牌上方小字',sign_title:'招牌标题文字',sign_bottom:'招牌下方小字',cash_text:'钱匣金额文字',ketchup:'番茄酱',salad:'沙拉酱',mayo:'蛋黄酱'});
+Object.assign(itemNames,{queue_customers:'排队顾客（整体）',queue_overflow:'剩余排队提示牌',chef:'机械臂 / 手',stats:'排队 / 出餐显示牌',gift_rule:'排队礼物文字',thief_board:'观众轮播榜单',sign_top:'招牌上方小字',sign_title:'招牌标题文字',sign_bottom:'招牌下方小字',cash_text:'钱匣金额文字',ketchup:'番茄酱',salad:'沙拉酱',mayo:'蛋黄酱'});
 const frame = $('#noodle-frame');
 let presetStamp = '', renamingPreset = null, creatingTemplate = null, deletingTemplate = null, deletingPreset = null;
 const post = () => frame.contentWindow.postMessage({ type: 'noodle-builder', enabled: editing, selected, item: selectedItem, layout: draft || shop?.config.layout, sign: draftSign || shop?.config.sign }, location.origin);
@@ -13,7 +13,7 @@ function giftButton(button, rule) {
   button.dataset.binding=stamp;
   button.replaceChildren();
   const gift = rule?.gift_id ? giftById.get(rule.gift_id) : null;
-  if (gift?.icon) { const img = document.createElement('img'); img.src = image(gift); img.alt = ''; button.append(img); }
+  if (gift?.icon) { const img = document.createElement('img'); img.loading='lazy';img.src = image(gift); img.alt = ''; button.append(img); }
   const name = document.createElement('span'); name.className = 'gift-binding-name'; name.textContent = rule?.gift_name || '选择礼物';
   button.append(name); button.title = name.textContent;
 }
@@ -21,6 +21,12 @@ function render(next) {
   const changedPreset = shop?.active_preset !== next.active_preset;
   const changedDuration = changedPreset || shop?.config.raid_seconds !== next.config.raid_seconds;
   shop = next;
+  const queueStamp = JSON.stringify(shop.config.layout.queue);
+  if (changedPreset || $('#customer-queue-form').dataset.saved !== queueStamp) {
+    const queue = shop.config.layout.queue;
+    $('#customer-scale').value = Math.round(queue.scale * 100); $('#customer-rows').value = queue.rows; $('#customer-columns').value = queue.columns;
+    $('#customer-queue-form').dataset.saved = queueStamp; queueFields();
+  }
   if (changedDuration) $('#raid-seconds').value = shop.config.raid_seconds ?? 30;
   if (changedPreset || $('#thief-min').dataset.saved !== String(shop.config.thief_min)) { $('#thief-min').value=shop.config.thief_min; $('#thief-min').dataset.saved=String(shop.config.thief_min); }
   if (changedPreset || $('#thief-max').dataset.saved !== String(shop.config.thief_max)) { $('#thief-max').value=shop.config.thief_max; $('#thief-max').dataset.saved=String(shop.config.thief_max); }
@@ -48,7 +54,7 @@ function render(next) {
   drawSealCountdown();
   const knife = shop.template?.workflow === 'knife-noodles';
   $('#noodle-dish-name').textContent = shop.template?.dish_name || '臊子面';
-  const dishIcon=shop.template?.assets.bowl || '/noodle/assets/bowl-sauce.png';
+  const dishIcon=(shop.template?.assets.bowl || '/noodle/render/bowl-sauce.png').replace('/render/','/thumb/');
   if($('#noodle-dish-icon').getAttribute('src')!==dishIcon)$('#noodle-dish-icon').src=dishIcon;
   $('#use-noodle-gift').textContent = `用于${shop.template?.dish_name || '臊子面'}点单`;
   for (const option of $('#builder-item').options) {
@@ -94,7 +100,7 @@ function render(next) {
     $(`[data-throw-clear="${kind}"]`).hidden = !rule;
     const label=$(`[data-throw-pick="${kind}"]`).closest('.gift-setting').querySelector('.gift-setting-label');
     label.lastChild.textContent=kind==='cockroach'?'蟑螂':cafe?(kind==='leaf'?'臭生菜':'臭鸡蛋'):(kind==='leaf'?'菜叶':'鸡蛋');
-    const image=label.querySelector('img'),src=shop.template?.assets[kind] || '/noodle/assets/'+(kind==='cockroach'?'cockroach':'throw-'+kind)+'.png';if(image.getAttribute('src')!==src)image.src=src;
+    const image=label.querySelector('img'),src=(shop.template?.assets[kind] || '/noodle/render/'+(kind==='cockroach'?'cockroach':'throw-'+kind)+'.png').replace('/render/','/thumb/');if(image.getAttribute('src')!==src)image.src=src;
   }
   fields();
 }
@@ -115,6 +121,7 @@ function fields() {
   $('#cook-seconds').disabled = empty || saving || editing;
   $('#cook-duration-save').disabled = empty || saving || editing;
   for (const id of ['thief-min','thief-max','thief-range-save']) $('#'+id).disabled=empty || saving || editing;
+  for (const id of ['customer-scale','customer-rows','customer-columns','customer-queue-save']) $('#'+id).disabled=empty || saving || editing;
   document.querySelectorAll('[data-shop-test]').forEach(button => { button.disabled=empty || saving || editing; });
   $('#preset-editing-note').hidden = !editing;
   document.querySelectorAll('[data-preset-use],[data-preset-rename],[data-preset-delete],[data-template-create],[data-template-delete]').forEach(button => { button.disabled = saving || editing; });
@@ -125,6 +132,10 @@ function fields() {
   $('#builder-item').value = selectedItem;
   $('#module-visible-label').hidden = !!selectedItem;
   $('#module-visible').checked = draft.modules[selected].visible;
+  $('#board-size-fields').hidden = selectedItem !== 'thief_board';
+  if (selectedItem === 'thief_board') for (const dimension of ['width','height']) {
+    $('#board-'+dimension).value = item[dimension]; $('#board-'+dimension+'-value').textContent = item[dimension]+' px';
+  }
   for (const key of ['x', 'y', 'scale']) {
     const limits = key === 'x' ? [-600,600,-1280,1280] : key === 'y' ? [-360,360,-720,720] : [50,150,25,200];
     $(`#module-${key}`).min = limits[selectedItem ? 2 : 0]; $(`#module-${key}`).max = limits[selectedItem ? 3 : 1];
@@ -137,6 +148,20 @@ function fields() {
 function setEditing(value) {
   editing = value; draft = NoodleLayout.validate(shop.config.layout); draftSign = NoodleSign.validate(shop.config.sign); render(shop); post();
 }
+function queueFields() {
+  $('#customer-scale-value').textContent = $('#customer-scale').value + '%';
+  const rows = Number($('#customer-rows').value), columns = Number($('#customer-columns').value);
+  $('#customer-queue-capacity').textContent = Number.isInteger(rows) && rows >= 1 && rows <= 6 && Number.isInteger(columns) && columns >= 1 && columns <= 40 ? `最多显示 ${rows * columns} 位，超出的顾客继续等待。` : '行数为 1–6，每行人数为 1–40。';
+}
+for (const id of ['customer-scale','customer-rows','customer-columns']) $('#'+id).addEventListener('input', queueFields);
+$('#customer-queue-form').addEventListener('submit', async event => {
+  event.preventDefault(); if (!shop || saving || editing) return;
+  const queue = {rows:Number($('#customer-rows').value),columns:Number($('#customer-columns').value),scale:Number($('#customer-scale').value)/100};
+  saving=true; fields();
+  try { await action('save', {config:{...shop.config,layout:{...shop.config.layout,queue}}}); toast('排队顾客设置已保存'); }
+  catch (error) { toast(error.message,true); }
+  finally { saving=false; fields(); }
+});
 async function action(action, payload = {}) {
   const result = await api('/api/noodle/action', { action, ...payload, ...(action === 'save' && shop.active_preset ? { preset_id: shop.active_preset } : {}) }); render(result.state); return result.state;
 }
@@ -176,8 +201,8 @@ function renderPresets() {
   const stamp = JSON.stringify([shop.active_preset, presets, templates]);
   if (stamp === presetStamp) return;
   presetStamp = stamp;
-  $('#preset-list').innerHTML = presets.length?presets.map(p=>`<article class="preset-card${p.id === shop.active_preset ? ' current' : ''}"><div class="preset-card-top"><img src="${escapeHtml(templates.find(t=>t.id===p.template_id)?.image || '/noodle/assets/bowl.png')}" alt="">${p.id === shop.active_preset ? '<span class="preset-current">当前</span>' : ''}</div><h2>${escapeHtml(p.name)}</h2><p>${escapeHtml(templates.find(t=>t.id===p.template_id)?.dish_name || '臊子面')} · 独立礼物与布局</p><div class="preset-card-actions"><button class="button ${p.id === shop.active_preset ? 'dark-button' : 'white-button'}" data-preset-use="${escapeHtml(p.id)}">${templates.find(t=>t.id===p.template_id)?.workflow==='burger'?(p.id===shop.active_preset?'进入汉堡店':'使用汉堡店'):templates.find(t=>t.id===p.template_id)?.workflow==='stir-fry'?(p.id===shop.active_preset?'进入香锅店':'使用香锅店'):templates.find(t=>t.id===p.template_id)?.workflow==='jasmine-latte'?(p.id===shop.active_preset?'进入咖啡厅':'使用咖啡厅'):(p.id===shop.active_preset?'进入面馆':'使用面馆')}</button><button class="text-button" data-preset-rename="${escapeHtml(p.id)}">重命名</button><button class="text-button template-delete" data-preset-delete="${escapeHtml(p.id)}">删除店铺</button></div></article>`).join(''):'<div class="preset-empty">还没有店铺。从下面的「我的模板」创建一家，或导入一个新模板。</div>';
-  $('#template-list').innerHTML = templates.map(t=>`<article class="preset-card template-card"><div class="preset-card-top"><img src="${escapeHtml(t.image)}" alt=""><span class="template-version">v${escapeHtml(t.version)}</span></div><h2>${escapeHtml(t.name)}</h2><p>${t.workflow==='burger'?'烤面包 → 煎肉饼 → 加料盖好 → 出餐':t.workflow==='stir-fry'?'十二格选菜 → 下锅翻炒 → 出锅加料':t.workflow==='jasmine-latte'?'咖啡 ＋ 茉莉花 ＋ 牛奶，顺序自由':t.workflow==='knife-noodles'?'点面团 → 下锅 → 装碗':'面条 ＋ 臊子，现拌现做'}</p><div class="preset-card-actions"><button class="button white-button" data-template-create="${escapeHtml(t.id)}">${t.workflow==='burger'?'创建汉堡店':t.workflow==='stir-fry'?'创建香锅店':t.workflow==='jasmine-latte'?'创建咖啡厅':'创建面馆'} ＋</button><a class="text-button" href="/api/templates/${escapeHtml(t.id)}/export" download>导出模板 ↗</a>${t.id==='saozi'?'<span class="template-base">基础模板</span>':`<button class="text-button template-delete" data-template-delete="${escapeHtml(t.id)}">删除模板</button>`}</div></article>`).join('');
+  $('#preset-list').innerHTML = presets.length?presets.map(p=>`<article class="preset-card${p.id === shop.active_preset ? ' current' : ''}"><div class="preset-card-top"><img loading="lazy" src="${escapeHtml(templates.find(t=>t.id===p.template_id)?.image || '/noodle/assets/bowl.png')}" alt="">${p.id === shop.active_preset ? '<span class="preset-current">当前</span>' : ''}</div><h2>${escapeHtml(p.name)}</h2><p>${escapeHtml(templates.find(t=>t.id===p.template_id)?.dish_name || '臊子面')} · 独立礼物与布局</p><div class="preset-card-actions"><button class="button ${p.id === shop.active_preset ? 'dark-button' : 'white-button'}" data-preset-use="${escapeHtml(p.id)}">${templates.find(t=>t.id===p.template_id)?.workflow==='burger'?(p.id===shop.active_preset?'进入汉堡店':'使用汉堡店'):templates.find(t=>t.id===p.template_id)?.workflow==='stir-fry'?(p.id===shop.active_preset?'进入香锅店':'使用香锅店'):templates.find(t=>t.id===p.template_id)?.workflow==='jasmine-latte'?(p.id===shop.active_preset?'进入咖啡厅':'使用咖啡厅'):(p.id===shop.active_preset?'进入面馆':'使用面馆')}</button><button class="text-button" data-preset-rename="${escapeHtml(p.id)}">重命名</button><button class="text-button template-delete" data-preset-delete="${escapeHtml(p.id)}">删除店铺</button></div></article>`).join(''):'<div class="preset-empty">还没有店铺。从下面的「我的模板」创建一家，或导入一个新模板。</div>';
+  $('#template-list').innerHTML = templates.map(t=>`<article class="preset-card template-card"><div class="preset-card-top"><img loading="lazy" src="${escapeHtml(t.image)}" alt=""><span class="template-version">v${escapeHtml(t.version)}</span></div><h2>${escapeHtml(t.name)}</h2><p>${t.workflow==='burger'?'烤面包 → 煎肉饼 → 加料盖好 → 出餐':t.workflow==='stir-fry'?'十二格选菜 → 下锅翻炒 → 出锅加料':t.workflow==='jasmine-latte'?'咖啡 ＋ 茉莉花 ＋ 牛奶，顺序自由':t.workflow==='knife-noodles'?'点面团 → 下锅 → 装碗':'面条 ＋ 臊子，现拌现做'}</p><div class="preset-card-actions"><button class="button white-button" data-template-create="${escapeHtml(t.id)}">${t.workflow==='burger'?'创建汉堡店':t.workflow==='stir-fry'?'创建香锅店':t.workflow==='jasmine-latte'?'创建咖啡厅':'创建面馆'} ＋</button><a class="text-button" href="/api/templates/${escapeHtml(t.id)}/export" download>导出模板 ↗</a>${t.id==='saozi'?'<span class="template-base">基础模板</span>':`<button class="text-button template-delete" data-template-delete="${escapeHtml(t.id)}">删除模板</button>`}</div></article>`).join('');
 }
 function presetDialog(id = null, templateId = null) {
   renamingPreset = id; creatingTemplate = templateId;
@@ -319,7 +344,7 @@ document.querySelectorAll('[data-throw-clear]').forEach(button => button.addEven
 }));
 $('#noodle-build').addEventListener('click', () => { if (shop) setEditing(true); });
 $('#noodle-cancel').addEventListener('click', () => setEditing(false));
-$('#noodle-reset').addEventListener('click', () => { draft = structuredClone(shop?.template?.layout ?? NoodleLayout.defaults); fields(); post(); });
+$('#noodle-reset').addEventListener('click', () => { draft = NoodleLayout.validate({...structuredClone(shop?.template?.layout ?? NoodleLayout.defaults),queue:draft.queue}); fields(); post(); });
 $('#noodle-restore').addEventListener('click', async () => {
   if (!shop || saving) return;
   saving = true; fields();
@@ -339,6 +364,10 @@ for (const key of ['x', 'y', 'scale']) $(`#module-${key}`).addEventListener('inp
   item[key] = Number(event.target.value) / (key === 'scale' ? 100 : 1); fields(); post();
 });
 $('#builder-item').addEventListener('change', event => { selectedItem = event.target.value; if (selectedItem) selected = NoodleLayout.itemModule(selectedItem); fields(); post(); });
+for (const dimension of ['width','height']) $('#board-'+dimension).addEventListener('input', event => {
+  if (!editing || selectedItem !== 'thief_board') return;
+  draft.props.thief_board[dimension] = Number(event.target.value); fields(); post();
+});
 $('#module-visible').addEventListener('change', event => { draft.modules[selected].visible = event.target.checked; post(); });
 for (const key of ['top', 'title', 'bottom']) $(`#sign-${key}`).addEventListener('input', event => { draftSign[key] = event.target.value; post(); });
 document.addEventListener('click', async event => {

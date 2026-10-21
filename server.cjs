@@ -7,6 +7,7 @@ const { ConsoleServices } = require('./lib/services.cjs');
 const { safeFace, createAvatarCache } = require('./lib/avatar.cjs');
 const { imageType } = require('./lib/image-type.cjs');
 const { servePublic } = require('./lib/static-files.cjs');
+const {createImageRenderer,imageEdge}=require('./lib/render-images.cjs');
 const { TemplateLibrary, MAX_PACKAGE_BYTES } = require('./lib/templates.cjs');
 const { ObsIntegration } = require('./lib/obs.cjs');
 const { HimeIntegration } = require('./lib/hime.cjs');
@@ -15,27 +16,30 @@ const { createPlatformGames } = require('./lib/platform-games.cjs');
 const { uploadAsset,serveAsset } = require('./lib/feeding-assets.cjs');
 const { generatePanel } = require('./lib/game-panels.cjs');
 const { WebSocketServer } = require('ws');
+const {MODES:LOTTERY_MODES}=require('./lib/lottery.cjs');
 
 // Overlay pages subscribe to one channel; everything else is a console page.
-const CHANNELS = { feeding:new Set(['feeding','feeding-motion','feeding-physics']), overtime:new Set(['overtime','overtime-clock','overtime-media']), scene:new Set(['noodle','noodle-motion']) };
+const CHANNELS = { bomb:new Set(['number-bomb']), lottery:new Set(['lottery']), feeding:new Set(['feeding','feeding-motion','feeding-physics']), overtime:new Set(['overtime','overtime-clock','overtime-media']), scene:new Set(['noodle','noodle-motion']) };
 const MOTION = new Set(['noodle-motion','feeding-motion','feeding-physics']);
 // High-frequency frames bypass the 100ms state coalescing.
 const REALTIME = new Set([...MOTION,'overtime-clock','overtime-media']);
-const accepts = (client, type) => client.channel ? CHANNELS[client.channel].has(type) : !(client.consoleOnly && MOTION.has(type));
+const accepts = (client, type, data) => client.channel ? CHANNELS[client.channel].has(type)&&(type!=='lottery'||client.lotteryGame===data.game) : !(client.consoleOnly && MOTION.has(type));
 const BODY_LIMITS = { '/api/templates/import':MAX_PACKAGE_BYTES, '/api/diagnostics/client':32768, '/api/feeding/motion':300000 };
 const CLIENT_EVENTS = ['runtime_error','promise_error','page_stall','resource_error','operation_error'];
-const CLIENT_PAGES = ['/','/noodle/','/overtime/','/feeding/'];
+const CLIENT_PAGES = ['/','/noodle/','/overtime/','/feeding/','/lottery/','/number-bomb/'];
 
 async function startServer(options = {}) {
   const diagnostics=options.diagnostics;
   const services = await new ConsoleServices({ dataDir: path.join(__dirname, '.local-data'), seedDir: path.join(__dirname, 'data'), ...options }).init();
   services.state.version = require('./package.json').version;
   const templates=await new TemplateLibrary(services.dataDir).init();
+  const images=createImageRenderer(error=>diagnostics?.log('warn','images.resize_failed',{error}));
   const games={};
   const common={dataDir:services.dataDir,seedDir:services.seedDir,templates,feedingLegacyFiles:options.feedingLegacyFiles||[]};
   games.bilibili=await createPlatformGames({...common,platform:'bilibili',catalog:services.biliGifts.length>=12?services.biliGifts:require('./data/gifts.json').list,legacyFiles:options.overtimeLegacyFiles||[]});
   games.douyin=await createPlatformGames({...common,platform:'douyin',catalog:services.dyGifts.length>=12?services.dyGifts:require('./data/douyin-gifts.json').list,source:games.bilibili.noodle});
-  let {noodle,overtime,feeding}=games[services.platform];
+  let {noodle,overtime,feeding,lottery,numberBomb}=games[services.platform];
+  const lotteryFor=mode=>{const key=mode??'wheel';if(!LOTTERY_MODES.includes(key))throw new Error('抽奖玩法无效');return lottery[key];};
   const mediaListeners=new Set();
   let actions = Promise.resolve(), giftBatch, pendingGifts=0, liveStamp='';
   // Every state-changing operation runs in order; a failed step never blocks the next one.
@@ -53,7 +57,7 @@ async function startServer(options = {}) {
   const deliver = (type, data) => {
     if (!clients.size) return;
     const frame=frameOf(type, data);
-    for (const client of clients) if (accepts(client, type)) write(client,frame);
+    for (const client of clients) if (accepts(client, type, data)) write(client,frame);
   };
   const pendingStates = new Map(), pendingMessages = [];
   let broadcastTimer;
@@ -63,11 +67,11 @@ async function startServer(options = {}) {
     if (type === 'message') {
       pendingMessages.push(data);
       if (pendingMessages.length > 200) pendingMessages.shift();
-    } else pendingStates.set(type, data);
+    } else pendingStates.set(type==='lottery'?'lottery:'+data.game:type, data);
     if (broadcastTimer) return;
     broadcastTimer = setTimeout(() => {
       broadcastTimer = null;
-      for (const [kind, latest] of pendingStates) deliver(kind, kind === 'noodle' ? noodle.snapshot() : kind === 'overtime' ? overtime.snapshot() : kind === 'feeding' ? feeding.snapshot() : latest);
+      for (const [key, latest] of pendingStates){const kind=key.split(':')[0];deliver(kind, kind === 'noodle' ? noodle.snapshot() : kind === 'overtime' ? overtime.snapshot() : kind === 'feeding' ? feeding.snapshot() : latest);}
       pendingStates.clear();
       if (pendingMessages.length) {
         const frame = pendingMessages.map(event => frameOf('message', event)).join('');
@@ -87,6 +91,10 @@ async function startServer(options = {}) {
   services.on('event', event => {
     if(event.type==='system')diagnostics?.log('warn','system.message',{message:event.text,platform:services.platform});
     if (event.uid && event.face) noodle.rememberFace(event);
+    if(event.face){
+      const targets=[...Object.values(lottery),numberBomb];
+      actions=actions.then(async()=>{for(const target of targets)await target.rememberFace(event);}).catch(error=>services.addEvent('system','',`游戏头像：${error.message}`));
+    }
     if (event.type === 'gift') {
       pendingGifts++;
       // A manual action breaks the batch so gifts cannot cross a reset, save or platform switch.
@@ -116,6 +124,12 @@ async function startServer(options = {}) {
       giftBatch.events.push(event);
     }
     if(event.type==='chat'){
+      const bomb=numberBomb;
+      const bombFace=safeFace(event.face)||noodle.faces.get(event.uid)||noodle.faces.get(String(event.uid))||'';
+      actions=actions.then(()=>bomb.receiveChat({...event,face:bombFace})).catch(error=>services.addEvent('system','',`数字炸弹：${error.message}`));
+      const targets=Object.values(lottery);
+      const face=safeFace(event.face)||noodle.faces.get(event.uid)||noodle.faces.get(String(event.uid))||'';
+      actions=actions.then(async()=>{for(const target of targets)await target.receiveChat({...event,face});}).catch(error=>services.addEvent('system','',`抽奖：${error.message}`));
       const target=feeding;
       actions=actions.then(()=>target.receiveChat(event)).catch(error=>services.addEvent('system','',`吃吃吃：${error.message}`));
     }
@@ -126,6 +140,8 @@ async function startServer(options = {}) {
     game.noodle.on('state',current(state=>broadcast('noodle',state)));
     game.noodle.on('motion',current(motion=>broadcast('noodle-motion',motion)));
     game.feeding.on('state',current(state=>broadcast('feeding',state)));
+    game.numberBomb.on('state',current(state=>broadcast('number-bomb',state)));
+    for(const target of Object.values(game.lottery))target.on('state',current(state=>broadcast('lottery',state)));
     game.feeding.on('motion',current(motion=>broadcast('feeding-motion',motion)));
     game.feeding.on('physics',current(frame=>broadcast('feeding-physics',frame)));
     game.overtime.on('state',current(state=>broadcast('overtime',state)));
@@ -134,12 +150,18 @@ async function startServer(options = {}) {
   let origin, obs, hime;
   const subscribe=(client,url)=>{
     client.channel=Object.keys(CHANNELS).find(key=>url.searchParams.has(key));client.consoleOnly=url.searchParams.has('console');clients.add(client);
+    if(client.channel==='bomb')return send(client,'number-bomb',numberBomb.snapshot());
     if(client.channel==='feeding')return send(client,'feeding',feeding.snapshot());
+    if(client.channel==='lottery'){
+      const key=url.searchParams.get('game')||'wheel';
+      if(!LOTTERY_MODES.includes(key)){client.destroy();clients.delete(client);return;}
+      client.lotteryGame=key;return send(client,'lottery',lottery[key].snapshot());
+    }
     if(client.channel==='overtime')return send(client,'overtime',overtime.snapshot());
     const scene=client.channel==='scene';
     if(!scene)send(client,'state',services.state);
     send(client,'noodle',noodle.snapshot());
-    if(!scene){send(client,'overtime',overtime.snapshot());send(client,'feeding',feeding.snapshot());}
+    if(!scene){send(client,'overtime',overtime.snapshot());send(client,'feeding',feeding.snapshot());send(client,'number-bomb',numberBomb.snapshot());for(const target of Object.values(lottery))send(client,'lottery',target.snapshot());}
     if(!client.consoleOnly)send(client,'noodle-motion',noodle.motionSnapshot());
   };
   const download=(res,filename,data)=>{res.setHeader('Content-Disposition',`attachment; filename=${filename}`);return data;};
@@ -165,11 +187,15 @@ async function startServer(options = {}) {
         overtime.stopMedia();
         if(noodle.mode==='running'){noodle.mode='paused';noodle.publish();}
         if(feeding.state.mode==='running')await feeding.action({action:'pause'});
+        for(const target of Object.values(lottery))await target.deactivate();
+        await numberBomb.deactivate();
         await services.selectPlatform(input.platform);
-        ({noodle,overtime,feeding}=games[input.platform]);
+        ({noodle,overtime,feeding,lottery,numberBomb}=games[input.platform]);
         pendingStates.clear();pendingMessages.length=0;avatars.clear();
         broadcast('state',services.state);broadcast('noodle',noodle.snapshot());broadcast('overtime',overtime.snapshot());broadcast('overtime-media',null);
         broadcast('feeding',feeding.snapshot());
+        broadcast('number-bomb',numberBomb.snapshot());
+        for(const target of Object.values(lottery))broadcast('lottery',target.snapshot());
       });
       return {ok:true};
     },
@@ -178,6 +204,8 @@ async function startServer(options = {}) {
     '/api/login/poll': () => services.loginPoll(),
     '/api/feeding/motion': input => ({ok:true,accepted:feeding.motion(input)}),
     '/api/feeding/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>feeding.action(input)))}),
+    '/api/lottery/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>lotteryFor(input.game).action(input)))}),
+    '/api/number-bomb/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>numberBomb.action(input)))}),
     '/api/panels/generate': async (input,scoped) => ({ok:true,panel:await enqueue(scoped(()=>generatePanel(input.game,{noodle,overtime,feeding})))}),
     '/api/overtime/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>overtime.action(input)))}),
     '/api/noodle/motion': input => ({ok:true,accepted:noodle.motion(input)}),
@@ -213,6 +241,9 @@ async function startServer(options = {}) {
     '/api/noodle/state': () => noodle.snapshot(),
     '/api/overtime/state': () => overtime.snapshot(),
     '/api/feeding/state': () => feeding.snapshot(),
+    '/api/number-bomb/state': () => numberBomb.snapshot(),
+    '/api/lottery/state': (_res,url) => lotteryFor(url.searchParams.get('game')||'wheel').snapshot(),
+    '/api/lottery/export': (res,url) => {const target=lotteryFor(url.searchParams.get('game')||'wheel');return download(res,`xiaoluobo-${target.mode}-results.json`,target.state.history);},
     '/api/feeding/export': res => download(res,'xiaoluobo-feeding.json',feeding.state.config),
     '/api/overtime/export': res => download(res,'xiaoluobo-overtime.json',overtime.snapshot()),
     '/api/avatar': async (res,url) => {
@@ -238,8 +269,12 @@ async function startServer(options = {}) {
   const getPatterns = [
     [/^\/api\/overtime\/media\/([a-f0-9]{64}\.(?:png|jpg|gif|webp|mp4|webm))$/, (res,req,name) => serveMedia(req,res,games[services.platform].dir,name)],
     [/^\/api\/feeding\/assets\/([a-f0-9]{64}\.(?:png|jpg|gif|webp|bmp|wav|mp3|ogg|m4a))$/, (res,req,name) => serveAsset(res,games[services.platform].dir,name)],
-    [/^\/api\/templates\/(t-[a-f0-9]{32})\/assets\/([a-z_]+)\.png$/, async (res,req,id,name) => {
-      const body=await templates.asset(id,name);
+    [/^\/api\/feeding\/thumb\/([a-f0-9]{64}\.png)$/, async(res,req,name)=>{
+      const dir=path.join(games[services.platform].dir,'feeding-assets'),body=await images.get(path.join(dir,name),128,path.join(dir,'.render'));
+      res.writeHead(200,{'Content-Type':'image/png','Cache-Control':'public, max-age=86400'});res.end(body);
+    }],
+    [/^\/api\/templates\/(t-[a-f0-9]{32})\/(assets|render|thumb)\/([a-z_]+)\.png$/, async (res,req,id,kind,name) => {
+      const body=kind==='assets'?await templates.asset(id,name):await images.get(templates.assetFile(id,name),kind==='thumb'?128:imageEdge(name),path.join(templates.dir,id,'.render'));
       res.writeHead(200,{'Content-Type':'image/png','Cache-Control':'public, max-age=86400'});res.end(body);
     }],
     [/^\/api\/templates\/(saozi|t-[a-f0-9]{32})\/export$/, async (res,req,id) => download(res,`xiaoluobo-${id}.luobo`,await templates.export(id))],
@@ -297,7 +332,7 @@ async function startServer(options = {}) {
         if (body !== undefined) json(body);
         return;
       }
-      if (!await servePublic(res, path.join(__dirname, 'public'), url.pathname)) return json({ error: '页面不存在' }, 404);
+      if (!await servePublic(res, path.join(__dirname, 'public'), url.pathname,images,path.join(services.dataDir,'render-cache'))) return json({ error: '页面不存在' }, 404);
     } catch (error) { diagnostics?.log('error','http.error',{method:req.method,path:req.url?.split('?')[0],error});if (!res.headersSent) json({ error: error.message }, error.status || 400); else res.end(); }
   });
   const sockets=new WebSocketServer({noServer:true,maxPayload:1024});
@@ -321,6 +356,13 @@ async function startServer(options = {}) {
   diagnostics?.log('info','server.listening',{origin});
   diagnostics?.sample(()=>({platform:services.platform,liveStatus:services.state.live.status,douyin:services.platform==='douyin'?services.douyinStats:undefined,pendingGifts,clients:clients.size,customers:noodle.queue.length,objects:noodle.objects.length,people:overtime.state.people.length,mediaBatches:overtime.mediaQueue.length}));
   const keepAlive = setInterval(() => { for (const client of clients) write(client,': heartbeat\n\n'); }, 15000);
+  let lotteryPending=false;
+  const lotteryTimer=setInterval(()=>{
+    if(lotteryPending||!Object.values(lottery).some(target=>['running','tearing'].includes(target.state.round?.status)))return;
+    lotteryPending=true;
+    const targets=Object.values(lottery);
+    enqueue(async()=>{for(const target of targets)await target.tick();}).catch(error=>services.addEvent('system','',`抽奖：${error.message}`)).finally(()=>{lotteryPending=false;});
+  },250);
   let physicsPending=false;
   // Physics only waits on feeding's own queue, so slow gift batches no longer freeze falling food.
   const physicsTimer=setInterval(()=>{
@@ -336,6 +378,7 @@ async function startServer(options = {}) {
     enqueue(() => noodle.releaseExpired()).catch(error => services.emit('event', { type: 'system', text: error.message, time: Date.now() })).finally(() => { releasePending = false; });
   }, 1000);
   const overtimeTimer = setInterval(() => {
+    overtime.stopInactiveMedia();
     const state = overtime.snapshot();
     broadcast('overtime-clock', { remaining:state.remaining, mode:state.mode, now:state.now });
   }, 1000);
@@ -346,15 +389,16 @@ async function startServer(options = {}) {
     enqueue(() => overtime.checkpoint()).catch(error => services.addEvent('system', '', `加班机保存失败：${error.message}`)).finally(() => { checkpointPending = false; });
   }, 15000);
   const close = async () => {
-    for (const timer of [physicsTimer, keepAlive, sealTimer, cleanupTimer, overtimeTimer, checkpointTimer]) clearInterval(timer);
+    for (const timer of [lotteryTimer, physicsTimer, keepAlive, sealTimer, cleanupTimer, overtimeTimer, checkpointTimer]) clearInterval(timer);
     services.close(); await actions;
-    for(const game of Object.values(games)){game.overtime.close();await game.overtime.checkpoint();await game.feeding.close();}
+    for(const game of Object.values(games)){game.overtime.close();await game.overtime.checkpoint();await game.feeding.close();await game.numberBomb.close();for(const target of Object.values(game.lottery))await target.close();}
     await services.flush();
     mediaListeners.clear();clearTimeout(broadcastTimer); pendingStates.clear(); pendingMessages.length = 0; avatars.clear();
     for (const client of clients) client.end();
     const stopped = new Promise(resolve => server.close(resolve)); server.closeAllConnections(); await stopped;
+    await images.close();
   };
-  return { url: origin, services, get noodle(){return noodle;},get overtime(){return overtime;},get feeding(){return feeding;},onOvertimeMedia(listener){mediaListeners.add(listener);}, close };
+  return { url: origin, services, get noodle(){return noodle;},get overtime(){return overtime;},get feeding(){return feeding;},get lottery(){return lottery;},get numberBomb(){return numberBomb;},onOvertimeMedia(listener){mediaListeners.add(listener);}, close };
 }
 
 if (require.main === module) {

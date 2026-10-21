@@ -1,9 +1,9 @@
-export function queuePosition(index) {
-  return globalThis.NoodleLayout.position(index);
+export function queuePosition(index, settings = globalThis.NoodleLayout.defaults.queue) {
+  return globalThis.NoodleLayout.position(index, settings);
 }
-export function customerAt(queue, x, y) {
-  return queue.find((person, index) => {
-    const p = queuePosition(index), dx = x - p.x, dy = y - p.y;
+export function customerAt(queue, x, y, settings = globalThis.NoodleLayout.defaults.queue) {
+  return queue.slice(0, settings.rows * settings.columns).find((person, index) => {
+    const p = queuePosition(index, settings), dx = (x - p.x) / settings.scale, dy = (y - p.y) / settings.scale;
     return Math.hypot(dx - 36.5, dy - 29.5) <= 29.5 ||
       (dx >= 15 && dx <= 59 && dy >= 50 && dy <= 91);
   });

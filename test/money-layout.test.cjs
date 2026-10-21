@@ -61,18 +61,47 @@ test('写盘失败不扣钱、不增加榜单，金额溢出不消耗金币', as
 test('旧布局补齐手、文字、榜单与酱料，所有对象位置大小可验证和保存', async t => {
   const { dir, shop } = await fixture(t);
   const layout = structuredClone(Layout.defaults);
-  const keys = ['chef','stats','gift_rule','thief_board','sign_top','sign_title','sign_bottom','cash_text','ketchup','salad','mayo','queue_overflow'];
+  const keys = ['chef','stats','gift_rule','thief_board','sign_top','sign_title','sign_bottom','cash_text','ketchup','salad','mayo','queue_overflow','queue_customers'];
   for (const key of keys) delete layout.props[key];
   const next = Layout.validate(layout);
   for (const key of keys) {
-    assert.deepEqual(next.props[key], {x:0,y:0,scale:1});
-    next.props[key] = {x:123,y:-45,scale:1.4};
+    assert.deepEqual(next.props[key], Layout.defaults.props[key]);
+    next.props[key] = {...next.props[key],x:123,y:-45,scale:1.4};
     assert.throws(() => Layout.validate({...next,props:{...next.props,[key]:{x:0,y:0,scale:0}}}), /物品/);
   }
   await shop.save({ ...shop.config, layout:next });
   assert.deepEqual((await new NoodleShop(dir).init()).config.layout, next);
-  assert.equal(Layout.itemModule('queue_overflow'), 'customers'); assert.equal(Layout.itemModule('thief_board'), 'customers'); assert.equal(Layout.itemModule('sign_title'), 'background'); assert.equal(Layout.itemModule('chef'), 'counter');
+  assert.equal(Layout.itemModule('queue_customers'), 'customers'); assert.equal(Layout.itemModule('queue_overflow'), 'customers'); assert.equal(Layout.itemModule('thief_board'), 'customers'); assert.equal(Layout.itemModule('sign_title'), 'background'); assert.equal(Layout.itemModule('chef'), 'counter');
   const rest = Chef.pose(null, false, {x:120,y:80,scale:1});
   assert.deepEqual(rest.hand, {x:875,y:482});
   assert.deepEqual(Chef.pose({x:300,y:400},false,{x:120,y:80,scale:1}).hand, {x:300,y:400});
+});
+
+test('榜单旧位置缩放保留，宽高独立验证并持久保存', async t => {
+  const {dir,shop}=await fixture(t), layout=structuredClone(Layout.defaults);
+  layout.props.thief_board={x:45,y:-20,scale:1.3};
+  const migrated=Layout.validate(layout);
+  assert.deepEqual(migrated.props.thief_board,{x:45,y:-20,scale:1.3,width:220,height:300});
+  for(const [key,values] of [['width',[179,1281,NaN,null,'220']],['height',[159,721,Infinity,null,'300']]])for(const value of values) {
+    assert.throws(()=>Layout.validate({...migrated,props:{...migrated.props,thief_board:{...migrated.props.thief_board,[key]:value}}}),/榜单宽高/);
+  }
+  Object.assign(migrated.props.thief_board,{width:360,height:210});
+  await shop.save({...shop.config,layout:migrated});
+  assert.deepEqual((await new NoodleShop(dir).init()).config.layout.props.thief_board,migrated.props.thief_board);
+});
+
+test('榜单八方向拖动独立调整宽高，左上边保持对边不动，最小最大尺寸受限', () => {
+  const original={x:40,y:20,scale:1.5,width:300,height:300};
+  for(const edge of ['n','ne','e','se','s','sw','w','nw']) {
+    const next=Layout.resizeBoard(original,edge,30,20);
+    assert.equal(next.width,edge.includes('w')?270:edge.includes('e')?330:300);
+    assert.equal(next.height,edge.includes('n')?280:edge.includes('s')?320:300);
+    assert.equal(next.x,edge.includes('w')?85:40); assert.equal(next.y,edge.includes('n')?50:20);
+    if(edge.includes('w'))assert.equal(next.x+next.width*next.scale,original.x+original.width*original.scale);
+    if(edge.includes('n'))assert.equal(next.y+next.height*next.scale,original.y+original.height*original.scale);
+    assert.equal(next.scale,original.scale);
+  }
+  assert.deepEqual(Layout.resizeBoard(original,'se',-1000,-1000),{...original,width:180,height:160});
+  assert.deepEqual(Layout.resizeBoard(original,'se',2000,2000),{...original,width:1280,height:720});
+  assert.deepEqual(original,{x:40,y:20,scale:1.5,width:300,height:300});
 });

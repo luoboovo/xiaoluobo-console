@@ -13,6 +13,7 @@ app.whenReady().then(async()=>{
   dir=await fs.mkdtemp(path.join(root,'work','feeding-desktop-'));runtime=await startServer({dataDir:dir});const original=runtime.feeding.action.bind(runtime.feeding);runtime.feeding.action=async input=>{operations.push(input.action);return original(input);};win=await open(runtime.url+'/#feeding');
   await waitFor(()=>win.webContents.executeJavaScript(`document.querySelectorAll('#feeding-themes button').length===5`),'吃吃吃配置');
   assert.equal(await win.webContents.executeJavaScript(`document.querySelector('#feeding-settings').firstElementChild.id==='feeding-custom-settings' && document.querySelector('#feeding-custom-settings').open && !document.querySelector('#feeding-rule-template')`),true);
+  await waitFor(()=>win.webContents.mainFrame.framesInSubtree.some(frame=>frame.url.includes('/feeding/?preview')),'按需载入预览');
   const frame=win.webContents.mainFrame.framesInSubtree.find(frame=>frame.url.includes('/feeding/?preview'));
   await waitFor(()=>frame.executeJavaScript('typeof state!=="undefined" && sprites.size===10'),'游戏画面');await delay(1600);
   const point=await frame.executeJavaScript(`(()=>{const s=[...sprites.values()][0],r=canvas.getBoundingClientRect();return {start:{x:r.x+s.x*scale,y:r.y+s.y*scale},end:{x:r.x+state.consumer.x*scale,y:r.y+state.consumer.y*scale}}})()`);

@@ -94,7 +94,7 @@ app.whenReady().then(async()=>{
       await act('burger_patty',{bowl_id:item.id,batch_id:batch.id});await act('burger_close',{bowl_id:item.id});
       await waitFor(()=>run(`document.querySelector('#noodle-frame').contentDocument.querySelectorAll('.layer-ketchup_layer,.layer-salad_layer,.layer-mayo_layer').length===3`),'三种酱料图层');
     }
-    runtime.noodle.enqueue('排队演示',140);
+    runtime.noodle.enqueue('排队演示',runtime.noodle.config.layout.queue.rows*runtime.noodle.config.layout.queue.columns+20);
     await waitFor(()=>run(`document.querySelector('#noodle-frame').contentDocument.querySelector('#queue-overflow').textContent.includes('还有 20 位在等')&&getComputedStyle(document.querySelector('#noodle-frame').contentDocument.querySelector('#queue-overflow')).display!=='none'`),name+'真实余位牌');
     await win.loadURL(runtime.url+'/?verify='+Date.now()+'#noodle');
     await waitFor(()=>run(`document.querySelector('#noodle-frame')?.contentDocument?.querySelector('#cash-balance')?.textContent==='590 元'`),'刷新持久化');
@@ -125,5 +125,5 @@ app.whenReady().then(async()=>{
   await shot('独立画面',scene);
   assert.deepEqual(errors,[]);
   await fs.writeFile(path.join(root,'artifacts','v2.5.8-界面验证.json'),JSON.stringify({passed:true,packageRoot,results,errors},null,2));
-  console.log('五种模板余位牌与原有对象真实拖拽、缩放、0位搭建、140人真实计数、保存、刷新与独立输出验证通过');
+  console.log('五种模板余位牌与原有对象真实拖拽、缩放、0位搭建、按行列容量加20人真实计数、保存、刷新与独立输出验证通过');
 }).catch(async error=>{console.error(error);if(win)await shot('失败');process.exitCode=1;}).finally(async()=>{scene?.destroy();win?.destroy();await runtime?.close();app.exit(process.exitCode||0);});

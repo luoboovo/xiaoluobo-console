@@ -55,8 +55,39 @@ async function loadGifts() {
   const favorites = ['小花花', '牛哇牛哇', '打call', '干杯', '辣条', '爱心', '小心心'];
   const preview = favorites.map(name => gifts.find(g => g.name === name && g.icon)).filter(Boolean);
   for (const gift of gifts) { if (preview.length >= 4) break; if (gift.icon && !preview.includes(gift)) preview.push(gift); }
-  $('#gift-preview').innerHTML = preview.slice(0, 4).map(g => `<button class="preview-gift" data-gift="${g.id}" title="${escapeHtml(g.name)}" aria-label="查看${escapeHtml(g.name)}"><img src="${image(g)}" alt="${escapeHtml(g.name)}"></button>`).join('');
+  $('#gift-preview').innerHTML = preview.slice(0, 4).map(g => `<button class="preview-gift" data-gift="${g.id}" title="${escapeHtml(g.name)}" aria-label="查看${escapeHtml(g.name)}"><img loading="lazy" src="${image(g)}" alt="${escapeHtml(g.name)}"></button>`).join('');
   renderGifts();
+}
+const navigation=$('.nav'),navMore=$('#nav-more'),navOverflow=$('#nav-overflow'),navItems=Array.from(navigation.querySelectorAll('.nav-item'));
+function layoutNavigation(){
+  const focused=document.activeElement,wasFocused=navigation.contains(focused);
+  for(const item of navItems)navigation.insertBefore(item,navMore);
+  navMore.hidden=true;
+  const style=getComputedStyle(navigation),gap=parseFloat(style.columnGap)||0,available=navigation.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight);
+  const widths=new Map(navItems.map(item=>[item,item.getBoundingClientRect().width]));
+  if(navItems.reduce((sum,item)=>sum+widths.get(item),0)+gap*(navItems.length-1)>available){
+    navMore.hidden=false;
+    const active=navItems.find(item=>item.classList.contains('active'))||navItems[0],visible=new Set();
+    let used=navMore.getBoundingClientRect().width;
+    for(const item of [active,...navItems.filter(item=>item!==active)]){
+      if(used+gap+widths.get(item)>available)break;
+      visible.add(item);used+=gap+widths.get(item);
+    }
+    for(const item of navItems)if(!visible.has(item))navOverflow.append(item);
+  }else navMore.open=false;
+  if(wasFocused&&focused.isConnected){if(focused.parentElement===navOverflow&&!navMore.open)navMore.querySelector('summary').focus();else focused.focus({preventScroll:true});}
+}
+new ResizeObserver(layoutNavigation).observe(navigation);
+new MutationObserver(layoutNavigation).observe(navigation,{characterData:true,subtree:true});
+document.fonts.ready.then(layoutNavigation);
+document.addEventListener('click',event=>{if(!navMore.contains(event.target))navMore.open=false;});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&navMore.open){navMore.open=false;navMore.querySelector('summary').focus();event.preventDefault();}});
+function syncPreviewFrames(view) {
+  for(const [id,target] of [['noodle-frame','noodle'],['feeding-frame','feeding'],['overtime-frame','overtime'],['overtime-media-frame','overtime'],['bomb-frame','number-bomb'],['lottery-frame','lottery']]) {
+    const frame=$('#'+id);
+    if(view===target){if(frame.getAttribute('src')!==frame.dataset.src)frame.src=frame.dataset.src;}
+    else if(frame.hasAttribute('src'))frame.removeAttribute('src');
+  }
 }
 export function switchView(view) {
   history.replaceState(null, '', view === 'console' ? '/' : `/#${view}`);
@@ -66,10 +97,15 @@ export function switchView(view) {
   $('#overtime-view').hidden = view !== 'overtime';
   $('#gift-rules-view').hidden = view !== 'gift-rules';
   $('#feeding-view').hidden = view !== 'feeding';
+  $('#lottery-view').hidden = view !== 'lottery';
+  $('#bomb-view').hidden = view !== 'number-bomb';
+  syncPreviewFrames(view);
+  $('#lottery-frame').contentWindow.postMessage({type:'lottery-preview-visibility',visible:view==='lottery'},location.origin);
   $('#feeding-frame').contentWindow.postMessage({type:'feeding-preview-visibility',visible:view==='feeding'},location.origin);
   $('#noodle-frame').contentWindow.postMessage({ type: 'noodle-preview-visibility', visible: view === 'noodle' }, location.origin);
   for(const id of ['#overtime-frame','#overtime-media-frame']) $(id).contentWindow.postMessage({type:'overtime-preview-visibility',visible:view==='overtime'},location.origin);
   document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === view));
+  navMore.open=false;layoutNavigation();
   if (view === 'gifts') { renderGifts(); window.scrollTo(0, 0); }
   else $('#gift-grid').replaceChildren();
   if (view === 'console') renderEvents();
@@ -89,7 +125,7 @@ function renderGifts() {
 function openGift(id) {
   currentGift = giftById.get(Number(id)); if (!currentGift) return;
   if (!window.dispatchEvent(new CustomEvent('gift-picked', { detail:currentGift, cancelable:true }))) return;
-  $('#gift-detail').innerHTML = `<img class="detail-image" src="${currentGift.icon ? image(currentGift) : '/logo.svg'}" alt="${escapeHtml(currentGift.name)}"><h2>${escapeHtml(currentGift.name)}</h2><p class="detail-price">${price(currentGift)}</p><p class="detail-id">B 站 · ID ${currentGift.id}</p><div class="detail-filename">礼物 ID 与图片可直接用于后续配置</div>`;
+  $('#gift-detail').innerHTML = `<img loading="lazy" class="detail-image" src="${currentGift.icon ? image(currentGift) : '/logo.svg'}" alt="${escapeHtml(currentGift.name)}"><h2>${escapeHtml(currentGift.name)}</h2><p class="detail-price">${price(currentGift)}</p><p class="detail-id">B 站 · ID ${currentGift.id}</p><div class="detail-filename">礼物 ID 与图片可直接用于后续配置</div>`;
   $('#gift-detail .detail-id').textContent=`${state.config.platform==='douyin'?'抖音':'B站'} · ID ${currentGift.id}`;
   $('#download-gift').href = `${image(currentGift)}&download=1`; $('#download-gift').hidden = !currentGift.icon;
   $('#gift-dialog').showModal();
@@ -106,7 +142,7 @@ function renderEvents() {
     if (!row) {
       const holder=document.createElement('div');
       const giftImage = event.type === 'gift' ? giftById.get(event.giftId) : null;
-      holder.innerHTML=`<div class="event-row ${escapeHtml(event.type)}"><div class="event-avatar">${giftImage?.icon ? `<img src="${image(giftImage)}" alt="">` : escapeHtml(event.user ? Array.from(event.user)[0] : '·')}</div><span class="event-name">${escapeHtml(event.user || '系统')}</span><span class="event-text">${escapeHtml(event.text)}</span><time class="event-time">${eventTime.format(event.time)}</time></div>`;
+      holder.innerHTML=`<div class="event-row ${escapeHtml(event.type)}"><div class="event-avatar">${giftImage?.icon ? `<img loading="lazy" src="${image(giftImage)}" alt="">` : escapeHtml(event.user ? Array.from(event.user)[0] : '·')}</div><span class="event-name">${escapeHtml(event.user || '系统')}</span><span class="event-text">${escapeHtml(event.text)}</span><time class="event-time">${eventTime.format(event.time)}</time></div>`;
       row=holder.firstElementChild;eventRows.set(event,row);
     }
     if (container.children[index]!==row) container.insertBefore(row,container.children[index] || null);
@@ -196,7 +232,8 @@ document.addEventListener('error', event => {
 }, true);
 try { document.body.classList.toggle('dark', localStorage.getItem('theme') === 'dark'); } catch {}
 $('#theme-button').addEventListener('click', () => { const dark = document.body.classList.toggle('dark'); try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch {} });
-if (['noodle', 'presets', 'gifts', 'overtime', 'gift-rules','feeding'].includes(location.hash.slice(1))) switchView(location.hash.slice(1));
+if (['noodle', 'presets', 'gifts', 'overtime', 'gift-rules','feeding','lottery','number-bomb'].includes(location.hash.slice(1))) switchView(location.hash.slice(1));
+else syncPreviewFrames('console');
 (async () => {
   try {
     const initial = await api('/api/state'); renderState(initial.state); events = initial.events; renderEvents(); await loadGifts();
@@ -205,6 +242,8 @@ if (['noodle', 'presets', 'gifts', 'overtime', 'gift-rules','feeding'].includes(
     source.addEventListener('noodle', event => window.dispatchEvent(new CustomEvent('noodle-state', { detail: JSON.parse(event.data) })));
     source.addEventListener('overtime', event => window.dispatchEvent(new CustomEvent('overtime-state', { detail: JSON.parse(event.data) })));
     source.addEventListener('feeding', event => window.dispatchEvent(new CustomEvent('feeding-state', {detail:JSON.parse(event.data)})));
+    source.addEventListener('lottery', event => window.dispatchEvent(new CustomEvent('lottery-state', {detail:JSON.parse(event.data)})));
+    source.addEventListener('number-bomb', event => window.dispatchEvent(new CustomEvent('number-bomb-state', {detail:JSON.parse(event.data)})));
     source.addEventListener('overtime-clock', event => window.dispatchEvent(new CustomEvent('overtime-clock', { detail: JSON.parse(event.data) })));
     source.addEventListener('message', event => { events.unshift(JSON.parse(event.data)); events.length = Math.min(events.length, 200); scheduleEvents(); });
     source.onopen = async () => { $('#service-dot').classList.remove('off'); $('#service-label').textContent = '本地运行'; try { const next = await api('/api/state'); renderState(next.state); events = next.events; renderEvents(); } catch {} };

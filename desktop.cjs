@@ -88,6 +88,8 @@ else {
         return { action:'allow', overrideBrowserWindowOptions:{ title:'巨无霸加班机 · 浮窗', ...overtimeBounds, ...overtimeSize, useContentSize:true, minWidth:320, minHeight:180, frame:false, thickFrame:false, transparent:true, alwaysOnTop:true, resizable:true, autoHideMenuBar:true, backgroundColor:'#00000000', webPreferences:{ contextIsolation:true, nodeIntegration:false, sandbox:true, backgroundThrottling:false, autoplayPolicy:'no-user-gesture-required', preload:path.join(__dirname,'overtime-preload.cjs') } } };
       }
       if(url===runtime.url+'/feeding/')return {action:'allow',overrideBrowserWindowOptions:{title:'小萝卜吃吃吃 · 网页操作',width:1280,height:760,useContentSize:true,autoHideMenuBar:true,backgroundColor:'#e8ede8',webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false,autoplayPolicy:'no-user-gesture-required'}}};
+      if(url===runtime.url+'/number-bomb/')return {action:'allow',overrideBrowserWindowOptions:{title:'数字炸弹 · 直播画面',width:1280,height:720,useContentSize:true,autoHideMenuBar:true,backgroundColor:'#f6f1e7',webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}}};
+      if([runtime.url+'/lottery/',...['wheel','duel','scratch'].map(mode=>runtime.url+'/lottery/?game='+mode)].includes(url))return {action:'allow',overrideBrowserWindowOptions:{title:'抽奖工具 · 直播画面',width:1280,height:720,useContentSize:true,autoHideMenuBar:true,backgroundColor:'#f7f3e8',webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}}};
       return url.startsWith(runtime.url + '/noodle/') ? { action:'allow', overrideBrowserWindowOptions:{ title:'弹幕面馆', width:1920, height:1080, useContentSize:true, autoHideMenuBar:true, backgroundColor:'#f6e5c4', webPreferences:{ contextIsolation:true, nodeIntegration:false, sandbox:true, backgroundThrottling:false } } } : { action:'deny' };
     });
     window.webContents.on('did-create-window', (child, details) => {
@@ -121,7 +123,7 @@ else {
   app.on('window-all-closed', () => app.quit());
   app.on('before-quit', event => {
     if (!runtime || closing) return;
-    event.preventDefault(); closing = true;
+    event.preventDefault(); closing = true;stopDiagnostics?.();
     runtime.close().catch(error => showError('加班记录保存失败', error)).finally(async () => {stopDiagnostics?.();await diagnostics?.close().catch(()=>{});app.quit();});
   });
 }

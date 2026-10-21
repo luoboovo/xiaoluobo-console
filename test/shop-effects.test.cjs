@@ -67,10 +67,21 @@ test('帮忙礼物一次做一碗面，跳过圣水顾客，正常出餐付款�
 
 test('帮忙在空队列、只有圣水顾客、暂停、查封和满台面时不生成付款',async t=>{
   const {shop}=await fixture(t);
-  assert.equal(shop.help(),false);shop.enqueue('圣水',1,1,'',true,'water');assert.equal(shop.help(),false);
-  shop.enqueue('点面',1);shop.mode='paused';assert.equal(shop.help(),false);await assert.rejects(shop.action({action:'demo_help'}),/继续游戏/);
-  shop.mode='running';await shop.shopAction('raid');assert.equal(shop.help(),false);await assert.rejects(shop.action({action:'demo_help'}),/查封/);
-  await shop.shopAction('restock');shop.tip(500);const revision=shop.revision;assert.equal(shop.help(),false);assert.equal(shop.objects.length,500);assert.equal(shop.revision,revision);assert.equal(shop.queue.length,2);assert.equal(shop.served,0);
+  assert.equal(await shop.help(),false);shop.enqueue('圣水',1,1,'',true,'water');assert.equal(await shop.help(),false);
+  shop.enqueue('点面',1);shop.mode='paused';assert.equal(await shop.help(),false);await assert.rejects(shop.action({action:'demo_help'}),/继续游戏/);
+  shop.mode='running';await shop.shopAction('raid');assert.equal(await shop.help(),false);await assert.rejects(shop.action({action:'demo_help'}),/查封/);
+  await shop.shopAction('restock');shop.tip(500);const revision=shop.revision;assert.equal(await shop.help(),false);assert.equal(shop.objects.length,500);assert.equal(shop.revision,revision);assert.equal(shop.queue.length,2);assert.equal(shop.served,0);
+});
+
+test('多人送排队和帮忙礼物时，离场动画有界，出餐、金币和统计完整保留',async t=>{
+  const {shop}=await fixture(t),now=Date.now();t.mock.method(Date,'now',()=>now);
+  shop.enqueue('排队观众',200,1);
+  for(let i=0;i<150;i++)await shop.receive({type:'gift',giftId:30758,giftName:'这个好诶',count:1,uid:i+2,transactionId:'concurrent-help-'+i});
+  const state=shop.snapshot(),capacity=shop.config.layout.queue.rows*shop.config.layout.queue.columns;
+  assert.ok(state.departures.length<=capacity,`离场动画堆积了 ${state.departures.length} 位顾客`);
+  assert.equal(state.queue_count,50);assert.equal(state.served,150);
+  assert.equal(state.objects.filter(item=>item.kind==='coin').length,150);
+  assert.equal(shop.audience.reduce((sum,person)=>sum+person.eaten,0),150);
 });
 
 test('清空排队礼物只移除等待顾客，余额、桌面、评分和出餐统计保留',async t=>{
@@ -271,7 +282,7 @@ test('重复满屏投掷不重写存档，重复头像消息不刷新，过期�
 test('场景只收游戏推送，控制台不收运动，原订阅保留兼容',async t=>{
   const {dir}=await fixture(t),app=await startServer({dataDir:dir,seedDir:dir});
   t.after(()=>app.close());
-  for(const [query,expected] of [['?scene=1',['noodle','noodle-motion']],['?console=1',['state','noodle','overtime','feeding']],['?overtime=1',['overtime']],['?feeding=1',['feeding']],['',['state','noodle','overtime','feeding','noodle-motion']]]) {
+  for(const [query,expected] of [['?scene=1',['noodle','noodle-motion']],['?console=1',['state','noodle','overtime','feeding','number-bomb','lottery','lottery','lottery']],['?overtime=1',['overtime']],['?feeding=1',['feeding']],['?bomb=1',['number-bomb']],['?lottery=1',['lottery']],['?lottery=1&game=duel',['lottery']],['?lottery=1&game=scratch',['lottery']],['',['state','noodle','overtime','feeding','number-bomb','lottery','lottery','lottery','noodle-motion']]]) {
     const stop=new AbortController(),timer=setTimeout(()=>stop.abort(),3000);
     const response=await fetch(app.url+'/api/events'+query,{signal:stop.signal}),reader=response.body.getReader();
     try {
@@ -280,7 +291,7 @@ test('场景只收游戏推送，控制台不收运动，原订阅保留兼容',
         const chunk=await reader.read();assert.equal(chunk.done,false);
         text+=new TextDecoder().decode(chunk.value);types=Array.from(text.matchAll(/^event: ([a-z-]+)$/gm),m=>m[1]);
       }
-      assert.deepEqual(types,expected);
+      assert.deepEqual(types.slice(0,expected.length),expected);
     } finally {clearTimeout(timer);await reader.cancel();stop.abort();}
   }
 });

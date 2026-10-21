@@ -11,19 +11,19 @@
   <div class="plant"><span>🌿</span><i></i></div>
   <div class="queue-floor"></div>
   </div>
-  <div class="scene-module trash-module" id="trash-module"><button class="trash-bin" id="trash-bin" data-layout-item="trash" aria-label="丢弃拿起的物品"><img src="/noodle/assets/trash-bin.png" alt="垃圾桶" draggable="false"></button></div>
-  <div class="scene-module fridge-module" id="fridge-module"><button class="water-fridge" id="water-fridge" data-layout-item="fridge" aria-label="取一瓶圣水"><img src="/noodle/assets/water-fridge.png" alt="圣水冰柜" draggable="false"></button><div id="stir-fridge-shelves" hidden><button data-stir-drink="cola" aria-label="从冰柜上层拿可乐"></button><button data-stir-drink="iced_tea" aria-label="从冰柜下层拿冰红茶"></button></div></div>
+  <div class="scene-module trash-module" id="trash-module"><button class="trash-bin" id="trash-bin" data-layout-item="trash" aria-label="丢弃拿起的物品"><img alt="垃圾桶" draggable="false"></button></div>
+  <div class="scene-module fridge-module" id="fridge-module"><button class="water-fridge" id="water-fridge" data-layout-item="fridge" aria-label="取一瓶圣水"><img alt="圣水冰柜" draggable="false"></button><div id="stir-fridge-shelves" hidden><button data-stir-drink="cola" aria-label="从冰柜上层拿可乐"></button><button data-stir-drink="iced_tea" aria-label="从冰柜下层拿冰红茶"></button></div></div>
   <div class="scene-module chef-arm-module" id="chef-arm-module" aria-hidden="true"><i data-layout-item="chef" class="chef-arm upper-arm" id="chef-upper"></i><i data-layout-item="chef" class="chef-arm lower-arm" id="chef-lower"></i><i data-layout-item="chef" class="chef-hand" id="chef-hand"></i></div>
   <div class="scene-module counter-module" data-module="counter">
-  <div class="counter"><img src="/noodle/assets/counter.png" alt="木制料理台"></div>
-  <div class="bowl-area" id="bowl-area" data-layout-item="tray"><img src="/noodle/assets/bowl-area.png" alt="放碗区" draggable="false"><div id="stir-basket-food"></div></div>
+  <div class="counter"><img alt="木制料理台"></div>
+  <div class="bowl-area" id="bowl-area" data-layout-item="tray"><img alt="放碗区" draggable="false"><div id="stir-basket-food"></div></div>
   <div id="stir-cabinet" data-layout-item="dough" hidden><img id="stir-cabinet-art" alt="十二格自选菜柜" draggable="false"><div id="stir-ingredients"></div></div>
   <div class="stations" id="stations">
-    <button class="station pot-station" id="game-noodles" aria-label="拖出面条" data-source="noodles" data-layout-item="noodles"><img src="/noodle/assets/pot.png" alt="面条保温桶"><div id="stir-wok-food"></div><span class="stir-spatula" aria-hidden="true"></span><div class="burger-batches" id="burger-griddle-batches" hidden></div></button>
-    <button class="station sauce-station" id="game-sauce" aria-label="拖出臊子" data-source="sauce" data-layout-item="sauce"><img src="/noodle/assets/sauce.png" alt="臊子保温桶"><div class="burger-batches" id="burger-oven-batches" hidden></div></button>
-    <button class="station bowl-rack" id="bowl-rack" aria-label="点击碗架，自动摆放一个空碗" data-source="bowl" data-layout-item="bowl"><img src="/noodle/assets/bowl-stack.png" alt="一摞青花瓷空碗"></button>
+    <button class="station pot-station" id="game-noodles" aria-label="拖出面条" data-source="noodles" data-layout-item="noodles"><img alt="面条保温桶"><div id="stir-wok-food"></div><span class="stir-spatula" aria-hidden="true"></span><div class="burger-batches" id="burger-griddle-batches" hidden></div></button>
+    <button class="station sauce-station" id="game-sauce" aria-label="拖出臊子" data-source="sauce" data-layout-item="sauce"><img alt="臊子保温桶"><div class="burger-batches" id="burger-oven-batches" hidden></div></button>
+    <button class="station bowl-rack" id="bowl-rack" aria-label="点击碗架，自动摆放一个空碗" data-source="bowl" data-layout-item="bowl"><img alt="一摞青花瓷空碗"></button>
   </div>
-  <button class="template-tool" data-layout-item="dough" data-template-tool="dough" id="dough-board" aria-label="点击面团切面并放在灶台" hidden><img alt="削面板" draggable="false"><img class="slice-knife" src="/noodle/assets/knife.png" alt="" draggable="false"></button>
+  <button class="template-tool" data-layout-item="dough" data-template-tool="dough" id="dough-board" aria-label="点击面团切面并放在灶台" hidden><img alt="削面板" draggable="false"><img class="slice-knife" alt="" draggable="false"></button>
   <button class="template-tool" data-layout-item="scallions" data-source="scallions" id="scallions-bowl" aria-label="拖出葱花" hidden><img alt="葱花" draggable="false"></button>
   <button class="template-tool" data-layout-item="cilantro" data-source="cilantro" id="cilantro-bowl" aria-label="拖出香菜" hidden><img alt="香菜" draggable="false"></button>
   <output class="cooking-status" id="cooking-status" hidden></output>
@@ -41,20 +41,26 @@
   <div class="workspace-objects" id="workspace-objects"></div>
   <div class="cafe-effects" id="cafe-effects" aria-hidden="true"></div>
   <div id="stir-effects" aria-hidden="true"></div>
-  <button class="cash-box" id="cash-box" data-layout-item="cash" aria-label="把钱放进钱匣"><img src="/noodle/assets/cash-box.png?v=red-1" alt="钱匣" draggable="false"><span class="cash-total" id="cash-total" data-layout-item="cash_text"><img src="/noodle/assets/payment-coin.png" alt=""><output id="cash-balance">0</output></span></button>
+  <button class="cash-box" id="cash-box" data-layout-item="cash" aria-label="把钱放进钱匣"><img alt="钱匣" draggable="false"><span class="cash-total" id="cash-total" data-layout-item="cash_text"><img alt=""><output id="cash-balance">0</output></span></button>
   </div>
   <div class="scene-module customers-module" data-module="customers">
-  <div class="customers" id="game-customers"></div>
+  <div class="customers" id="game-customers" data-layout-item="queue_customers" aria-label="排队顾客（整体）"></div>
   <div class="queue-overflow" id="queue-overflow" data-layout-item="queue_overflow" aria-label="剩余排队提示牌"></div>
   <div class="game-stats" id="game-stats" data-layout-item="stats"><div><span>排队</span><b id="game-queue">0</b><small>位</small></div><div><span>出餐</span><b id="game-served">0</b><small>碗</small></div></div>
   <div class="gift-rule" id="gift-rule" data-layout-item="gift_rule"><span>送出 <b id="game-gift">小花花</b></span><small id="game-rule">排队吃面</small></div>
-  <div class="thief-board" id="thief-board" data-layout-item="thief_board" aria-label="偷钱榜单"><strong>偷钱榜单</strong><ol id="thief-board-list"></ol></div>
+  <section class="thief-board" id="thief-board" data-layout-item="thief_board" aria-label="观众轮播榜单">
+    <header><button type="button" data-board-direction="-1" aria-label="上一个榜单">‹</button><strong id="leaderboard-title">偷钱榜</strong><button type="button" data-board-direction="1" aria-label="下一个榜单">›</button></header>
+    <small id="leaderboard-rule">按偷到金额排名 · 前10名</small><ol id="thief-board-list"></ol>
+    <footer><span id="leaderboard-page">1 / 3</span><span>8秒自动轮播</span></footer>
+    <button type="button" class="board-resize" data-board-resize="n" tabindex="-1" aria-label="拖动榜单上边调整高度"></button><button type="button" class="board-resize" data-board-resize="e" tabindex="-1" aria-label="拖动榜单右边调整宽度"></button><button type="button" class="board-resize" data-board-resize="s" tabindex="-1" aria-label="拖动榜单下边调整高度"></button><button type="button" class="board-resize" data-board-resize="w" tabindex="-1" aria-label="拖动榜单左边调整宽度"></button>
+    <button type="button" class="board-resize" data-board-resize="nw" tabindex="-1" aria-label="拖动榜单左上角调整大小"></button><button type="button" class="board-resize" data-board-resize="ne" tabindex="-1" aria-label="拖动榜单右上角调整大小"></button><button type="button" class="board-resize" data-board-resize="sw" tabindex="-1" aria-label="拖动榜单左下角调整大小"></button><button type="button" class="board-resize" data-board-resize="se" tabindex="-1" aria-label="拖动榜单右下角调整大小"></button>
+  </section>
   <div class="shop-rating" id="shop-rating" data-layout-item="rating" aria-label="店铺评分"><strong id="shop-title">五星店铺</strong><div><span id="shop-stars">★★★★★</span><b id="shop-points">500</b></div></div>
   </div>
   <div class="throw-effects" id="throw-effects" aria-label="待清理的菜叶和鸡蛋"></div>
   <div class="shop-raid" id="shop-raid" aria-label="警察查封" hidden></div>
   <div class="shop-thief" id="shop-thief" role="status" aria-live="polite" hidden></div>
-  <img class="shop-seal" id="shop-seal" src="/noodle/assets/shop-seal.png" alt="已查封" draggable="false" hidden>
+  <img class="shop-seal" id="shop-seal" alt="已查封" draggable="false" hidden>
   <div id="stir-ghost" aria-hidden="true" hidden></div>
   <div id="burger-ghost" aria-hidden="true" hidden></div>
   <div class="game-toast" id="toast" role="status"></div>

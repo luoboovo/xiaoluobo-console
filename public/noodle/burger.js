@@ -22,7 +22,7 @@ export class BurgerScene {
   }
   get state() { return this.context.state(); }
   get layout() { return this.context.layout(); }
-  get enabled() { return this.state?.template?.workflow === 'burger'; }
+  get enabled() { return this.context.visible() && this.state?.template?.workflow === 'burger'; }
   applyTemplate() {
     for (const [id, slot, name] of tools) {
       const el = $(id); el.hidden = !this.enabled;
@@ -47,35 +47,44 @@ export class BurgerScene {
     if (!this.enabled) return;
     for (const food of ['bun', 'patty']) {
       const layer = $(food === 'bun' ? 'burger-oven-batches' : 'burger-griddle-batches');
+      if(layer.dataset.template!==this.state.template.id){layer.dataset.template=this.state.template.id;layer.dataset.paint='';layer.replaceChildren();}
       const batches = this.state.cooking.filter(o => o.food === food);
       const stamp = batches.map(o => o.id + ':' + Math.max(0, Math.ceil((o.ready_at - Date.now()) / 1000))).join(',');
       if (layer.dataset.paint === stamp) continue;
-      layer.dataset.paint = stamp; layer.replaceChildren();
-      for (const batch of batches) {
-        const ready = Date.now() >= batch.ready_at, el = document.createElement('span'), img = new Image(), status = document.createElement('small');
+      layer.dataset.paint = stamp;for(const el of layer.children)el.hidden=true;
+      for (const [index,batch] of batches.entries()) {
+        const ready = Date.now() >= batch.ready_at;
+        let el=layer.children[index];
+        if(!el){
+          el=document.createElement('span');
+          for(const slot of food==='bun'?['bun_raw','bun_top']:['patty_raw','patty_cooked']){const img=new Image();img.src=this.state.template.assets[slot];el.append(img);}
+          el.append(document.createElement('small'));layer.append(el);
+        }
+        el.hidden=false;el.children[0].hidden=ready;el.children[1].hidden=!ready;
+        el.children[0].alt='制作中';el.children[1].alt='已做好';
         el.className = 'burger-batch' + (ready ? ' ready' : '');
-        img.src = this.state.template.assets[food === 'bun' ? ready ? 'bun_top' : 'bun_raw' : ready ? 'patty_cooked' : 'patty_raw']; img.alt = ready ? '已做好' : '制作中';
-        status.textContent = ready ? '可取出' : Math.max(1, Math.ceil((batch.ready_at - Date.now()) / 1000)) + '秒';
-        el.append(img, status); layer.append(el);
+        el.querySelector('small').textContent = ready ? '可取出' : Math.max(1, Math.ceil((batch.ready_at - Date.now()) / 1000)) + '秒';
       }
     }
   }
   paint(el, item) {
     let stack = el.querySelector('.burger-stack');
-    el.firstElementChild.hidden = this.enabled;
     if (!this.enabled) { stack?.remove(); return; }
+    for(const img of el.querySelectorAll('.bowl-art'))img.hidden=true;
     if (!stack) { stack = document.createElement('div'); stack.className = 'burger-stack'; el.append(stack); }
     const contaminants=item.contaminants??(item.spoiled?['leaf']:[]);
     const result=item.closed&&item.spoiled?(contaminants.includes('cockroach')?'cockroach_burger':'dirty_burger'):null;
     const layers = result?[result]:['bun_bottom', ...(item.patty ? ['patty_cooked'] : []), ...(item.toppings ?? []).map(key => ['mustard','ketchup','salad','mayo'].includes(key) ? key+'_layer' : key), ...contaminants.map(key=>key==='egg'?'egg_splat':key), ...(item.closed ? ['bun_top'] : [])];
     const stamp = JSON.stringify([layers, item.spoiled, this.state.template.id]);
     if (stack.dataset.paint !== stamp) {
-      stack.dataset.paint = stamp; stack.replaceChildren();
+      stack.dataset.paint = stamp;for(const img of stack.children)img.hidden=true;
       let bottom = 8;
-      for (const slot of layers) {
-        const img = new Image(); img.src = this.state.template.assets[slot]; img.alt = result?(result==='dirty_burger'?'脏脏汉堡':'蟑螂汉堡'):'';
+      for (const [index,slot] of layers.entries()) {
+        let img=stack.children[index];if(!img){img=new Image();stack.append(img);}
+        const src=this.state.template.assets[slot];if(img.getAttribute('src')!==src)img.src=src;
+        img.hidden=false;img.alt=result?(result==='dirty_burger'?'脏脏汉堡':'蟑螂汉堡'):'';
         img.className = result?'burger-result':'burger-layer layer-' + slot;
-        if(!result)img.style.bottom = bottom + 'px'; stack.append(img);
+        img.style.bottom=result?'':bottom+'px';
         bottom += ({ bun_bottom: 15, patty_cooked: 15, cheese: 7, lettuce: 9, tomato: 9, mustard_layer: 5, ketchup_layer: 5, salad_layer: 5, mayo_layer: 5, bun_top: 0 })[slot]??8;
       }
     }

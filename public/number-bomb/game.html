@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>数字炸弹 · 小萝卜</title><link rel="stylesheet" href="/number-bomb/game.css"><script src="/events.js"></script><script src="/diagnostics.js"></script><script src="/number-bomb/game.js" defer></script></head>
+<body><main id="bomb-stage" aria-label="数字炸弹">
+  <aside id="players-left" class="players" aria-label="左侧观众"></aside>
+  <section class="bomb-panel" aria-label="数字面板">
+    <div id="number-grid" role="list" aria-label="可猜数字"></div>
+    <nav id="grid-pages" aria-label="数字翻页" hidden><button id="grid-previous" aria-label="上一页">‹</button><button id="grid-next" aria-label="下一页">›</button></nav>
+    <div id="explosion" hidden><span aria-hidden="true">💥</span><div id="loser-avatar"></div><strong id="secret-number"></strong><span id="loser-name" class="sr-only"></span></div>
+  </section>
+  <aside id="players-right" class="players right" aria-label="右侧观众"></aside>
+  <div id="bomb-announcement" class="sr-only" role="status" aria-live="polite"></div>
+</main><div id="bomb-connection" role="status">连接中…</div></body></html>

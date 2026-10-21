@@ -7,7 +7,10 @@ const workspace = new ChefSystems.GameState();
 const drag = new ChefSystems.DragSystem(workspace);
 const actors = new Map();
 const effects = new Map();
-let state, busy=false, revision=-1, keyboardDrag=false, presentationStamp='', raidStamp='', raidTimer;
+// 少量复用，避免连续出餐反复创建图片；每种物品和顾客最多缓存 4 个。
+const objectPool = new Map();
+const actorPool = [];
+let state, busy=false, revision=-1, keyboardDrag=false, templateStamp='', presentationStamp='', raidStamp='', raidTimer;
 let theftStamp='', theftTimer;
 let sliceStamp='', sliceTimer;
 let cafeStamp='', cafeTimer;
@@ -40,25 +43,26 @@ const knifeRecipe=()=>state?.template?.workflow==='knife-noodles';
 const cafeRecipe=()=>state?.template?.workflow==='jasmine-latte';
 const stirRecipe=()=>state?.template?.workflow==='stir-fry';
 const burgerRecipe=()=>state?.template?.workflow==='burger';
-const stir=new StirFryScene({state:()=>state,layout:()=>layout,canPlay:()=>!building&&!output&&!busy&&state?.mode==='running'&&!state?.sealed,send:(name,args)=>send(name,{revision,...args})});
-const burger=new BurgerScene({state:()=>state,layout:()=>layout,canPlay:()=>!building&&!output&&!busy&&state?.mode==='running'&&!state?.sealed,send:(name,args)=>send(name,{revision,...args}),pointer:p=>{localPointer=p;motionDirty=true;drawChef();}});
-const asset=(key,fallback)=>state?.template?.assets[key] || '/noodle/assets/'+fallback+'.png';
+const stir=new StirFryScene({visible:()=>showsCounter,state:()=>state,layout:()=>layout,canPlay:()=>!building&&!output&&!busy&&state?.mode==='running'&&!state?.sealed,send:(name,args)=>send(name,{revision,...args})});
+const burger=new BurgerScene({visible:()=>showsCounter,state:()=>state,layout:()=>layout,canPlay:()=>!building&&!output&&!busy&&state?.mode==='running'&&!state?.sealed,send:(name,args)=>send(name,{revision,...args}),pointer:p=>{localPointer=p;motionDirty=true;drawChef();}});
+const asset=(key,fallback)=>state?.template?.assets[key] || '/noodle/render/'+fallback+'.png';
 function applyTemplate() {
   ChefConfig.workflow=state.template?.workflow || 'mix';
   document.body.classList.toggle('cafe',cafeRecipe());
   document.body.classList.toggle('stir-fry',stirRecipe());
   document.body.classList.toggle('burger',burgerRecipe());
-  document.title=cafeRecipe()?'茉莉咖啡厅 · 小萝卜游戏控制台':'弹幕面馆 · 小萝卜游戏控制台';
-  $('game-served').nextElementSibling.textContent=cafeRecipe()?'杯':'碗';
+  const shopName=burgerRecipe()?'美式汉堡店':stirRecipe()?'麻辣香锅':cafeRecipe()?'茉莉咖啡厅':'弹幕面馆';
+  document.title=shopName+' · 小萝卜游戏控制台';
+  $('game-served').nextElementSibling.textContent=burgerRecipe()?'个':cafeRecipe()?'杯':'碗';
   const custom=Boolean(state.template?.assets.background);
-  $('template-background').alt=cafeRecipe()?'咖啡厅背景':'面馆背景';
+  $('template-background').alt=shopName+'背景';
   document.body.classList.toggle('custom-background',custom);
   $('template-background').hidden=!custom;
   if(!showsBackground)$('template-background').removeAttribute('src');
   else if(custom && $('template-background').getAttribute('src')!==state.template.assets.background) $('template-background').src=state.template.assets.background;
   for(const [selector,key,file] of [['.counter>img','counter','counter'],['#game-noodles>img','pot','pot'],['#game-sauce>img','sauce','sauce'],['#bowl-rack>img','bowl_stack','bowl-stack'],['#water-fridge>img','fridge','water-fridge'],['#trash-bin>img','trash','trash-bin'],['#cash-box>img','cash','cash-box'],['#cash-box .cash-total img','coin','payment-coin'],['#bowl-area>img','tray','bowl-area']]) {
     const empty=state.sealed && ['pot','sauce','fridge'].includes(key);
-    const cafeKey=cafeRecipe() && key==='pot'?'coffee_machine':key;
+    const cafeKey=burgerRecipe()?({pot:'griddle',sauce:'oven',bowl_stack:'bun_raw'}[key]||key):stirRecipe()&&key==='sauce'?'sesame':cafeRecipe()&&key==='pot'?'coffee_machine':key;
     const image=document.querySelector(selector),src=asset(cafeRecipe() && key==='pot'?cafeKey:empty?key+'_empty':cafeKey,empty?file+'-empty':file);
     if(key==='pot')image.alt=cafeRecipe()?'咖啡机':'面条锅';
     if(key==='bowl_stack')image.alt=cafeRecipe()?'咖啡杯架':'空碗架';
@@ -84,6 +88,8 @@ function applyTemplate() {
     }
     if(cafeRecipe())el.removeAttribute('title');else el.title=el.getAttribute('aria-label');
   });
+  const knife=$('dough-board').querySelector('.slice-knife');
+  if(showsCounter&&knifeRecipe())knife.src=asset('knife','knife');else knife.removeAttribute('src');
   drawCooking();
   stir.applyTemplate();
   burger.applyTemplate();
@@ -98,7 +104,7 @@ function drawShop() {
   $('shop-rating').classList.toggle('five-star',(state.stars ?? 5)===5 && !state.sealed);
   $('shop-seal').hidden=!state.sealed;
   const seal=asset('seal','shop-seal');
-  if($('shop-seal').getAttribute('src')!==seal)$('shop-seal').src=seal;
+  if(state.sealed){if($('shop-seal').getAttribute('src')!==seal)$('shop-seal').src=seal;}else $('shop-seal').removeAttribute('src');
   const stamp=state.active_preset+':'+state.raid_at,age=Date.now()-state.raid_at;
   if(stamp!==raidStamp) {
     raidStamp=stamp;clearTimeout(raidTimer);$('shop-raid').replaceChildren();$('shop-raid').hidden=true;
@@ -110,17 +116,43 @@ function drawShop() {
   }
 }
 function drawThiefBoard() {
-  const list = $('thief-board-list'), entries = state.thief_board || [];
-  const stamp = JSON.stringify(entries);
+  if (!previewActive || !showsCustomers || !state) return;
+  const cycle = state.leaderboard || { page:0, at:Date.now(), interval:8000 };
+  const page = (cycle.page + Math.max(0, Math.floor((Date.now() - cycle.at) / cycle.interval))) % 3;
+  const titles = ['偷钱榜','好评差评榜','大胃袋榜'];
+  const rules = ['按偷到金额排名 · 前10名','按评价总次数排名 · 前10名','按成功吃到份数排名 · 前10名'];
+  const entries = [state.thief_board, state.review_board, state.eater_board][page] || [];
+  const list = $('thief-board-list'), stamp = JSON.stringify([page, entries]);
   if (list.dataset.paint === stamp) return;
+  $('leaderboard-title').textContent = titles[page]; $('leaderboard-rule').textContent = rules[page];
+  $('leaderboard-page').textContent = `${page + 1} / 3`;
+  $('thief-board').dataset.page = page;
   list.dataset.paint = stamp; list.replaceChildren();
-  if (!entries.length) { const empty = document.createElement('li'); empty.textContent = '还没有人偷到钱'; list.append(empty); }
+  if (!entries.length) { const empty = document.createElement('li'); empty.className='leaderboard-empty'; empty.textContent = ['还没有人偷到钱','还没有收到好评或差评','还没有成功出餐'][page]; list.append(empty); }
   for (const [index, person] of entries.entries()) {
-    const row = document.createElement('li'), name = document.createElement('span'), amount = document.createElement('b');
-    name.textContent = `${index + 1}. ${person.name}`; amount.textContent = `${person.amount} 元`;
-    row.append(name, amount); list.append(row);
+    const row = document.createElement('li'), rank = document.createElement('b'), info = document.createElement('div'), name = document.createElement('span'), amount = document.createElement('small');
+    rank.textContent = index + 1; rank.className='leader-rank'; name.textContent = person.name; name.title = person.name;
+    if (page === 1) {
+      const good = document.createElement('span'), bad = document.createElement('span');
+      good.className='leader-praise'; good.textContent=`好评 ${person.praise}`;
+      bad.className='leader-review'; bad.textContent=`差评 ${person.review}`;
+      amount.append(good, bad);
+    } else amount.textContent = page === 0 ? `${person.amount} 元` : `${person.eaten} 份`;
+    info.className='leader-info'; info.append(name, amount);
+    row.append(rank, portrait(person,'leader-avatar'), info); list.append(row);
   }
 }
+setInterval(drawThiefBoard, 500);
+$('thief-board').addEventListener('pointerdown', event => { if (!building) event.stopPropagation(); });
+$('thief-board').addEventListener('keydown', event => { if (!building) event.stopPropagation(); });
+for (const button of document.querySelectorAll('[data-board-direction]')) button.addEventListener('click', async event => {
+  event.stopPropagation();
+  if (building || !state) return;
+  button.disabled = true;
+  try { render(await requestAction('leaderboard_page', { direction:Number(button.dataset.boardDirection) })); }
+  catch (error) { toast(error.message); }
+  finally { button.disabled = false; }
+});
 function drawSealCountdown() {
   if (!previewActive || !state?.sealed || !showsCustomers) return;
   const title = `查封 ${Math.max(0, Math.ceil((state.sealed_until - Date.now()) / 1000))} 秒`;
@@ -139,7 +171,7 @@ async function drawTheft() {
   if(!event) {clearTimeout(theftTimer);stage.hidden=true;stage.replaceChildren();return;}
   if(event.id===theftStamp) {const body=stage.querySelector('.thief-body');if(body)updateThiefFace(body,event.sender);return;}
   theftStamp=event.id;
-  const image=new Image();image.src='/noodle/assets/thief.png';image.alt='小偷';
+  const image=new Image();image.src='/noodle/render/thief.png';image.alt='小偷';
   try {await image.decode();} catch {image.alt='小偷来了';}
   if(!previewActive || state.theft?.id!==event.id)return;
   clearTimeout(theftTimer);stage.replaceChildren();
@@ -174,11 +206,9 @@ function drawCooking() {
     label.classList.toggle('ready',!!ready);
   }
   $('game-noodles').classList.toggle('brewing',cafeRecipe() && !!batches.length && !ready);
-  let cup=$('game-noodles').querySelector('.machine-cup');
   if(cafeRecipe() && batches.length) {
-    if(!cup){cup=document.createElement('img');cup.className='machine-cup';cup.alt='咖啡机中的杯子';$('game-noodles').append(cup);}
-    const src=asset(cafeCupAsset({...batches[0].cup,coffee:!!ready}),'bowl-empty');if(cup.getAttribute('src')!==src)cup.src=src;
-  }else cup?.remove();
+    paintImage($('game-noodles'),asset(cafeCupAsset({...batches[0].cup,coffee:!!ready}),'bowl-empty'),'咖啡机中的杯子','machine-cup');
+  }else for(const cup of $('game-noodles').querySelectorAll('.machine-cup')){if(cafeRecipe())cup.hidden=true;else cup.remove();}
 }
 function drawCafeEffect() {
   const event=state.cafe_effect,layer=$('cafe-effects');
@@ -231,7 +261,7 @@ if(params.has('preview')) document.body.classList.add('preview-mode');
 if(output && ['background','counter','customers'].includes(output)) document.body.classList.add('layer-output', 'output-'+output);
 function drawQueueOverflow() {
   if(!showsCustomers)return;
-  const remaining=Math.max(0,(state?.queue_count || 0)-120);
+  const remaining=Math.max(0,(state?.queue_count || 0)-layout.queue.rows*layout.queue.columns);
   $('queue-overflow').style.display=building || remaining>0?'block':'none';
   $('queue-overflow').textContent='还有 '+remaining+(burgerRecipe()?' 位在等汉堡':cafeRecipe()?' 位在等咖啡':stirRecipe()?' 位在等香锅':' 位在等面');
 }
@@ -245,10 +275,12 @@ function applyLayout() {
   const sources=NoodleLayout.stations(layout,state?.template?.workflow);
   const rating=layout.props.rating;
   $('shop-rating').style.transform=`translate(${rating.x}px,${rating.y}px) scale(${rating.scale})`;
-  for (const [key, id] of [['stats','game-stats'],['gift_rule','gift-rule'],['thief_board','thief-board'],['sign_top','sign-top'],['sign_title','sign-title'],['sign_bottom','sign-bottom'],['cash_text','cash-total'],['queue_overflow','queue-overflow']]) {
+  for (const [key, id] of [['stats','game-stats'],['gift_rule','gift-rule'],['thief_board','thief-board'],['sign_top','sign-top'],['sign_title','sign-title'],['sign_bottom','sign-bottom'],['cash_text','cash-total'],['queue_overflow','queue-overflow'],['queue_customers','game-customers']]) {
     const item = layout.props[key];
     $(id).style.transform = `translate(${item.x}px,${item.y}px) scale(${item.scale})`;
   }
+  $('thief-board').style.width = layout.props.thief_board.width + 'px';
+  $('thief-board').style.height = layout.props.thief_board.height + 'px';
   const trash=NoodleLayout.trashRect(layout,state?.template?.workflow), background=layout.modules.background;
   Object.assign($('trash-module').style,{transform:`translate(${background.x}px,${background.y}px) scale(${background.scale})`,display:background.visible?'block':'none'});
   Object.assign($('trash-bin').style,{left:trash.x+'px',top:trash.y+'px',width:trash.width+'px',height:trash.height+'px'});
@@ -320,16 +352,17 @@ function worldPosition(e) {
 function drawObjects() {
   if(!showsCounter)return;
   const layer=$('workspace-objects');
-  const rendered=new Map(Array.from(layer.children,el=>[Number(el.dataset.objectId),el]));
+  const rendered=new Map(Array.from(layer.children).filter(el=>!el.hidden).map(el=>[Number(el.dataset.objectId),el]));
   const candidate=drag.drag?.o || (!building && remoteMotion && remoteMotion.revision===state?.workspace_revision?remoteMotion.drag:null);
   const active=['leaf','egg','cockroach'].includes(candidate?.kind)?null:candidate;
   const ordered=workspace.objects.filter(o=>o.id!==active?.id);
   if(active) ordered.push(active);
   for(const [index,o] of ordered.entries()) {
     let el=rendered.get(o.id);rendered.delete(o.id);
-    if(el && el.dataset.kind!==o.kind) {el.remove();el=null;}
+    if(el && (el.dataset.kind!==o.kind||el.dataset.template!==state.template.id)) {recycleObject(el);el=null;}
+    if(!el){el=objectPool.get(o.kind)?.pop();if(el){el.hidden=false;el.dataset.objectId=o.id;el.dataset.paint='';}}
     if(!el) {
-      el=document.createElement('div');el.dataset.kind=o.kind;el.dataset.objectId=o.id;
+      el=document.createElement('div');el.dataset.kind=o.kind;el.dataset.objectId=o.id;el.dataset.template=state.template.id;
       el.tabIndex=0;el.setAttribute('role','button');
       if(o.kind==='bowl') {const img=document.createElement('img');img.className='bowl-art';el.append(img);for(const key of ['scallions','cilantro','jasmine']){const garnish=document.createElement('img');garnish.className='garnish garnish-'+key;garnish.alt={scallions:'葱花',cilantro:'香菜',jasmine:'茉莉花'}[key];garnish.hidden=true;el.append(garnish);}}
       else el.append(food(o.kind, asset));
@@ -346,18 +379,18 @@ function drawObjects() {
     if(o.kind==='bowl') {
       el.setAttribute('aria-label',knifeRecipe()?`拿起碗 ${o.id}，${o.noodles?'刀削面':'空碗'}，${o.scallions?'有':'无'}葱花，${o.cilantro?'有':'无'}香菜`:`拿起碗 ${o.id}，面条 ${o.noodles} 份，臊子 ${o.sauce} 份`);
       const ready=ChefSystems.RecipeSystem.ready(o);
-      const img=el.firstElementChild,src=o.spoiled?asset('evil_bowl','evil-noodles'):ready?asset('bowl','bowl'):!o.noodles&&!o.sauce?asset('bowl_empty','bowl-empty'):asset(o.noodles?'bowl_noodles':'bowl_sauce',o.noodles?'bowl-noodles':'bowl-sauce');
-      if(img.getAttribute('src')!==src) img.src=src;
-      img.alt=o.spoiled?'邪恶臭面条':ready?(state?.template?.dish_name||'臊子面'):o.noodles?'只装面条的碗':o.sauce?'只装臊子的碗':'空碗';
+      if(!burgerRecipe()&&!cafeRecipe()&&!stirRecipe()) {
+        const src=o.spoiled?asset('evil_bowl','evil-noodles'):ready?asset('bowl','bowl'):!o.noodles&&!o.sauce?asset('bowl_empty','bowl-empty'):asset(o.noodles?'bowl_noodles':'bowl_sauce',o.noodles?'bowl-noodles':'bowl-sauce');
+        paintImage(el,src,o.spoiled?'邪恶臭面条':ready?(state?.template?.dish_name||'臊子面'):o.noodles?'只装面条的碗':o.sauce?'只装臊子的碗':'空碗');
+      }
       if(cafeRecipe()) {
         const step=cafeCupAsset(o);
-        const src=asset(step,'bowl-empty');if(img.getAttribute('src')!==src)img.src=src;
-        img.alt=o.spoiled?'邪恶咖啡':ready?'茉莉花拿铁':o.coffee?(o.milk?'咖啡加牛奶':o.jasmine?'咖啡加茉莉花':'萃取好的咖啡'):o.milk?(o.jasmine?'牛奶加茉莉花':'牛奶杯'):o.jasmine?'放了茉莉花的杯子':'空咖啡杯';
+        const img=paintImage(el,asset(step,'bowl-empty'),o.spoiled?'邪恶咖啡':ready?'茉莉花拿铁':o.coffee?(o.milk?'咖啡加牛奶':o.jasmine?'咖啡加茉莉花':'萃取好的咖啡'):o.milk?(o.jasmine?'牛奶加茉莉花':'牛奶杯'):o.jasmine?'放了茉莉花的杯子':'空咖啡杯');
         el.setAttribute('aria-label',`拿起咖啡杯 ${o.id}，${img.alt}`);el.classList.toggle('spoiled-cup',!!o.spoiled);
       }
       if(stirRecipe()){
-        const src=asset(o.spoiled?'evil_bowl':o.ingredients?.length?StirFryFood.bowlAssets[StirFryFood.garnishMask(o.garnishes??[])]:'bowl_empty','bowl-empty');if(img.getAttribute('src')!==src)img.src=src;
-        img.alt=o.spoiled?'变质的香锅':o.ingredients?.length?'麻辣香锅':'空碗';el.setAttribute('aria-label',`拿起碗 ${o.id}，${img.alt}`);
+        const img=paintImage(el,asset(o.spoiled?'evil_bowl':o.ingredients?.length?StirFryFood.bowlAssets[StirFryFood.garnishMask(o.garnishes??[])]:'bowl_empty','bowl-empty'),o.spoiled?'变质的香锅':o.ingredients?.length?'麻辣香锅':'空碗');
+        el.setAttribute('aria-label',`拿起碗 ${o.id}，${img.alt}`);
       }
       el.classList.toggle('milk-in-cup',cafeRecipe() && !o.coffee && !!o.milk);
       el.classList.toggle('both-garnishes',!!(o.scallions && o.cilantro));
@@ -368,20 +401,41 @@ function drawObjects() {
       burger.paint(el,o);
     } else {if(stirRecipe()&&o.kind==='water'){el.firstElementChild.src=asset(o.drink||'cola','mineral-water');el.firstElementChild.alt=StirFryFood.drinks[o.drink]||'饮料';}el.setAttribute('aria-label','拿起'+el.firstElementChild.alt);}
   }
-  for(const el of rendered.values()) el.remove();
+  for(const el of rendered.values()) recycleObject(el);
   drawChef();
+}
+// 保留各制作阶段的图片，只切换可见性，避免同一图片元素反复换源并积累解码缓存。
+function paintImage(el,src,alt,className='bowl-art') {
+  const images=Array.from(el.querySelectorAll('.'+className));
+  let img=images.find(image=>image.getAttribute('src')===src);
+  if(!img){img=images.find(image=>!image.hasAttribute('src'))||document.createElement('img');img.className=className;img.src=src;if(!img.parentNode)el.append(img);}
+  for(const image of images)image.hidden=image!==img;
+  img.hidden=false;img.alt=alt;return img;
+}
+function recycleObject(el) {
+  if(el.dataset.template!==state.template.id){el.remove();return;}
+  const pool=objectPool.get(el.dataset.kind)||[];
+  if(pool.length<4){el.hidden=true;delete el.dataset.objectId;pool.push(el);objectPool.set(el.dataset.kind,pool);}else el.remove();
+}
+function clearPools() {
+  for(const pool of objectPool.values())for(const el of pool)el.remove();
+  for(const actor of actorPool)actor.remove();
+  objectPool.clear();actorPool.length=0;
+  for(const cup of document.querySelectorAll('.machine-cup'))cup.remove();
 }
 function render(next,force=false) {
   if(next.workspace_revision>revision && drag.drag) {drag.up(true);keyboardDrag=false;motionDirty=true;force=true;}
   if(state && JSON.stringify(state.config.layout)!==JSON.stringify(next.config.layout) && drag.drag) {drag.up(true);keyboardDrag=false;force=true;}
   state=next;
   document.body.classList.toggle('no-shop',next.active_preset===null);
+  const template=JSON.stringify([next.template?.id,next.sealed]);
+  if(template!==templateStamp){templateStamp=template;clearPools();applyTemplate();}
   const stamp=JSON.stringify([next.config,next.template?.id,next.mode,next.sealed,building,busy]);
   if(throwDrag && (state.mode!=='running' || !state.throws.some(item=>item.id===throwDrag.o.id && item.revision===throwDrag.o.revision))) {throwDrag=null;keyboardDrag=false;motionDirty=true;}
   renderThrows(next.throws || []);
   if(state.mode!=='running') renderMotion(null);
   if(stamp!==presentationStamp) {
-    presentationStamp=stamp;applyTemplate();
+    presentationStamp=stamp;
     if(!building) layout=NoodleLayout.validate(state.config.layout);
     applyLayout();if(!building) applySign(NoodleSign.validate(state.config.sign));
   }
@@ -395,43 +449,58 @@ function render(next,force=false) {
     revision=state.workspace_revision;drawObjects();
   }
   if(showsCustomers) {
-  const departures=state.departures||[];
+  const departures=(state.departures||[]).filter(person=>person.index<layout.queue.rows*layout.queue.columns);
   const shown=new Set([...state.queue,...departures].map(p=>p.id));
-  for(const [id,actor] of actors) if(!shown.has(id)){clearTimeout(actor.departureTimer);actor.remove();actors.delete(id);}
+  for(const [id,actor] of actors) if(!shown.has(id)){recycleActor(actor);actors.delete(id);}
   [...state.queue.map((person,index)=>({...person,index})),...departures].forEach(person=>{
     let actor=actors.get(person.id);
     if(!actor){
-      actor=document.createElement('div');actor.className='customer';actor.tabIndex=0;actor.setAttribute('role','button');
-      actor.dataset.customerId=person.id;actor.dataset.name=person.name;actor.dataset.face=person.face;actor.setAttribute('aria-label',`递给 ${person.name}`);
+      const orderSrc=person.order==='water'?asset(stirRecipe()?'cola':'water','mineral-water'):asset('bowl','bowl');
+      const cached=actorPool.findIndex(item=>item.querySelector('.customer-order').getAttribute('src')===orderSrc);
+      if(cached>=0)actor=actorPool.splice(cached,1)[0];
+      if(!actor){
+        actor=document.createElement('div');
+        for(const cls of ['customer-shadow','customer-feet','customer-body']) {const el=document.createElement('div');el.className=cls;actor.append(el);}
+        actor.append(portrait(person,'customer-head'));actor.dataset.face=person.face;
+        const label=document.createElement('span');label.className='customer-name';actor.append(label);
+        const order=document.createElement('img');order.className='customer-order';actor.append(order);
+      }
+      actor.hidden=false;actor.className='customer';actor.tabIndex=0;actor.setAttribute('role','button');
+      delete actor.dataset.position;delete actor.dataset.departureAt;actor.style.animationDelay='';actor.querySelector('.customer-reaction')?.remove();
+      actor.dataset.customerId=person.id;actor.dataset.name=person.name;actor.setAttribute('aria-label',`递给 ${person.name}`);
       actor.style.setProperty('--shirt',shirts[person.uid%shirts.length]);
       actor.style.setProperty('--face',['#ebccb3','#f1d5b9','#dbcab8'][person.uid%3]);
       actor.style.setProperty('--hair',['#675b55','#977a5d','#5f6469','#bd976c'][person.uid%4]);
-      for(const cls of ['customer-shadow','customer-feet','customer-body']) {const el=document.createElement('div');el.className=cls;actor.append(el);}
-      actor.append(portrait(person,'customer-head'));
-      const label=document.createElement('span');label.className='customer-name';label.textContent=person.name;actor.append(label);
+      actor.querySelector('.customer-name').textContent=person.name;
       const dish=state.template?.dish_name||'臊子面';
-      const order=document.createElement('img');order.className='customer-order'+(person.order==='water'?' water-order':'');order.src=person.order==='water'?asset(stirRecipe()?'cola':'water','mineral-water'):asset('bowl','bowl');order.alt=person.order==='water'?(stirRecipe()?'点单饮料':'点单圣水'):'点单'+dish;actor.append(order);
+      const order=actor.querySelector('.customer-order');
+      order.className='customer-order'+(person.order==='water'?' water-order':'');if(order.getAttribute('src')!==orderSrc)order.src=orderSrc;order.alt=person.order==='water'?(stirRecipe()?'点单饮料':'点单圣水'):'点单'+dish;
       actor.setAttribute('aria-label',`递给 ${person.name}，点单${person.order==='water'?(stirRecipe()?'饮料':'圣水'):dish}`);
       $('game-customers').append(actor);actors.set(person.id,actor);
     }
     if(actor.dataset.face!==person.face) {actor.querySelector('.customer-head').replaceWith(portrait(person,'customer-head'));actor.dataset.face=person.face;}
-    const p=queuePosition(person.index),position=person.index+':'+!!person.at;
-    if(actor.dataset.position!==position) {actor.dataset.position=position;actor.style.left=p.x+'px';actor.style.top=p.y+'px';actor.style.zIndex=person.at?200:p.layer;}
+    const avatar=actor.querySelector('.customer-head img');if(avatar)avatar.alt=person.name+'的头像';
+    const p=queuePosition(person.index,layout.queue),position=JSON.stringify([person.index,!!person.at,layout.queue]);
+    if(actor.dataset.position!==position) {actor.dataset.position=position;actor.style.left=p.x+'px';actor.style.top=p.y+'px';actor.style.scale=String(layout.queue.scale);actor.style.zIndex=person.at?1000:p.layer;}
     if(person.at && actor.dataset.departureAt!==String(person.at)) {
       actor.dataset.departureAt=person.at;actor.tabIndex=-1;actor.setAttribute('role','img');
-      actor.classList.add('departing',person.correct?'satisfied':'angry');actor.style.zIndex=200;
+      actor.classList.add('departing',person.correct?'satisfied':'angry');actor.style.zIndex=1000;
       actor.style.setProperty('--exit-x',(p.x<640?-1400:1400)+'px');actor.style.animationDelay=-Math.max(0,Date.now()-person.at)+'ms';
       const phrases=person.correct?(person.order==='water'?['圣水到位，老板真贴心！','冰冰凉凉，太舒服了！']:person.recipe==='burger'?['汉堡真香，下次还来！','肉饼煎得真好，老板手艺棒！']:person.recipe==='jasmine-latte'?['茉莉花好香，拿铁真好喝！','奶香配花香，下次还来！']:['这碗面真香，下次还来！','料足味道好，老板手艺棒！']):(person.order==='water'?['我要圣水，你给的啥呀！','点单都弄错了，不喝了！']:person.recipe==='burger'?['我要熟肉饼汉堡，还没做好呀！','请先把肉饼煎熟，盖好面包！']:person.recipe==='jasmine-latte'?['我要茉莉花拿铁，还没做好呀！','咖啡、茉莉花和牛奶都要有！']:person.recipe==='knife-noodles'?['面都没装好，不吃了！','这不是我点的刀削面！']:['我要面加臊子，这能吃吗！','这不是我要的，气死了！']);
       const bubble=document.createElement('div');bubble.className='customer-reaction';bubble.textContent=person.helped?'有人帮忙做好啦，谢谢！':person.spoiled?(burgerRecipe()?'汉堡变质了，不能吃！':cafeRecipe()?'邪恶咖啡！臭臭的，不喝了！':'臭臭面！老板你认真的吗！'):phrases[person.id%phrases.length];actor.append(bubble);
       const bubbleX=Math.max(105-p.x,Math.min(36,1175-p.x));bubble.style.left=bubbleX+'px';bubble.style.setProperty('--bubble-tip',(36-bubbleX)+'px');
       actor.setAttribute('aria-label',person.name+'：'+bubble.textContent);
-      actor.departureTimer=setTimeout(()=>{if(actors.get(person.id)===actor){actor.remove();actors.delete(person.id);}},Math.max(0,4200-(Date.now()-person.at)));
+      actor.departureTimer=setTimeout(()=>{if(actors.get(person.id)===actor){recycleActor(actor);actors.delete(person.id);}},Math.max(0,4200-(Date.now()-person.at)));
     }
   });
   drawQueueOverflow();
   }
   if(state.mode!=='running' && drag.drag) {drag.up(true);keyboardDrag=false;drawObjects();}
   highlight();
+}
+function recycleActor(actor) {
+  clearTimeout(actor.departureTimer);
+  if(actorPool.length<4){actor.hidden=true;actor.className='customer-cache';delete actor.dataset.customerId;actorPool.push(actor);}else actor.remove();
 }
 async function send(action, payload) {
   busy=true;
@@ -461,8 +530,8 @@ $('bowl-rack').addEventListener('click',placeBowl);
 function targetCustomer() {
   const o=heldItem() || remoteMotion?.drag;
   if(!o || !['bowl','water','noodles','sauce','raw','cooked','scallions','cilantro','jasmine','milk'].includes(o.kind) || !layout.modules.customers.visible) return null;
-  const p=NoodleLayout.fromStage(NoodleLayout.workspaceToStage(o,layout,state?.template?.workflow),layout.modules.customers);
-  return customerAt(state.queue,p.x,p.y);
+  const p=NoodleLayout.fromStage(NoodleLayout.fromStage(NoodleLayout.workspaceToStage(o,layout,state?.template?.workflow),layout.modules.customers),layout.props.queue_customers);
+  return customerAt(state.queue,p.x,p.y,layout.queue);
 }
 function highlight() {
   const o=heldItem() || remoteMotion?.drag;
@@ -577,7 +646,7 @@ $('stage').addEventListener('pointerdown',e=>{
     if(e.button!==0) return;
     selectedItem=e.target.closest('[data-layout-item]')?.dataset.layoutItem || '';
     if(selectedItem) selectedModule=NoodleLayout.itemModule(selectedItem);
-    buildDrag={p:stagePosition(e),initial:structuredClone(layout),item:selectedItem,module:selectedModule};
+    buildDrag={p:stagePosition(e),initial:structuredClone(layout),item:selectedItem,module:selectedModule,resize:e.target.closest('[data-board-resize]')?.dataset.boardResize};
     applyLayout();parent.postMessage({type:'noodle-layout',layout,selected:selectedModule,item:selectedItem},location.origin);
     $('stage').setPointerCapture(e.pointerId);e.preventDefault();return;
   }
@@ -613,6 +682,10 @@ $('stage').addEventListener('pointermove',e=>{
   if(buildDrag) {
     const p=stagePosition(e),base=buildDrag.initial,item=buildDrag.item?NoodleLayout.itemConfig(layout,buildDrag.item):layout.modules[buildDrag.module];
     const original=buildDrag.item?NoodleLayout.itemConfig(base,buildDrag.item):base.modules[buildDrag.module],factor=buildDrag.item?base.modules[buildDrag.module].scale:1;
+    if (buildDrag.resize) {
+      Object.assign(item, NoodleLayout.resizeBoard(original, buildDrag.resize, (p.x-buildDrag.p.x)/factor/original.scale, (p.y-buildDrag.p.y)/factor/original.scale));
+      applyLayout();parent.postMessage({type:'noodle-layout',layout},location.origin);return;
+    }
     const maxX=buildDrag.item?1280:600,maxY=buildDrag.item?720:360;
     item.x=Math.round(Math.max(-maxX,Math.min(maxX,original.x+(p.x-buildDrag.p.x)/factor)));
     item.y=Math.round(Math.max(-maxY,Math.min(maxY,original.y+(p.y-buildDrag.p.y)/factor)));
@@ -774,6 +847,7 @@ addEventListener('message', event => {
   for (const actor of actors.values()) { clearTimeout(actor.departureTimer); actor.remove(); }
   for (const effect of effects.values()) { clearTimeout(effect.arrivalTimer); effect.remove(); }
   actors.clear(); effects.clear(); $('workspace-objects').replaceChildren();
+  clearPools();
   $('shop-raid').replaceChildren(); $('shop-thief').replaceChildren(); $('shop-raid').hidden = true; $('shop-thief').hidden = true;
   if (drag.drag) drag.up(true);
   workspace.objects = []; throwDrag = null; remoteMotion = null; localPointer = null; revision = -1; presentationStamp = ''; raidStamp = ''; theftStamp = '';

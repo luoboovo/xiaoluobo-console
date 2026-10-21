@@ -37,10 +37,10 @@ test('绿幕抠像：绿色透明，红色/肤色/黑色保留，边缘柔化与
 });
 test('礼物触发图片与视频：每件播放、计时共存、去重、先后顺序、重置停止与存档不重播',async t=>{
   const dir=await directory(t), uploaded=await uploadMedia(Readable.from([png]),dir,'测试.png');
-  const machine=await new OvertimeMachine(dir).init();t.after(()=>machine.close());
+  const machine=await new OvertimeMachine(dir,{clock:()=>0}).init();t.after(()=>machine.close());
   const media=normalizeMedia({...uploaded,duration:0.1});
   const rule={gift_name:'触发礼物',gift_id:1,operation:'add',value:30,media};
-  await machine.action({action:'configure',config:{...config,gift_rules:[rule,{...rule,gift_name:'第二种礼物',gift_id:2,operation:'media',media:{...media,name:'第二张图片'}}]}});await machine.action({action:'start'});await machine.action({action:'pause'});
+  await machine.action({action:'configure',config:{...config,gift_rules:[rule,{...rule,gift_name:'第二种礼物',gift_id:2,operation:'media',media:{...media,name:'第二张图片'}}]}});await machine.action({action:'start'});
   const cues=[];machine.on('media',cue=>{if(cue)cues.push(cue);});
   const event={type:'gift',giftId:1,giftName:'触发礼物',user:'观众',uid:1,count:3,transactionId:'same'};
   await machine.receive(event);assert.equal(machine.remaining(),9000n);assert.equal(machine.state.people[0].added,'5400');assert.equal(cues.length,1);
@@ -104,6 +104,13 @@ test('素材HTTP：本机上传、视频字节范围、内容类型、无效范�
     runtime.services.addGift({giftId:1,giftName:'礼物',uid:1,user:'送礼人',count:10,transactionId:'http-media'});
     const frame=new TextDecoder().decode((await reader.read()).value);assert.match(frame,/event: overtime-media/);assert.match(frame,new RegExp(media.asset));abort.abort();
     assert.equal(runtime.overtime.state.people.length,0);await post({action:'stop_media'});assert.equal(runtime.overtime.mediaCue,null);
+    const cues=[];runtime.onOvertimeMedia(cue=>{if(cue)cues.push(cue);});
+    await post({action:'pause'});
+    runtime.services.addGift({giftId:1,giftName:'礼物',uid:1,user:'送礼人',count:10,transactionId:'http-paused'});
+    for(let i=0;i<100&&runtime.overtime.state.history.length<2;i++)await new Promise(resolve=>setTimeout(resolve,10));
+    assert.equal(runtime.overtime.state.history.length,2);assert.equal(runtime.overtime.mediaCue,null);assert.deepEqual(runtime.overtime.mediaQueue,[]);assert.deepEqual(cues,[],'桌面浮窗监听器没有收到播放事件');
+    assert.match(runtime.overtime.state.history[0].effect,/未播放素材/);
+    await post({action:'start'});assert.equal(runtime.overtime.mediaCue,null,'继续加班不补播暂停期间的礼物');
     for(const file of ['/overtime/green-screen.js','/overtime/media-player.js'])assert.equal((await fetch(url+file)).status,200);
   } finally {await runtime.close();}
 });
@@ -121,4 +128,36 @@ test('程序退出：保存加班状态后断开未完成的素材连接，不�
     assert.equal(await Promise.race([stopped.then(()=>true),new Promise(resolve=>{timer=setTimeout(()=>resolve(false),1000);})]),true);
     assert.equal(JSON.parse(await fs.readFile(path.join(dir,'overtime.json'),'utf8')).mode,'paused');
   } finally {clearTimeout(timer);request.destroy();await (stopped || runtime.close());}
+});
+
+test('未开机和暂停时礼物不播放，暂停立即清空特效，恢复只播放新礼物，手动预览仍可使用',async t=>{
+  const dir=await directory(t),uploaded=await uploadMedia(Readable.from([png]),dir,'开关.png');
+  const machine=await new OvertimeMachine(dir,{clock:()=>0}).init();t.after(()=>machine.close());
+  const media={...uploaded,duration:10},rule={gift_name:'开关礼物',gift_id:1,operation:'add',value:1,media};
+  await machine.action({action:'configure',config:{...config,gift_rules:[rule]}});
+  const cues=[];machine.on('media',cue=>{if(cue)cues.push(cue);});
+  const event={type:'gift',giftId:1,user:'观众',uid:1,count:3,transactionId:'idle'};
+  await machine.receive(event);assert.equal(machine.mediaCue,null);assert.equal(cues.length,0);assert.equal(machine.remaining(),3600n);
+  await machine.action({action:'preview_media',media});assert.equal(machine.mediaCue.preview,true);machine.stopInactiveMedia();assert.ok(machine.mediaCue);
+  await machine.action({action:'stop_media'});await machine.action({action:'start'});
+  await machine.receive({...event,transactionId:'running'});assert.equal(machine.mediaQueue[0].count,2n);assert.equal(cues.length,2);
+  await machine.action({action:'pause'});assert.equal(machine.mediaCue,null);assert.deepEqual(machine.mediaQueue,[]);
+  await machine.receive({...event,transactionId:'paused'});await machine.receive({...event,transactionId:'paused'});
+  assert.equal(machine.remaining(),3960n,'暂停期间仍结算礼物，交易去重保留');assert.equal(cues.length,2);assert.deepEqual(machine.mediaQueue,[]);
+  await machine.action({action:'start'});assert.equal(machine.mediaCue,null);assert.deepEqual(machine.mediaQueue,[]);
+  await machine.receive({...event,count:1,transactionId:'new'});assert.equal(cues.length,3);assert.equal(machine.mediaCue.preview,false);
+  await machine.action({action:'clear'});assert.equal(machine.mediaCue,null);assert.deepEqual(machine.mediaQueue,[]);
+});
+
+test('自然下班停止播放并丢弃队列；礼物清空时间也不播放，暂停保存失败保留原状态',async t=>{
+  const dir=await directory(t),uploaded=await uploadMedia(Readable.from([png]),dir,'下班.png');let now=0;
+  const machine=await new OvertimeMachine(dir,{clock:()=>now}).init();t.after(()=>machine.close());
+  const media={...uploaded,duration:120};
+  await machine.action({action:'configure',config:{...config,initial_text:'1',gift_rules:[{gift_name:'播放',gift_id:1,operation:'media',value:1,media},{gift_name:'清空',gift_id:2,operation:'clear',value:1,media}]}});
+  await machine.action({action:'reset'});await machine.action({action:'start'});await machine.receive({type:'gift',giftId:1,count:4,user:'观众'});
+  const cue=machine.mediaCue,original=machine.file;machine.file=path.join(dir,'blocked');await fs.mkdir(machine.file);
+  await assert.rejects(machine.action({action:'pause'}));assert.equal(machine.state.mode,'running');assert.equal(machine.mediaCue,cue);assert.equal(machine.mediaQueue[0].count,3n);
+  machine.file=original;now=60001;machine.stopInactiveMedia();assert.equal(machine.snapshot().mode,'finished');assert.equal(machine.mediaCue,null);assert.deepEqual(machine.mediaQueue,[]);
+  await machine.action({action:'start'});await machine.receiveBatch([{type:'gift',giftId:1,count:1,user:'观众'},{type:'gift',giftId:2,count:1,user:'观众'}]);
+  assert.equal(machine.remaining(),0n);assert.equal(machine.mediaCue,null);assert.deepEqual(machine.mediaQueue,[]);
 });

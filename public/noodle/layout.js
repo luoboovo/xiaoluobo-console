@@ -1,16 +1,22 @@
 (function(root) {
   const modules = ['background', 'counter', 'customers'];
   const kinds = ['noodles', 'sauce', 'bowl'];
-  const props = ['fridge', 'trash', 'cash', 'tray', 'dough', 'scallions', 'cilantro', 'rating', 'jasmine', 'milk', 'bun_lid', 'chef', 'stats', 'gift_rule', 'thief_board', 'sign_top', 'sign_title', 'sign_bottom', 'cash_text', 'ketchup', 'salad', 'mayo', 'queue_overflow'];
+  const props = ['fridge', 'trash', 'cash', 'tray', 'dough', 'scallions', 'cilantro', 'rating', 'jasmine', 'milk', 'bun_lid', 'chef', 'stats', 'gift_rule', 'thief_board', 'sign_top', 'sign_title', 'sign_bottom', 'cash_text', 'ketchup', 'salad', 'mayo', 'queue_overflow', 'queue_customers'];
+  const boardLimits = { width:[180,1280], height:[160,720] };
   const defaults = {
     modules: Object.fromEntries(modules.map(key => [key, { x: 0, y: 0, scale: 1, visible: true }])),
     stations: Object.fromEntries(kinds.map(key => [key, { side: key === 'noodles' ? 'left' : 'right', x: 0, y: 0, scale: 1, locked: true }])),
     trash: { side: 'right' },
+    queue: { rows:4, columns:20, scale:1 },
     props: Object.fromEntries(props.map(key => [key, { x: 0, y: 0, scale: 1 }]))
   };
+  Object.assign(defaults.props.thief_board, {width:220, height:300});
   function validate(input) {
     if (!input || typeof input !== 'object') throw new Error('场景配置无效');
     const result = { modules: {}, stations: {}, props: {} };
+    const queue = input.queue === undefined ? defaults.queue : input.queue;
+    if (!queue || !Number.isInteger(queue.rows) || queue.rows < 1 || queue.rows > 6 || !Number.isInteger(queue.columns) || queue.columns < 1 || queue.columns > 40 || !Number.isFinite(queue.scale) || queue.scale < .5 || queue.scale > 2) throw new Error('排队设置无效：1–6 排，每排 1–40 人，顾客大小 50%–200%');
+    result.queue = { rows:queue.rows, columns:queue.columns, scale:queue.scale };
     for (const group of ['modules', 'stations']) for (const key of group === 'modules' ? modules : kinds) {
       const item = input[group]?.[key];
       if (!item || !Number.isFinite(item.x) || Math.abs(item.x) > (group === 'modules' ? 600 : 1280) || !Number.isFinite(item.y) || Math.abs(item.y) > (group === 'modules' ? 360 : 720) || !Number.isFinite(item.scale) || item.scale < (group === 'modules' ? .5 : .25) || item.scale > (group === 'modules' ? 1.5 : 2)) throw new Error('位置或大小超出可搭建范围');
@@ -29,6 +35,12 @@
       const item = input.props === undefined || !['fridge','trash','cash','tray'].includes(key) && input.props?.[key] === undefined ? defaults.props[key] : input.props?.[key];
       if (!item || !Number.isFinite(item.x) || Math.abs(item.x) > 1280 || !Number.isFinite(item.y) || Math.abs(item.y) > 720 || !Number.isFinite(item.scale) || item.scale < .25 || item.scale > 2) throw new Error('物品位置或大小无效');
       result.props[key] = { x: item.x, y: item.y, scale: item.scale };
+      if (key === 'thief_board') for (const dimension of ['width','height']) {
+        const value = item[dimension] === undefined ? defaults.props.thief_board[dimension] : item[dimension];
+        const [min,max] = boardLimits[dimension];
+        if (!Number.isFinite(value) || value < min || value > max) throw new Error('榜单宽高超出范围');
+        result.props[key][dimension] = value;
+      }
     }
     return result;
   }
@@ -53,14 +65,23 @@
     }
     return result;
   }
-  function position(index) {
-    const row = Math.floor(index / 20), col = index % 20;
-    return { x: 34 + col * 60, y: 610 - row * 23, layer: 120 - row };
+  function position(index, queue = defaults.queue) {
+    const row = Math.floor(index / queue.columns), col = index % queue.columns;
+    const gap = queue.columns === 1 ? 0 : Math.min(60 * queue.scale, (1212 - 72 * queue.scale) / (queue.columns - 1));
+    return { x: 34 + col * gap, y: Math.min(704, 720 - 12 * queue.scale) - 94 * queue.scale - row * 23 * queue.scale, layer: queue.rows * queue.columns - index };
   }
   const toStage = (point, module) => ({ x: point.x * module.scale + module.x, y: point.y * module.scale + module.y });
   const fromStage = (point, module) => ({ x: (point.x - module.x) / module.scale, y: (point.y - module.y) / module.scale });
-  const itemModule = key => ['rating','stats','gift_rule','thief_board','queue_overflow'].includes(key) ? 'customers' : ['fridge', 'trash','sign_top','sign_title','sign_bottom'].includes(key) ? 'background' : 'counter';
+  const itemModule = key => ['rating','stats','gift_rule','thief_board','queue_overflow','queue_customers'].includes(key) ? 'customers' : ['fridge', 'trash','sign_top','sign_title','sign_bottom'].includes(key) ? 'background' : 'counter';
   const itemConfig = (layout, key) => kinds.includes(key) ? layout.stations[key] : layout.props[key];
+  function resizeBoard(item, edge, dx, dy) {
+    const next = {...item}, horizontal = edge.includes('w') ? -1 : edge.includes('e') ? 1 : 0, vertical = edge.includes('n') ? -1 : edge.includes('s') ? 1 : 0;
+    next.width = Math.round(Math.max(boardLimits.width[0], Math.min(boardLimits.width[1], item.width + horizontal * dx)));
+    next.height = Math.round(Math.max(boardLimits.height[0], Math.min(boardLimits.height[1], item.height + vertical * dy)));
+    if (horizontal < 0) next.x = Math.round(Math.max(-1280, Math.min(1280, item.x + (item.width - next.width) * item.scale)));
+    if (vertical < 0) next.y = Math.round(Math.max(-720, Math.min(720, item.y + (item.height - next.height) * item.scale)));
+    return next;
+  }
   function propRect(layout, key, workflow) {
     const bases = { fridge: [layout.trash?.side === 'left' ? 995 : 275, 174, 145, 180], trash: [layout.trash?.side === 'left' ? 112 : 1128, 252, 128, 160], cash: [1010, 491, 116, 102], tray: [320*1280/1200, 370*720/740, 540*1280/1200, 210*720/740], dough:[225,355,150,104], scallions:[1010,345,92,70], cilantro:[1110,345,92,70], jasmine:[970,337,115,94], milk:[1100,320,106,122] };
     if(workflow==='stir-fry')Object.assign(bases,{fridge:[1023,143,240,533],trash:[1126,586,105,110],cash:[965,539,75,66],tray:[408,491,550,110],dough:[17,132,426,540],scallions:[859,244,75,80],cilantro:[934,244,75,80]});
@@ -86,6 +107,6 @@
     const p = fromStage(point, layout.modules.background), r = trashRect(layout,workflow);
     return p.x >= r.x + 16*r.scale && p.x <= r.x + r.width - 16*r.scale && p.y >= r.y + 8*r.scale && p.y <= r.y + 120*r.scale;
   }
-  const api = { defaults, validate, stations, position, toStage, fromStage, itemModule, itemConfig, propRect, workspaceToStage, stageToWorkspace, trashRect, trashContains };
+  const api = { defaults, validate, stations, position, toStage, fromStage, itemModule, itemConfig, resizeBoard, propRect, workspaceToStage, stageToWorkspace, trashRect, trashContains };
   if (typeof module !== 'undefined') module.exports = api; else root.NoodleLayout = api;
 })(globalThis);

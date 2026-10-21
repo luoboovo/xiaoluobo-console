@@ -5,7 +5,7 @@ export class StirFryScene {
   constructor(context){this.context=context;this.template='';this.mix='';this.effect='';this.drag=null;setInterval(()=>this.refreshCooking(),160);addEventListener('blur',()=>this.cancel());addEventListener('pointercancel',()=>this.cancel());addEventListener('keydown',e=>{if(e.key==='Escape')this.cancel();});}
   get state(){return this.context.state();}
   get layout(){return this.context.layout();}
-  get enabled(){return this.state?.template?.workflow==='stir-fry';}
+  get enabled(){return this.context.visible()&&this.state?.template?.workflow==='stir-fry';}
   sprite(id){
     const item=Food.ingredients.find(food=>food.id===id),el=document.createElement('span');el.className='food-sprite';el.dataset.category=item.category;
     el.style.backgroundImage=`url("${this.state.template.assets.ingredient_sheet}")`;el.style.backgroundPosition=`${item.index%4*100/3}% ${Math.floor(item.index/4)*50}%`;return el;
@@ -17,6 +17,7 @@ export class StirFryScene {
     }
   }
   applyTemplate(){
+    if(!this.enabled){delete $('stir-basket-food').dataset.paint;this.sheet=null;this.template='';}
     for(const id of ['stir-cabinet','stir-fridge-shelves'])$(id).hidden=!this.enabled;
     if(!this.enabled){this.cancel();$('stir-basket-food').replaceChildren();$('stir-wok-food').replaceChildren();$('game-noodles').classList.remove('stir-cooking','stir-ready');$('game-sauce').setAttribute('aria-label','拖出臊子');$('game-sauce').firstElementChild.alt='臊子保温桶';$('water-fridge').setAttribute('aria-label','取一瓶圣水');$('water-fridge').firstElementChild.alt='圣水冰柜';return;}
     document.title='麻辣香锅 · 小萝卜游戏控制台';
@@ -26,6 +27,8 @@ export class StirFryScene {
     $('game-noodles').firstElementChild.alt='大铁锅与炉灶';$('game-sauce').firstElementChild.alt='芝麻';$('water-fridge').firstElementChild.alt='上层可乐下层冰红茶的冰柜';$('water-fridge').setAttribute('aria-label','饮料冰柜');$('template-background').alt='麻辣香锅店背景';
     if(this.template!==this.state.template.id){
       this.template=this.state.template.id;this.mix='';this.effect='';$('stir-ingredients').replaceChildren();
+      // 篮子和锅同时清空时仍保留精灵图引用，避免下一锅重新生成解码缓存。
+      this.sheet=new Image();this.sheet.src=this.state.template.assets.ingredient_sheet;
       for(const item of Food.ingredients){const el=document.createElement('button');el.dataset.stirIngredient=item.id;el.setAttribute('aria-label','取'+item.name);$('stir-ingredients').append(el);}
     }
   }
@@ -39,7 +42,8 @@ export class StirFryScene {
   render(){
     if(!this.enabled)return;const scene=this.state.stirfry,stamp=JSON.stringify(scene.wok.ingredients);
     if(stamp!==this.mix){this.mix=stamp;this.fillMix($('stir-wok-food'),scene.wok.ingredients);}
-    $('stir-basket-food').replaceChildren(...scene.basket.slice(-14).map(id=>this.sprite(id)));
+    const basket=$('stir-basket-food'),basketStamp=JSON.stringify([this.state.template.id,scene.basket.slice(-14)]);
+    if(basket.dataset.paint!==basketStamp){basket.dataset.paint=basketStamp;basket.replaceChildren(...scene.basket.slice(-14).map(id=>this.sprite(id)));}
     for(const el of document.querySelectorAll('#stir-ingredients button,#stir-fridge-shelves button'))el.disabled=!this.context.canPlay();
     const effect=scene.garnish_effect;
     if(effect&&effect.id!==this.effect){this.effect=effect.id;if(Date.now()-effect.at<1050)this.pour(effect);}

@@ -177,8 +177,8 @@ test('旧汉堡模板自动获得新增图片，平台迁移保留蟑螂礼物�
   const {templates}=await fixture(t);
   const old=JSON.parse(await fs.readFile(path.join(__dirname,'../artifacts/美式汉堡店-v1.0.0.luobo'),'utf8'));
   const template=await templates.install(old);
-  assert.equal(template.assets.dirty_burger,'/noodle/assets/dirty-burger.png');
-  assert.equal(template.assets.cockroach_walk,'/noodle/assets/cockroach-walk.png');
+  assert.equal(template.assets.dirty_burger,'/noodle/render/dirty-burger.png');
+  assert.equal(template.assets.cockroach_walk,'/noodle/render/cockroach-walk.png');
   const {config,DEFAULTS}=require('../lib/noodle/config.cjs'),{fillConfig}=require('../lib/platform-games.cjs');
   assert.deepEqual(config(DEFAULTS).throw_gifts,DEFAULTS.throw_gifts);
   const rule={gift_id:98765,gift_name:'蟑螂礼物'},input={...DEFAULTS,throw_gifts:{...DEFAULTS.throw_gifts,cockroach:rule}};

@@ -36,8 +36,10 @@ test('臊子面试点单：开张后只添加一位要面的顾客', async () =>
   assert.equal(shop.queue.length, 1); assert.equal(shop.queue[0].order, 'noodles');
 });
 
-test('台面与递餐：错误版本不覆盖，碰撞退回，只递给选中的顾客', async () => {
-  const shop = new NoodleShop('.'); shop.mode = 'running'; shop.enqueue('前排', 1); shop.enqueue('后排', 1);
+test('台面与递餐：错误版本不覆盖，碰撞退回，只递给选中的顾客', async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'noodle-feed-'));
+  t.after(() => fs.rm(dir, {recursive:true, force:true}));
+  const shop = new NoodleShop(dir); shop.mode = 'running'; shop.enqueue('前排', 1); shop.enqueue('后排', 1);
   const bowl = { id: 1, kind: 'bowl', x: 500, y: 500, noodles: 2, sauce: 3 };
   shop.workspace({ revision: 0, objects: [bowl], selected: 1 });
   assert.throws(() => shop.workspace({ revision: 0, objects: [], selected: null }), /已更新/);
