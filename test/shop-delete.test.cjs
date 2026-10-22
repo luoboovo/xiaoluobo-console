@@ -28,7 +28,7 @@ test('最后一家店铺可删除到空列表，重启不补回，空列表不�
 test('删除店铺保留安装的模板，全部店铺删除后仍可导入模板并立即出现在模板库',async t=>{
   const folder=await dir(t);let app=await startServer({dataDir:folder});t.after(()=>app.close());
   const post=(route,body)=>fetch(app.url+route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  const source=JSON.parse(await fs.readFile(path.join(__dirname,'../artifacts/刀削面馆-v1.0.1.luobo'),'utf8'));
+  const source=require('./fixtures/templates.cjs').templatePackage('刀削面馆-v1.0.1.luobo');
   const importResponse=await post('/api/templates/import',source);assert.equal(importResponse.status,200);const imported=await importResponse.json(),id=imported.template.id,shopId=imported.state.active_preset;
   assert.ok(imported.state.templates.some(t=>t.id===id));assert.equal(imported.state.templates.length,2);
   const response=await post('/api/noodle/action',{action:'preset_delete',id:shopId});assert.equal(response.status,200);const result=await response.json();assert.equal(result.state.presets.length,1);assert.ok(result.state.templates.some(t=>t.id===id));

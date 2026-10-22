@@ -1,0 +1,1049 @@
+{
+ "刀削面馆-v1.0.0.luobo": {
+  "format": "xiaoluobo-template",
+  "schema": 1,
+  "name": "刀削面馆",
+  "version": "1.0.0",
+  "workflow": "knife-noodles",
+  "dish_name": "刀削面",
+  "cook_seconds": 5,
+  "sign": {
+   "top": "",
+   "title": "刀削面馆",
+   "bottom": ""
+  },
+  "layout": {
+   "modules": {
+    "background": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    },
+    "counter": {
+     "x": 210,
+     "y": 240,
+     "scale": 0.67,
+     "visible": true
+    },
+    "customers": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    }
+   },
+   "stations": {
+    "noodles": {
+     "side": "left",
+     "x": 110,
+     "y": 45,
+     "scale": 0.85,
+     "locked": true
+    },
+    "sauce": {
+     "side": "right",
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "locked": true
+    },
+    "bowl": {
+     "side": "right",
+     "x": -100,
+     "y": -60,
+     "scale": 0.95,
+     "locked": true
+    }
+   },
+   "props": {
+    "fridge": {
+     "x": -150,
+     "y": 130,
+     "scale": 1.25
+    },
+    "trash": {
+     "x": 0,
+     "y": 110,
+     "scale": 1
+    },
+    "cash": {
+     "x": 125,
+     "y": -28,
+     "scale": 1
+    },
+    "tray": {
+     "x": 0,
+     "y": 8,
+     "scale": 0.86
+    },
+    "dough": {
+     "x": 694,
+     "y": 95,
+     "scale": 0.8
+    },
+    "scallions": {
+     "x": -145,
+     "y": 7,
+     "scale": 1
+    },
+    "cilantro": {
+     "x": -145,
+     "y": 7,
+     "scale": 1
+    }
+   },
+   "trash": {
+    "side": "right"
+   }
+  },
+  "slots": [
+   "background",
+   "dough",
+   "pot",
+   "raw",
+   "bowl",
+   "scallions",
+   "cilantro"
+  ]
+ },
+ "刀削面馆-v1.0.1.luobo": {
+  "format": "xiaoluobo-template",
+  "schema": 1,
+  "name": "刀削面馆",
+  "version": "1.0.1",
+  "workflow": "knife-noodles",
+  "dish_name": "刀削面",
+  "cook_seconds": 5,
+  "sign": {
+   "top": "",
+   "title": "刀削面馆",
+   "bottom": ""
+  },
+  "layout": {
+   "modules": {
+    "background": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    },
+    "counter": {
+     "x": 210,
+     "y": 240,
+     "scale": 0.67,
+     "visible": true
+    },
+    "customers": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    }
+   },
+   "stations": {
+    "noodles": {
+     "side": "left",
+     "x": 110,
+     "y": 45,
+     "scale": 0.85,
+     "locked": true
+    },
+    "sauce": {
+     "side": "right",
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "locked": true
+    },
+    "bowl": {
+     "side": "right",
+     "x": -100,
+     "y": -60,
+     "scale": 0.95,
+     "locked": true
+    }
+   },
+   "props": {
+    "fridge": {
+     "x": -150,
+     "y": 130,
+     "scale": 1.25
+    },
+    "trash": {
+     "x": 0,
+     "y": 110,
+     "scale": 1
+    },
+    "cash": {
+     "x": 125,
+     "y": -28,
+     "scale": 1
+    },
+    "tray": {
+     "x": 0,
+     "y": 8,
+     "scale": 0.86
+    },
+    "dough": {
+     "x": 694,
+     "y": 95,
+     "scale": 0.8
+    },
+    "scallions": {
+     "x": -145,
+     "y": 7,
+     "scale": 1
+    },
+    "cilantro": {
+     "x": -145,
+     "y": 7,
+     "scale": 1
+    }
+   },
+   "trash": {
+    "side": "right"
+   }
+  },
+  "slots": [
+   "background",
+   "dough",
+   "pot",
+   "pot_empty",
+   "raw",
+   "bowl",
+   "scallions",
+   "cilantro"
+  ]
+ },
+ "咖啡厅模板-v1.0.2.luobo": {
+  "format": "xiaoluobo-template",
+  "schema": 1,
+  "name": "茉莉咖啡厅",
+  "version": "1.0.2",
+  "workflow": "jasmine-latte",
+  "dish_name": "茉莉花拿铁",
+  "cook_seconds": 2,
+  "sign": {
+   "top": "",
+   "title": "",
+   "bottom": ""
+  },
+  "layout": {
+   "modules": {
+    "background": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    },
+    "counter": {
+     "x": 169,
+     "y": 200,
+     "scale": 0.72,
+     "visible": true
+    },
+    "customers": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    }
+   },
+   "stations": {
+    "noodles": {
+     "side": "left",
+     "x": 944,
+     "y": 4,
+     "scale": 1.25,
+     "locked": true
+    },
+    "sauce": {
+     "side": "right",
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "locked": true
+    },
+    "bowl": {
+     "side": "right",
+     "x": -1058,
+     "y": 27,
+     "scale": 0.85,
+     "locked": true
+    }
+   },
+   "props": {
+    "fridge": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "trash": {
+     "x": -12,
+     "y": 252,
+     "scale": 0.85
+    },
+    "cash": {
+     "x": -780,
+     "y": -48,
+     "scale": 0.9
+    },
+    "tray": {
+     "x": 25,
+     "y": 0,
+     "scale": 1
+    },
+    "dough": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "scallions": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "cilantro": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "rating": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "jasmine": {
+     "x": -701,
+     "y": 1,
+     "scale": 1.1
+    },
+    "milk": {
+     "x": -979,
+     "y": -16,
+     "scale": 1.05
+    }
+   },
+   "trash": {
+    "side": "right"
+   }
+  },
+  "slots": [
+   "background",
+   "counter",
+   "tray",
+   "trash",
+   "cash",
+   "bowl_stack",
+   "coffee_machine",
+   "jasmine",
+   "portion_jasmine",
+   "milk",
+   "cup_empty",
+   "cup_coffee",
+   "cup_jasmine",
+   "cup_latte",
+   "cup_milk",
+   "cup_coffee_milk",
+   "evil_bowl",
+   "egg",
+   "leaf",
+   "egg_splat",
+   "bowl"
+  ]
+ },
+ "美式汉堡店-v1.0.1.luobo": {
+  "format": "xiaoluobo-template",
+  "schema": 1,
+  "name": "美式汉堡店",
+  "version": "1.0.1",
+  "workflow": "burger",
+  "dish_name": "美式汉堡",
+  "cook_seconds": 4,
+  "sign": {
+   "top": "",
+   "title": "美式汉堡店",
+   "bottom": ""
+  },
+  "layout": {
+   "modules": {
+    "background": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    },
+    "counter": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    },
+    "customers": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    }
+   },
+   "stations": {
+    "noodles": {
+     "side": "left",
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "locked": true
+    },
+    "sauce": {
+     "side": "right",
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "locked": true
+    },
+    "bowl": {
+     "side": "right",
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "locked": true
+    }
+   },
+   "props": {
+    "fridge": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "trash": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "cash": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "tray": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "dough": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "scallions": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "cilantro": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "rating": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "jasmine": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "milk": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "bun_lid": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    }
+   },
+   "trash": {
+    "side": "right"
+   }
+  },
+  "slots": [
+   "background",
+   "counter",
+   "griddle",
+   "oven",
+   "bun_raw",
+   "bun_bottom",
+   "bun_top",
+   "patty_raw",
+   "patty_cooked",
+   "tomato",
+   "lettuce",
+   "cheese",
+   "mustard",
+   "mustard_layer",
+   "tray",
+   "bowl",
+   "dirty_burger",
+   "cockroach_burger",
+   "cockroach",
+   "cockroach_walk"
+  ]
+ },
+ "茉莉咖啡厅-v1.0.0.luobo": {
+  "format": "xiaoluobo-template",
+  "schema": 1,
+  "name": "茉莉咖啡厅",
+  "version": "1.0.0",
+  "workflow": "jasmine-latte",
+  "dish_name": "茉莉花拿铁",
+  "cook_seconds": 3,
+  "sign": {
+   "top": "",
+   "title": "茉莉咖啡厅",
+   "bottom": ""
+  },
+  "layout": {
+   "modules": {
+    "background": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    },
+    "counter": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    },
+    "customers": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    }
+   },
+   "stations": {
+    "noodles": {
+     "side": "left",
+     "x": 80,
+     "y": -16,
+     "scale": 1.1,
+     "locked": true
+    },
+    "sauce": {
+     "side": "right",
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "locked": true
+    },
+    "bowl": {
+     "side": "right",
+     "x": -110,
+     "y": 2,
+     "scale": 0.85,
+     "locked": true
+    }
+   },
+   "props": {
+    "fridge": {
+     "x": -273,
+     "y": 154,
+     "scale": 0.65
+    },
+    "trash": {
+     "x": 35,
+     "y": 118,
+     "scale": 0.85
+    },
+    "cash": {
+     "x": -15,
+     "y": -3,
+     "scale": 0.9
+    },
+    "tray": {
+     "x": 25,
+     "y": 0,
+     "scale": 1
+    },
+    "dough": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "scallions": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "cilantro": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "rating": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "jasmine": {
+     "x": -30,
+     "y": 12,
+     "scale": 1.1
+    },
+    "milk": {
+     "x": -60,
+     "y": 3,
+     "scale": 1.05
+    }
+   },
+   "trash": {
+    "side": "right"
+   }
+  },
+  "slots": [
+   "background",
+   "counter",
+   "tray",
+   "fridge",
+   "trash",
+   "cash",
+   "coffee_machine",
+   "jasmine",
+   "portion_jasmine",
+   "milk",
+   "cup_empty",
+   "cup_coffee",
+   "cup_jasmine",
+   "cup_latte",
+   "evil_bowl",
+   "egg",
+   "leaf",
+   "egg_splat",
+   "bowl",
+   "fridge_empty"
+  ]
+ },
+ "茉莉咖啡厅-v1.0.1.luobo": {
+  "format": "xiaoluobo-template",
+  "schema": 1,
+  "name": "茉莉咖啡厅",
+  "version": "1.0.1",
+  "workflow": "jasmine-latte",
+  "dish_name": "茉莉花拿铁",
+  "cook_seconds": 2,
+  "sign": {
+   "top": "",
+   "title": "茉莉咖啡厅",
+   "bottom": ""
+  },
+  "layout": {
+   "modules": {
+    "background": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    },
+    "counter": {
+     "x": 169,
+     "y": 200,
+     "scale": 0.72,
+     "visible": true
+    },
+    "customers": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    }
+   },
+   "stations": {
+    "noodles": {
+     "side": "left",
+     "x": 944,
+     "y": 4,
+     "scale": 1.25,
+     "locked": true
+    },
+    "sauce": {
+     "side": "right",
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "locked": true
+    },
+    "bowl": {
+     "side": "right",
+     "x": -1058,
+     "y": 27,
+     "scale": 0.85,
+     "locked": true
+    }
+   },
+   "props": {
+    "fridge": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "trash": {
+     "x": -12,
+     "y": 252,
+     "scale": 0.85
+    },
+    "cash": {
+     "x": -780,
+     "y": -48,
+     "scale": 0.9
+    },
+    "tray": {
+     "x": 25,
+     "y": 0,
+     "scale": 1
+    },
+    "dough": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "scallions": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "cilantro": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "rating": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "jasmine": {
+     "x": -701,
+     "y": 1,
+     "scale": 1.1
+    },
+    "milk": {
+     "x": -979,
+     "y": -16,
+     "scale": 1.05
+    }
+   },
+   "trash": {
+    "side": "right"
+   }
+  },
+  "slots": [
+   "background",
+   "counter",
+   "tray",
+   "trash",
+   "cash",
+   "bowl_stack",
+   "coffee_machine",
+   "jasmine",
+   "portion_jasmine",
+   "milk",
+   "cup_empty",
+   "cup_coffee",
+   "cup_jasmine",
+   "cup_latte",
+   "cup_milk",
+   "cup_coffee_milk",
+   "evil_bowl",
+   "egg",
+   "leaf",
+   "egg_splat",
+   "bowl"
+  ]
+ },
+ "麻辣香锅-v1.0.4.luobo": {
+  "format": "xiaoluobo-template",
+  "schema": 1,
+  "name": "麻辣香锅",
+  "version": "1.0.4",
+  "workflow": "stir-fry",
+  "dish_name": "麻辣香锅",
+  "cook_seconds": 4,
+  "sign": {
+   "top": "",
+   "title": "麻辣香锅",
+   "bottom": ""
+  },
+  "layout": {
+   "modules": {
+    "background": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    },
+    "counter": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    },
+    "customers": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    }
+   },
+   "stations": {
+    "noodles": {
+     "side": "right",
+     "x": 289,
+     "y": 71,
+     "scale": 0.7,
+     "locked": true
+    },
+    "sauce": {
+     "side": "right",
+     "x": -313,
+     "y": 182,
+     "scale": 0.9,
+     "locked": true
+    },
+    "bowl": {
+     "side": "left",
+     "x": -54,
+     "y": -13,
+     "scale": 0.8,
+     "locked": true
+    }
+   },
+   "props": {
+    "fridge": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "trash": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "cash": {
+     "x": -674,
+     "y": -36,
+     "scale": 0.9
+    },
+    "tray": {
+     "x": -103,
+     "y": 0,
+     "scale": 0.8
+    },
+    "dough": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "scallions": {
+     "x": -313,
+     "y": 182,
+     "scale": 0.9
+    },
+    "cilantro": {
+     "x": -313,
+     "y": 182,
+     "scale": 0.9
+    },
+    "rating": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "jasmine": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "milk": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    }
+   },
+   "trash": {
+    "side": "right"
+   }
+  },
+  "slots": [
+   "background",
+   "ingredient_sheet",
+   "cabinet",
+   "fridge",
+   "counter",
+   "tray",
+   "cola",
+   "iced_tea",
+   "pot",
+   "bowl_stack",
+   "bowl_empty",
+   "bowl",
+   "bowl_sesame",
+   "bowl_scallions",
+   "bowl_sesame_scallions",
+   "bowl_cilantro",
+   "bowl_sesame_cilantro",
+   "bowl_scallions_cilantro",
+   "bowl_all",
+   "sesame",
+   "scallions",
+   "cilantro",
+   "portion_sesame",
+   "portion_scallions",
+   "portion_cilantro",
+   "trash"
+  ]
+ },
+ "美式汉堡店-v1.0.0.luobo": {
+  "format": "xiaoluobo-template",
+  "schema": 1,
+  "name": "美式汉堡店",
+  "version": "1.0.0",
+  "workflow": "burger",
+  "dish_name": "美式汉堡",
+  "cook_seconds": 4,
+  "sign": {
+   "top": "",
+   "title": "美式汉堡店",
+   "bottom": ""
+  },
+  "layout": {
+   "modules": {
+    "background": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    },
+    "counter": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    },
+    "customers": {
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "visible": true
+    }
+   },
+   "stations": {
+    "noodles": {
+     "side": "left",
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "locked": true
+    },
+    "sauce": {
+     "side": "right",
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "locked": true
+    },
+    "bowl": {
+     "side": "right",
+     "x": 0,
+     "y": 0,
+     "scale": 1,
+     "locked": true
+    }
+   },
+   "props": {
+    "fridge": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "trash": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "cash": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "tray": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "dough": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "scallions": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "cilantro": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "rating": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "jasmine": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "milk": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    },
+    "bun_lid": {
+     "x": 0,
+     "y": 0,
+     "scale": 1
+    }
+   },
+   "trash": {
+    "side": "right"
+   }
+  },
+  "slots": [
+   "background",
+   "counter",
+   "griddle",
+   "oven",
+   "bun_raw",
+   "bun_bottom",
+   "bun_top",
+   "patty_raw",
+   "patty_cooked",
+   "tomato",
+   "lettuce",
+   "cheese",
+   "mustard",
+   "mustard_layer",
+   "tray",
+   "bowl"
+  ]
+ }
+}

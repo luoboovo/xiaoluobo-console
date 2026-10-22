@@ -148,7 +148,7 @@ test('抖音传输：本机生成连接、心跳、解码、ACK和取消隔离�
 test('臊子面、刀削面、咖啡厅、香锅的两平台绑定均填齐，点单触发正确玩法',async t=>{
   const dir=await temporary(t),{TemplateLibrary}=require('../lib/templates.cjs'),{NoodleShop}=require('../lib/noodle.cjs');
   const templates=await new TemplateLibrary(dir).init(),source=await new NoodleShop(dir,templates).init();
-  for(const name of ['刀削面馆-v1.0.1.luobo','咖啡厅模板-v1.0.2.luobo','麻辣香锅-v1.0.4.luobo'])await source.installTemplate(JSON.parse(await fs.readFile(path.join(__dirname,'..','artifacts',name))));
+  for(const name of ['刀削面馆-v1.0.1.luobo','咖啡厅模板-v1.0.2.luobo','麻辣香锅-v1.0.4.luobo'])await source.installTemplate(require('./fixtures/templates.cjs').templatePackage(name));
   const app=await startServer({dataDir:dir});t.after(()=>app.close());
   for(const platform of ['bilibili','douyin']){
     if(platform!==app.services.platform)await fetch(app.url+'/api/platform',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform})});

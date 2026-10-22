@@ -20,14 +20,22 @@ test('打包 PNG 无损压缩：尺寸、颜色、透明度不变且不会变大
 });
 
 test('带生成签名的 PNG 也无损压缩；原文件、尺寸和全部像素保留', () => {
-  const fs = require('node:fs');
-  const path = require('node:path');
-  const original = fs.readFileSync(path.join(__dirname, '..', 'templates', 'daoxiao', 'assets', 'pot.png'));
-  assert.ok(original.includes(Buffer.from('caBX')));
+  const { crc32 } = createRequire(require.resolve('qrcode'))('pngjs/lib/crc');
+  // 生成图片带 C2PA 签名块（caBX）；在 IEND 前插入一块模拟签名，压缩时去掉签名、保留原 IDAT 编码。
+  const image = new PNG({ width: 64, height: 64 });
+  for (let i = 0; i < image.data.length; i++) image.data[i] = i % 251;
+  const plain = PNG.sync.write(image, { colorType: 6 });
+  const signature = Buffer.alloc(4096 + 12);
+  signature.writeUInt32BE(4096); signature.write('caBX', 4); signature.fill(0x5a, 8, signature.length - 4);
+  signature.writeInt32BE(crc32(signature.subarray(4, -4)), signature.length - 4);
+  const original = Buffer.concat([plain.subarray(0, -12), signature, plain.subarray(-12)]), copy = Buffer.from(original);
   const optimized = optimizePng(original);
   assert.ok(optimized.length < original.length);
+  assert.ok(!optimized.includes(Buffer.from('caBX')));
   assert.deepEqual(PNG.sync.read(optimized).data, PNG.sync.read(original).data);
-  assert.deepEqual(fs.readFileSync(path.join(__dirname, '..', 'templates', 'daoxiao', 'assets', 'pot.png')), original);
+  const idat = bytes => bytes.subarray(bytes.indexOf('IDAT') - 4, bytes.indexOf('IEND') - 4);
+  assert.deepEqual(idat(optimized), idat(plain));
+  assert.deepEqual(original, copy);
 });
 
 test('礼物调色板、透明度和色彩元数据在压缩后保留', () => {

@@ -7,12 +7,13 @@ const {TemplateLibrary,metadata,png}=require('../lib/templates.cjs');
 const {NoodleShop}=require('../lib/noodle.cjs');
 const {startServer}=require('../server.cjs');
 const Layout=require('../public/noodle/layout.js');
+const {templatePackage}=require('./fixtures/templates.cjs');
 
 async function fixture(t) {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'luobo-template-'));
   t.after(()=>{if(!path.resolve(dir).startsWith(path.resolve(os.tmpdir())+path.sep+'luobo-template-'))throw new Error('清理路径无效');return fs.rm(dir,{recursive:true,force:true});});
   const templates=await new TemplateLibrary(dir).init();
-  const data=JSON.parse(await fs.readFile(path.join(__dirname,'..','artifacts','刀削面馆-v1.0.0.luobo'),'utf8'));
+  const data=templatePackage('刀削面馆-v1.0.0.luobo');
   const template=await templates.install(data);
   const shop=await new NoodleShop(dir,templates).init();
   await shop.action({action:'preset_create',name:'刀削面馆',template_id:template.id});
@@ -57,7 +58,7 @@ test('新安装只有基础模板，外部模板按需导入，重启保留已�
   const {dir}=await fixture(t),dataDir=path.join(dir,'fresh');
   let app=await startServer({dataDir,seedDir:dir});t.after(()=>app.close());
   assert.deepEqual(app.noodle.templates.list().map(t=>t.id),['saozi']);assert.equal(app.noodle.presets.length,1);
-  const data=JSON.parse(await fs.readFile(path.join(__dirname,'../artifacts/刀削面馆-v1.0.1.luobo'),'utf8'));
+  const data=templatePackage('刀削面馆-v1.0.1.luobo');
   const response=await fetch(app.url+'/api/templates/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});assert.equal(response.status,200);await response.json();
   const knife=app.noodle.snapshot().presets.find(p=>p.name==='刀削面馆');assert.ok(knife);
   assert.equal(app.noodle.activePreset,knife.id);

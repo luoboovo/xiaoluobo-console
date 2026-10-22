@@ -8,7 +8,8 @@ const {TemplateLibrary}=require('../lib/templates.cjs');
 const {NoodleShop}=require('../lib/noodle.cjs');
 const {startServer}=require('../server.cjs');
 const Layout=require('../public/noodle/layout.js');
-const source=require('node:fs').readFileSync(path.join(__dirname,'../artifacts/茉莉咖啡厅-v1.0.1.luobo'),'utf8');
+const {templatePackage,templateSource}=require('./fixtures/templates.cjs');
+const source=templateSource('茉莉咖啡厅-v1.0.1.luobo');
 const data=JSON.parse(source);
 
 async function fixture(t){
@@ -157,7 +158,7 @@ test('咖啡厅没有矿泉水点单，也不能把牛奶壶作为新台面物�
 });
 
 test('程序升级保留已安装旧咖啡厅，不自动安装或替换独立模板',async t=>{
-  const f=await fixture(t),old=JSON.parse(await fs.readFile(path.join(__dirname,'../artifacts/茉莉咖啡厅-v1.0.0.luobo'),'utf8'));
+  const f=await fixture(t),old=templatePackage('茉莉咖啡厅-v1.0.0.luobo');
   const legacy=await f.library.install(old),oldShop=await new NoodleShop(f.dir,f.library).init();
   await oldShop.action({action:'preset_create',name:'我的旧咖啡厅',template_id:legacy.id});
   const id=oldShop.activePreset,custom=structuredClone(oldShop.config);

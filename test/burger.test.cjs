@@ -7,7 +7,8 @@ const { TemplateLibrary } = require('../lib/templates.cjs');
 const { NoodleShop } = require('../lib/noodle.cjs');
 const Rules = require('../public/noodle/rules.js');
 const Layout = require('../public/noodle/layout.js');
-const source = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname,'../artifacts/美式汉堡店-v1.0.1.luobo'),'utf8'));
+const { templatePackage } = require('./fixtures/templates.cjs');
+const source = templatePackage('美式汉堡店-v1.0.1.luobo');
 
 async function fixture(t) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'luobo-burger-'));
@@ -175,7 +176,7 @@ test('蟑螂爬行在各画面采用相同坐标，移动后重置起点且垃�
 
 test('旧汉堡模板自动获得新增图片，平台迁移保留蟑螂礼物且旧配置不强加绑定',async t=>{
   const {templates}=await fixture(t);
-  const old=JSON.parse(await fs.readFile(path.join(__dirname,'../artifacts/美式汉堡店-v1.0.0.luobo'),'utf8'));
+  const old=templatePackage('美式汉堡店-v1.0.0.luobo');
   const template=await templates.install(old);
   assert.equal(template.assets.dirty_burger,'/noodle/render/dirty-burger.png');
   assert.equal(template.assets.cockroach_walk,'/noodle/render/cockroach-walk.png');

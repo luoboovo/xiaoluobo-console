@@ -5,6 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { NoodleShop } = require('../lib/noodle.cjs');
 const { TemplateLibrary } = require('../lib/templates.cjs');
+const { templatePackage } = require('./fixtures/templates.cjs');
 
 async function fixture(t) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'luobo-cafe-sign-'));
@@ -13,7 +14,7 @@ async function fixture(t) {
     await fs.rm(dir, { recursive: true, force: true });
   });
   const library = await new TemplateLibrary(dir).init();
-  const data = JSON.parse(await fs.readFile(path.join(__dirname, '../artifacts/茉莉咖啡厅-v1.0.1.luobo'), 'utf8'));
+  const data = templatePackage('茉莉咖啡厅-v1.0.1.luobo');
   const template = await library.install(data);
   const shop = await new NoodleShop(dir, library).init();
   await shop.action({ action: 'preset_create', name: '茉莉咖啡厅', template_id: template.id });

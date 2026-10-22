@@ -2,7 +2,8 @@ const {test}=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),crypto=require('node:crypto');
 const {TemplateLibrary}=require('../lib/templates.cjs'),{NoodleShop}=require('../lib/noodle.cjs'),{startServer}=require('../server.cjs');
 const Food=require('../public/noodle/stir-fry-food.js'),Layout=require('../public/noodle/layout.js');
-const source=require('node:fs').readFileSync(path.join(__dirname,'../artifacts/麻辣香锅-v1.0.4.luobo'),'utf8'),data=JSON.parse(source);
+const {templateSource}=require('./fixtures/templates.cjs');
+const source=templateSource('麻辣香锅-v1.0.4.luobo'),data=JSON.parse(source);
 async function fixture(t){
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'luobo-stir-'));
   t.after(async()=>{if(!path.resolve(dir).startsWith(path.resolve(os.tmpdir())+path.sep+'luobo-stir-'))throw new Error('清理路径无效');await fs.rm(dir,{recursive:true,force:true});});
