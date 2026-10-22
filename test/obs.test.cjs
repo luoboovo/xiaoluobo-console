@@ -45,6 +45,7 @@ async function fixture(t, { failure, authFailure = false, cameraFailure = false,
           assert.ok(!inputs.has(p.inputName)); inputs.set(p.inputName, { inputKind: p.inputKind, inputSettings: p.inputSettings });
           const sceneItemId = nextItem++; scenes.get(p.sceneName).push({ sourceName: p.inputName, sceneItemId }); responseData = { sceneItemId }; break;
         }
+        case 'SetInputSettings': assert.equal(p.overlay, true); Object.assign(inputs.get(p.inputName).inputSettings, p.inputSettings); break;
         case 'SetSceneItemTransform': scenes.get(p.sceneName).find(item => item.sceneItemId === p.sceneItemId).sceneItemTransform = p.sceneItemTransform; break;
         case 'SetSceneItemIndex': { const items = scenes.get(p.sceneName); const [item] = items.splice(items.findIndex(item => item.sceneItemId === p.sceneItemId), 1); items.splice(p.sceneItemIndex, 0, item); break; }
         case 'RemoveInput': inputs.delete(p.inputName); break;
@@ -68,10 +69,21 @@ test('OBS：认证校验、高清三层、保留人物变换和当前直播，�
   const items = f.scenes.get(result.sceneName);
   assert.deepEqual(items.map(item => item.sourceName), ['小萝卜 · 3181 · 背景', '我的猫', '小萝卜 · 3181 · 桌台', '小萝卜 · 3181 · 顾客']);
   assert.deepEqual(items[1].sceneItemTransform, original[0].sceneItemTransform);
-  const browser = f.inputs.get(items[2].sourceName); assert.equal(browser.inputSettings.width, 1920); assert.equal(browser.inputSettings.height, 1080); assert.equal(browser.inputSettings.url, 'http://127.0.0.1:3181/noodle/?layer=counter');
+  const browser = f.inputs.get(items[2].sourceName); assert.equal(browser.inputSettings.width, 1920); assert.equal(browser.inputSettings.height, 1080); assert.equal(browser.inputSettings.url, 'http://127.0.0.1:3181/noodle/?layer=counter'); assert.equal(browser.inputSettings.shutdown, true);
   const repeated = await f.integration.run({}); assert.equal(repeated.reused, true); assert.equal(f.calls.filter(call => call.requestType === 'CreateScene').length, 1);
   assert.deepEqual(f.scenes.get('直播原场景'), original); assert.equal(f.calls.some(call => ['SetCurrentProgramScene', 'StartStream', 'SetVideoSettings', 'SetInputSettings'].includes(call.requestType)), false);
   assert.ok(f.sockets.every(socket => socket.readyState === 3));
+});
+
+test('OBS：旧版导入的图层补上不可见时关闭，只改这一项', async t => {
+  const f = await fixture(t); const { sceneName } = await f.integration.run({});
+  const layers = f.scenes.get(sceneName).map(item => item.sourceName).filter(name => name.startsWith('小萝卜'));
+  for (const name of layers) Object.assign(f.inputs.get(name).inputSettings, { shutdown: false, fps: 30 });
+  const repeated = await f.integration.run({}); assert.equal(repeated.reused, true);
+  const updates = f.calls.filter(call => call.requestType === 'SetInputSettings');
+  assert.deepEqual(updates.map(call => call.requestData), layers.map(inputName => ({ inputName, inputSettings: { shutdown: true }, overlay: true })));
+  for (const name of layers) { assert.equal(f.inputs.get(name).inputSettings.shutdown, true); assert.equal(f.inputs.get(name).inputSettings.fps, 30); }
+  await f.integration.run({}); assert.equal(f.calls.filter(call => call.requestType === 'SetInputSettings').length, layers.length);
 });
 
 test('OBS：导入中途失败只撤回新场景和新素材，保留原来源', async t => {
