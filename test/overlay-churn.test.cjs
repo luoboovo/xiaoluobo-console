@@ -80,3 +80,31 @@ test('吃吃吃同一音效复用一个播放器，最多保留 8 个，切平�
   listeners.pagehide();
   assert.ok(created.every(clip => clip.released));
 });
+
+test('面馆画面连接只在模板、配置、模板列表或店铺列表变化时收到它们，控制台始终收到完整快照', async t => {
+  const os = require('node:os'), { WebSocket } = require('ws'), { startServer } = require('../server.cjs');
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(),'luobo-noodle-push-')), runtime = await startServer({ dataDir:dir }), sockets = [];
+  t.after(async () => { for (const ws of sockets) ws.terminate(); await runtime.close(); await fs.rm(dir,{ recursive:true, force:true }); });
+  const open = query => new Promise((resolve, reject) => {
+    const ws = new WebSocket(runtime.url.replace('http:','ws:')+'/api/events/socket?'+query,{ origin:runtime.url }), frames = [];
+    sockets.push(ws);
+    ws.on('message',body => { for (const frame of String(body).split('\n\n')) if (frame.startsWith('event: noodle\n')) frames.push(JSON.parse(frame.match(/^data: (.+)$/m)[1])); if (frames.length === 1) resolve(frames); });
+    ws.once('error',reject);
+  });
+  const post = body => fetch(runtime.url+'/api/noodle/action',{ method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) });
+  const [scene, consoleFrames] = await Promise.all([open('scene=1'),open('')]);
+  assert.ok('config' in scene[0] && 'template' in scene[0]);
+  const next = async (frames, count) => { const deadline = Date.now() + 3000; while (frames.length < count && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve,20)); assert.equal(frames.length,count); return frames.at(-1); };
+  assert.equal((await post({ action:'start' })).status,200);
+  const slim = await next(scene,2);
+  assert.equal(slim.mode,'running');
+  for (const key of ['template','config','templates','presets']) assert.ok(!(key in slim),key);
+  assert.ok('config' in await next(consoleFrames,2));
+  const config = { ...runtime.noodle.config, people_per_gift:runtime.noodle.config.people_per_gift + 1 };
+  assert.equal((await post({ action:'save', config })).status,200);
+  const changed = await next(scene,3);
+  assert.equal(changed.config.people_per_gift,config.people_per_gift);
+  // 新连接的第一帧一定完整，不受其他连接已收到的内容影响。
+  const late = await open('scene=1');
+  assert.equal(late[0].config.people_per_gift,config.people_per_gift);
+});

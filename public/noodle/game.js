@@ -827,10 +827,20 @@ addEventListener('message',event=>{
     applySign(NoodleSign.validate(event.data.sign||state.config.sign));
   }catch(error){toast(error.message);}
 });
-let source;
+let source, pushedStatic;
 function connectScene() {
+  pushedStatic=null;
   source=new LuoboEvents('/api/events?scene=1');
-  source.addEventListener('noodle',event=>{if(previewActive)render(JSON.parse(event.data));});
+  // 模板、配置、模板列表和店铺列表没变时服务端不重发，沿用上一份；每条新连接的第一帧总是完整的。
+  source.addEventListener('noodle',event=>{
+    if(!previewActive)return;
+    const next=JSON.parse(event.data),keys=['template','config','templates','presets'];
+    // 沿用的是这条连接上次收到的那份，而不是操作返回的状态，与服务端的比对保持一致。
+    if('config' in next)pushedStatic=Object.fromEntries(keys.map(key=>[key,next[key]]));
+    else if(pushedStatic)Object.assign(next,pushedStatic);
+    else return;
+    render(next);
+  });
   source.addEventListener('noodle-motion',event=>{if(previewActive)renderMotion(JSON.parse(event.data));});
   source.onerror=()=>{presentationStamp='';toast('连接已断开，正在重连');for(const button of document.querySelectorAll('.station,.template-tool,#water-fridge,#cash-box,#trash-bin'))button.disabled=true;};
 }

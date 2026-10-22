@@ -63,8 +63,30 @@ async function startServer(options = {}) {
   };
   const frameOf = (type, data) => `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`;
   const send = (res, type, data) => write(res, frameOf(type, data));
+  // The three OBS shop layers get a snapshot up to ten times a second; template, config, template list and
+  // presets make up most of it and rarely change. A scene socket gets them only when they differ from what
+  // that socket last received (a new socket always starts with the full snapshot); the page keeps its copy.
+  const NOODLE_STATIC = ['template','config','templates','presets'];
+  const noodleFrames = state => {
+    let full, slim;
+    return {
+      stamp: JSON.stringify(NOODLE_STATIC.map(key => state[key])),
+      full: () => full ??= frameOf('noodle', state),
+      slim: () => slim ??= frameOf('noodle', {...state, ...Object.fromEntries(NOODLE_STATIC.map(key => [key, undefined]))})
+    };
+  };
+  const sendNoodle = (client, frames) => {
+    if (client.channel === 'scene' && client.noodleStatic === frames.stamp) return write(client, frames.slim());
+    if (client.channel === 'scene') client.noodleStatic = frames.stamp;
+    write(client, frames.full());
+  };
+  const deliverNoodle = state => {
+    const frames = noodleFrames(state);
+    for (const client of clients) if (accepts(client, 'noodle', state)) sendNoodle(client, frames);
+  };
   const deliver = (type, data) => {
     if (!clients.size) return;
+    if (type === 'noodle') return deliverNoodle(data);
     const frame=frameOf(type, data);
     for (const client of clients) if (accepts(client, type, data)) write(client,frame);
   };
@@ -198,7 +220,7 @@ async function startServer(options = {}) {
     if(client.channel==='overtime')return send(client,'overtime',overlayOvertime(overtime.snapshot()));
     const scene=client.channel==='scene';
     if(!scene)send(client,'state',services.state);
-    send(client,'noodle',noodle.snapshot());
+    sendNoodle(client,noodleFrames(noodle.snapshot()));
     if(!scene){send(client,'overtime',overtime.snapshot());send(client,'feeding',feeding.snapshot());send(client,'number-bomb',numberBomb.snapshot());for(const target of Object.values(lottery))send(client,'lottery',target.snapshot());}
     if(!client.consoleOnly)send(client,'noodle-motion',noodle.motionSnapshot());
   };
