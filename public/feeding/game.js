@@ -1,5 +1,5 @@
 const F=Feeding,canvas=document.getElementById('game'),ctx=canvas.getContext('2d'),params=new URLSearchParams(location.search),preview=params.has('preview'),capture=params.has('capture'),client=crypto.randomUUID();
-const sprites=new Map(),images=new Map();let state,drag,remote,lastCue='',lastFrame=0,lastMotion=0,motionBusy=false,committing=false,hover=null,scale=1,offsetX=0,offsetY=0,audio,active=true;
+const sprites=new Map(),images=new Map(),clips=new Map();let state,drag,remote,lastCue='',lastFrame=0,lastMotion=0,motionBusy=false,committing=false,hover=null,scale=1,offsetX=0,offsetY=0,audio,active=true;
 if(preview)active=!parent.document.getElementById('feeding-view')?.hidden;
 function resize(){scale=Math.min(innerWidth/F.WIDTH,innerHeight/F.HEIGHT);offsetX=(innerWidth-F.WIDTH*scale)/2;offsetY=(innerHeight-F.HEIGHT*scale)/2;canvas.style.cssText=`width:${F.WIDTH*scale}px;height:${F.HEIGHT*scale}px;left:${offsetX}px;top:${offsetY}px`;const dpr=Math.min(2,devicePixelRatio||1);canvas.width=F.WIDTH*dpr;canvas.height=F.HEIGHT*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}
 addEventListener('resize',resize);resize();
@@ -28,10 +28,14 @@ function img(url){if(!images.has(url)){const value=new Image();value.src=url;ima
 // drawImage on an animated HTMLImageElement uses its first frame; draw decoded frames instead.
 function picture(image,x,y,w,h=w){const frame=image?.animation?.frame,source=frame||image,width=frame?.displayWidth||image?.naturalWidth,height=frame?.displayHeight||image?.naturalHeight;if(width&&(frame||image.complete)){const ratio=Math.min(w/width,h/height);ctx.drawImage(source,x-width*ratio/2,y-height*ratio/2,width*ratio,height*ratio);}}
 async function action(input){const response=await fetch('/api/feeding/action',{method:'POST',headers:{'Content-Type':'application/json','X-Luobo-Platform':state.platform},body:JSON.stringify(input)});const result=await response.json();if(!response.ok)throw new Error(result.error);apply(result.state);return result.state;}
-function sound(kind,url){if(preview||!state.config.sound_enabled)return;try{if(url){const clip=new Audio(url);clip.volume=.35;clip.play().catch(()=>{});return;}audio||=new AudioContext();audio.resume().catch(()=>{});const tones={add:[540,760],remove:[420,300],eat:[230,170,620],gift:[660,900,1220],wind:[180,260,360]}[kind]||[540,760];tones.forEach((f,i)=>{const o=audio.createOscillator(),g=audio.createGain(),start=audio.currentTime+i*.07;o.frequency.value=f;g.gain.setValueAtTime(.08,start);g.gain.exponentialRampToValueAtTime(.001,start+.09);o.connect(g);g.connect(audio.destination);o.start(start);o.stop(start+.1);});}catch{}}
+// 每个音效文件复用一个播放器、最多保留 8 个；批量送礼时每次新建 Audio 会在 OBS 里堆出大量音频流。
+function releaseClip(clip){clip.pause();clip.removeAttribute('src');clip.load();}
+function releaseClips(){for(const clip of clips.values())releaseClip(clip);clips.clear();}
+function playClip(url){let clip=clips.get(url);if(clip){clips.delete(url);clip.currentTime=0;}else{if(clips.size>=8){const [oldest,old]=clips.entries().next().value;clips.delete(oldest);releaseClip(old);}clip=new Audio(url);clip.volume=.35;}clips.set(url,clip);clip.play().catch(()=>{});}
+function sound(kind,url){if(preview||!state.config.sound_enabled)return;try{if(url){playClip(url);return;}audio||=new AudioContext();audio.resume().catch(()=>{});const tones={add:[540,760],remove:[420,300],eat:[230,170,620],gift:[660,900,1220],wind:[180,260,360]}[kind]||[540,760];tones.forEach((f,i)=>{const o=audio.createOscillator(),g=audio.createGain(),start=audio.currentTime+i*.07;o.frequency.value=f;g.gain.setValueAtTime(.08,start);g.gain.exponentialRampToValueAtTime(.001,start+.09);o.connect(g);g.connect(audio.destination);o.start(start);o.stop(start+.1);});}catch{}}
 function apply(next){
   const changed=state&&state.revision!==next.revision,platformChanged=state&&state.platform!==next.platform;state=next;
-  if(platformChanged){sprites.clear();for(const image of images.values())releaseImage(image);images.clear();lastCue='';drag=null;remote=null;}
+  if(platformChanged){sprites.clear();for(const image of images.values())releaseImage(image);images.clear();releaseClips();lastCue='';drag=null;remote=null;}
   if(changed&&drag&&!committing){if(drag.kind==='food'&&drag.ids.some(id=>!next.objects.some(o=>o.id===id)))drag=null;else drag.revision=next.revision;}
   if(remote?.revision!==state.revision)remote=null;
   const c=state.config,theme=F.themes.find(t=>t.id===c.active_theme_id)||F.themes[0],foods=c.food_images.length?c.food_images:theme.foods,ids=new Set(state.objects.map(o=>o.id));
@@ -73,4 +77,4 @@ canvas.addEventListener('keydown',event=>{if(event.key.toLowerCase()==='r'&&!cap
 canvas.addEventListener('wheel',event=>{if(!state||capture||!state.config.stats_visible)return;const p=point(event),c=state.config;if(p.x>=state.stats.x&&p.x<state.stats.x+460*c.stats_scale&&p.y>=state.stats.y&&p.y<state.stats.y+45*c.stats_scale){event.preventDefault();action({action:'configure',config:{...c,stats_scale:Math.max(.25,Math.min(3,c.stats_scale+(event.deltaY<0?.1:-.1)))}}).catch(showError);}},{passive:false});
 if(!preview&&!capture)document.getElementById('hint').hidden=false;
 addEventListener('message',event=>{if(event.origin===location.origin&&event.data?.type==='feeding-preview-visibility'){active=!!event.data.visible;if(!active){drag=null;hover=null;}}});
-addEventListener('pagehide',()=>{for(const image of images.values())releaseImage(image);});
+addEventListener('pagehide',()=>{for(const image of images.values())releaseImage(image);releaseClips();});

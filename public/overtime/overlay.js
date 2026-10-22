@@ -8,7 +8,7 @@
   document.body.classList.toggle('preview',params.has('preview'));
   $('.overtime-overlay').classList.toggle('gift-panel-surface',!!panelId);
   $('#rules').hidden = !panelId;
-  let state;
+  let state, panelStyleStamp, rulesMarkup;
   if (window.overtimeWindow) {
     document.body.classList.add('desktop-drag');
     for (const region of document.querySelectorAll('.overlay-header,.timer-panel,#rules,#resize,#media-stage')) {
@@ -45,11 +45,17 @@
     state = next;
     if (!panelId) { clock(next); return; }
     const panel = state.config.gift_panels.find(panel => panel.id === panelId);
-    $('#title').textContent = panel?.name || '礼物面板已删除';
-    document.title = `${panel?.name || '礼物面板'} · 浮窗`;
-    $('#rules').style.setProperty('--columns',panel?.columns || 1);
-    Overtime.applyPanelStyle($('.overtime-overlay'),panel?.style);
-    $('#rules').innerHTML = panel ? panelEntries(panel,state.config.gift_rules).map(entry => `<div class="rule-row">${entry.gift_id ? `<img src="/api/gifts/${entry.gift_id}/image" alt="">` : ''}<span>${escape(entry.gift_name)}</span><b>${escape(entry.text)}</b></div>`).join('') || '<p class="muted">未选择展示礼物</p>' : '<p class="muted">请在「礼物面板」中创建面板</p>';
+    // 送礼高峰每 100ms 推送一次；面板内容不变时不重建，避免 OBS 浏览器源反复请求和解码全部礼物图片。
+    const styleStamp = JSON.stringify([panel?.name, panel?.columns, panel?.style]);
+    if (styleStamp !== panelStyleStamp) {
+      panelStyleStamp = styleStamp;
+      $('#title').textContent = panel?.name || '礼物面板已删除';
+      document.title = `${panel?.name || '礼物面板'} · 浮窗`;
+      $('#rules').style.setProperty('--columns',panel?.columns || 1);
+      Overtime.applyPanelStyle($('.overtime-overlay'),panel?.style);
+    }
+    const markup = panel ? panelEntries(panel,state.config.gift_rules).map(entry => `<div class="rule-row">${entry.gift_id ? `<img src="/api/gifts/${entry.gift_id}/image" alt="">` : ''}<span>${escape(entry.gift_name)}</span><b>${escape(entry.text)}</b></div>`).join('') || '<p class="muted">未选择展示礼物</p>' : '<p class="muted">请在「礼物面板」中创建面板</p>';
+    if (markup !== rulesMarkup) { rulesMarkup = markup; $('#rules').innerHTML = markup; }
   }
   $('#close').addEventListener('click',() => window.close());
   document.addEventListener('error',event => { if (event.target instanceof HTMLImageElement && event.target.id !== 'media-image') event.target.remove(); },true);
