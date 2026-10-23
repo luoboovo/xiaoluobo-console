@@ -1,7 +1,7 @@
 {
   "name": "xiaoluobo-console",
   "productName": "小萝卜游戏控制台",
-  "version": "2.8.4",
+  "version": "2.8.5",
   "private": true,
   "description": "B站与抖音直播互动、礼物库和游戏场景控制台",
   "main": "desktop.cjs",

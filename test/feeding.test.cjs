@@ -54,6 +54,15 @@ test('拖动食用者沿路吃掉碰到的食物，快速扫过和重复位置�
   await game.tick();assert.equal(game.state.count,0);assert.equal(game.state.eaten,3);assert.deepEqual(game.state.consumer,{x:1100,y:600});
   await game.action({action:'consumer',x:1100,y:600});assert.equal(game.state.eaten,3);
 });
+test('拖食用者盖住已落地静止的食物也会吃掉',async t=>{
+  const {game}=await fixture(t);await game.action({action:'configure',config:{...game.state.config,initial_food_count:1}});await game.action({action:'reset'});
+  const c=game.state.config,food=game.objects[0],r=Physics.radius(food,c.food_size);
+  // 食物在食用者图片边缘以内、但在下落判定圈之外：以前拖过去吃不到。
+  Object.assign(food,{x:600+c.consumer_size*.42+r,y:720-r,vx:0,vy:0,spin:0,rest:10});game.state.consumer={x:300,y:700};
+  assert.equal(Physics.touches(food,{x:600,y:700},{x:600,y:700},c.consumer_size,c.food_size),false);
+  game.motion({client:'floor-test',kind:'consumer',x:600,y:700,ids:[]});await game.tick();
+  assert.equal(game.state.count,0);assert.equal(game.state.eaten,1);
+});
 test('抓在手里的食物暂停下落，松手后继续自然下落',async t=>{
   const {game}=await fixture(t),id=game.objects[0].id;
   game.motion({client:'hold-test',kind:'food',ids:[id],x:300,y:150,offsets:[{x:0,y:0}],revision:game.state.revision});await game.tick();
