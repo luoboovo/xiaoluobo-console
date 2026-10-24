@@ -5,7 +5,8 @@ const { startServer } = require('./server.cjs');
 
 app.setName('小萝卜游戏控制台');
 let runtime, window, overtimeWindow, mediaWindow, overtimeSize, mediaSize, drag, diagnostics, stopDiagnostics, closing = false;
-function showError(title,error){diagnostics?.log('error','desktop.error',{title,error});dialog.showErrorBox(title,error.message||String(error));}
+// showErrorBox blocks the main process (server, live connections, overlays), so it is only used when quitting anyway.
+function showError(title,error,{blocking=false}={}){diagnostics?.log('error','desktop.error',{title,error});const message=error.message||String(error);if(blocking)dialog.showErrorBox(title,message);else dialog.showMessageBox({type:'error',title,message:title,detail:message}).catch(()=>{});}
 const panelWindows = new Map();
 ipcMain.on('overtime-drag', (event, phase) => {
   const panel = Array.from(panelWindows.values()).find(record => record.window && event.sender === record.window.webContents);
@@ -27,6 +28,7 @@ ipcMain.on('overtime-drag', (event, phase) => {
 const lock = app.requestSingleInstanceLock();
 if (!lock) app.quit();
 else {
+  require('./lib/desktop-diagnostics.cjs').guardMainProcess(process,{log:(...args)=>diagnostics?.log(...args)},message=>runtime?.services.addEvent('system','',`后台出错已记录，程序继续运行：${message}`));
   app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.focus(); } });
   app.whenReady().then(async () => {
     const dataDir = app.getPath('userData'), secretPath = path.join(dataDir, 'credentials.bin');
@@ -128,11 +130,11 @@ else {
     await window.loadURL(runtime.url);
     window.on('closed',quitIfOnlyMedia);
     window.show();
-  }).catch(async error => {showError('控制台启动失败',error);stopDiagnostics?.();await diagnostics?.close().catch(()=>{});app.quit();});
+  }).catch(async error => {showError('控制台启动失败',error,{blocking:true});stopDiagnostics?.();await diagnostics?.close().catch(()=>{});app.quit();});
   app.on('window-all-closed', () => app.quit());
   app.on('before-quit', event => {
     if (!runtime || closing) return;
     event.preventDefault(); closing = true;stopDiagnostics?.();
-    runtime.close().catch(error => showError('加班记录保存失败', error)).finally(async () => {stopDiagnostics?.();await diagnostics?.close().catch(()=>{});app.quit();});
+    runtime.close().catch(error => showError('加班记录保存失败', error, {blocking:true})).finally(async () => {stopDiagnostics?.();await diagnostics?.close().catch(()=>{});app.quit();});
   });
 }
