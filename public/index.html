@@ -74,6 +74,11 @@
             <div id="robot-emo-slots" class="robot-emo-slots"></div>
             <div id="robot-emo-grid" class="robot-emo-grid"><p class="lottery-empty">连接直播间后，点「读取直播间表情」。</p></div>
           </article>
+          <article class="lottery-card"><div class="lottery-card-title"><h2>直播场景</h2><button class="text-button" id="robot-scene-add" type="button">新增场景 ＋</button></div>
+            <p class="lottery-help">切到某个场景后，机器人按间隔发一句应援话术，再接着发这个场景的表情，直到点「停止」。比如唱歌时开「唱歌」，自动刷打call。场景的表情在上面「表情包」的「编辑」里选「场景 · 名字」来配。</p>
+            <div id="robot-scenes" class="robot-scenes"></div>
+            <div class="robot-scene-actions"><button class="button white-button" id="robot-scenes-save" type="button">保存场景</button><span id="robot-scenes-note" class="lottery-help"></span></div>
+          </article>
           <article class="lottery-card"><div class="lottery-card-title"><h2>盲盒记录 <span id="robot-blind-count">0</span></h2><button class="text-button" id="robot-clear-blind" type="button">清空当前平台记录</button></div><p class="lottery-help">直播间连接期间，观众送出的盲盒会自动记账，不需要启动机器人。金额按礼物价格折算成元。</p>
             <div class="robot-import"><div class="robot-import-row"><select id="robot-import-days" aria-label="补录天数"><option value="7">近 7 天</option><option value="30" selected>近 30 天</option><option value="90">近 90 天</option><option value="180">近 180 天</option></select><button class="button white-button" id="robot-import" type="button">补录历史盲盒</button><button class="text-button" id="robot-probe" type="button">先检查流水</button></div><p id="robot-import-status" class="lottery-help" role="status">用主播本人的 B 站账号读取后台「礼物流水」，补上机器人开始记账之前的盲盒（B站只保留近 180 天）。</p><div id="robot-probe-result" class="robot-probe" hidden></div></div>
             <input id="robot-blind-search" class="robot-search" placeholder="搜索观众昵称" aria-label="搜索观众昵称" autocomplete="off"><div id="robot-blind" class="robot-blind"><p class="lottery-empty">还没有盲盒记录。</p></div></article>
@@ -112,14 +117,17 @@
               <p class="lottery-help">{count} {cost} {value} {profit} 是累计的个数、投入、开出、盈亏；加 today_ 前缀是今天的，例如 {today_count}。</p>
             </article>
             <article class="lottery-card"><div class="lottery-card-title"><h2>AI 聊天</h2><span class="lottery-step">05</span></div>
-              <label class="lottery-check"><input type="checkbox" name="ai.enabled">@ 机器人时用 DeepSeek 回复</label>
-              <label>DeepSeek API Key<input name="ai_key" type="password" maxlength="200" autocomplete="off" placeholder="sk-…"></label>
-              <p class="lottery-help robot-key"><span id="robot-key-status">未填写</span><button class="text-button" id="robot-key-clear" type="button" hidden>清除 Key</button></p>
+              <label class="lottery-check"><input type="checkbox" name="ai.enabled">@ 机器人时用 AI 回复</label>
+              <label>AI 服务商<select name="ai.provider" id="robot-provider"></select></label>
+              <p class="lottery-help robot-provider-note" id="robot-provider-note"></p>
+              <label id="robot-base-label" hidden>服务地址<input name="ai.base_url" maxlength="300" autocomplete="off" placeholder="https://…/v1"></label>
+              <div id="robot-key-block"><label><span class="robot-key-title"><span id="robot-key-label">API Key</span><a class="text-button" id="robot-key-link" href="#" target="_blank" rel="noopener" hidden>去获取 Key ↗</a></span><input name="ai_key" type="password" maxlength="300" autocomplete="off" placeholder="粘贴 API Key"></label>
+              <p class="lottery-help robot-key"><span id="robot-key-status">未填写</span><button class="text-button" id="robot-key-clear" type="button" hidden>清除 Key</button></p></div>
               <label class="robot-model-label"><span>模型<button class="text-button" id="robot-models-refresh" type="button">刷新模型列表</button></span><select name="ai.model" required><option value="deepseek-chat">deepseek-chat</option><option value="deepseek-reasoner">deepseek-reasoner</option></select></label>
-              <p class="lottery-help robot-models-note" id="robot-models-note">保存 Key 后会自动读取你账号能用的全部模型。</p>
+              <p class="lottery-help robot-models-note" id="robot-models-note">保存后会自动读取这家服务商能用的全部模型，免费的排在前面。</p>
               <label>人设<textarea name="ai.persona" rows="6" maxlength="2000" required></textarea></label>
               <div class="lottery-field-pair"><label>回复字数上限<input name="ai.max_chars" type="number" min="10" max="200" step="1" required></label><label>每人间隔 / 秒<input name="ai.user_cooldown_seconds" type="number" min="0" max="600" step="1" required></label></div>
-              <p class="lottery-help">谁 @ 机器人就回复谁。Key 加密保存在本机，按 DeepSeek 用量计费。</p>
+              <p class="lottery-help">谁 @ 机器人就回复谁。每家服务商的 Key 分开加密保存在本机；免费模型的名单和次数限制由服务商决定，可能随时调整。</p>
             </article>
             <article class="lottery-card"><div class="lottery-card-title"><h2>点名冒泡</h2><span class="lottery-step">06</span></div>
               <label class="lottery-check"><input type="checkbox" name="cue.enabled">定时 @ 进场后一直没说话的观众</label>

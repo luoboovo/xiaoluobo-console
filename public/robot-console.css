@@ -36,11 +36,28 @@
 .robot-blind td:first-child{max-width:140px;overflow:hidden;text-overflow:ellipsis}
 .robot-blind .up{color:#589376}.robot-blind .down{color:#b87779}
 .event-mention{color:#5c8fbf}
+.robot-scenes{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.robot-scene{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--surface-soft)}
+.robot-scene.running{border-color:#6fa185;box-shadow:0 0 0 3px #6fa1851f;background:var(--surface)}
+.robot-scene-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.lottery-card .robot-scene-head>input{flex:1;min-width:100px;margin:0;font-weight:600}
+.lottery-card .robot-scene-head label{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.lottery-card .robot-scene-head label input{width:64px;margin:0;padding:8px}
+.robot-scene-head .button{min-height:34px;padding:8px 16px}
+.robot-scene-live{margin:8px 0 0!important;color:#589376!important;font-size:11px!important}
+.lottery-card .robot-scene textarea{margin:8px 0;min-height:64px}
+.robot-scene-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px}
+.robot-scene-emos{display:flex;flex-wrap:wrap;gap:3px;min-width:0}
+.robot-scene-emos img{width:26px;height:26px;object-fit:contain}
+.robot-scene-emos em{font-style:normal;color:var(--muted)}
+.robot-scene-actions{display:flex;align-items:center;gap:12px}
+.robot-scene-actions .lottery-help{margin:0}
 .robot-cue-status{border-top:1px solid var(--line);padding-top:12px;margin-top:4px}
 .robot-cue-status .lottery-help{margin:0 0 10px;overflow-wrap:anywhere}
 .robot-cue-status .button{width:100%;justify-content:center}
 .robot-cue-status .robot-cue-random-note{margin:8px 0 0}
-.lottery-card .robot-model-label>span{display:flex;justify-content:space-between;align-items:center}
+.lottery-card .robot-model-label>span,.robot-key-title{display:flex;justify-content:space-between;align-items:center}
+.lottery-card .robot-provider-note{margin:-6px 0 13px}
 .lottery-card .robot-models-note{margin:-6px 0 13px;overflow-wrap:anywhere}
 .robot-emo-slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:14px}
 .robot-emo-slot{display:flex;align-items:center;gap:8px;min-height:46px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:var(--surface-soft);font-size:11px;min-width:0;cursor:pointer}

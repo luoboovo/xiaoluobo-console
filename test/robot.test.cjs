@@ -147,7 +147,7 @@ test('机器人：@机器人走 DeepSeek，人设进 system，长回复分条，
   const services = fakeServices();
   let key = '', requests = [], status = 200;
   const fetchImpl = async (url, init) => { requests.push({ url, init, body: JSON.parse(init.body) }); return { ok: status === 200, status, json: async () => status === 200 ? { choices: [{ message: { content: '今天吃萝卜炖排骨，香喷喷的，要不要一起来呀？' } }] } : { error: { message: 'bad' } } }; };
-  const robot = await new LiveRobot(dir, { services, fetchImpl, keyStore: { get: () => key, set: async value => { key = value; } } }).init();
+  const robot = await new LiveRobot(dir, { services, fetchImpl, keyStore: { get: () => key, set: async (provider, value) => { key = value; } } }).init();
   try {
     await robot.action({ action: 'configure', config: { enabled: true, interval_seconds: 1, max_length: 20, ai: { enabled: true, persona: '你是一只猫娘', max_chars: 40 } } });
     robot.receive({ type: 'chat', user: '甲', uid: 2, text: '主播吃什么', mention: { name: '萝卜机器人', uid: 1 } });
@@ -378,7 +378,7 @@ test('DeepSeek 模型列表：用 Key 读取 /models，去重排序，过滤异�
   const dir = await tempDir('luobo-models-');
   let key = '', status = 200, request;
   const fetchImpl = async (url, init) => { request = { url, init }; return { ok: status === 200, status, json: async () => ({ object: 'list', data: [{ id: 'deepseek-reasoner' }, { id: 'deepseek-chat' }, { id: 'deepseek-chat' }, { id: 'bad id' }, {}] }) }; };
-  const robot = await new LiveRobot(dir, { services: fakeServices(), fetchImpl, keyStore: { get: () => key, set: async value => { key = value; } } }).init();
+  const robot = await new LiveRobot(dir, { services: fakeServices(), fetchImpl, keyStore: { get: () => key, set: async (provider, value) => { key = value; } } }).init();
   try {
     await assert.rejects(robot.action({ action: 'models' }), /API Key/);
     key = 'sk-test';
@@ -484,5 +484,108 @@ test('随机点名：房间里任意一位（说过话的也算），不连着�
     assert.equal((await robot.action({ action: 'cue_random' })).picked, '乙', '不连着点同一个人');
     roll = 0.99;
     assert.equal((await robot.action({ action: 'cue_random' })).picked, '甲');
+  } finally { await robot.close(); await remove(dir); }
+});
+
+
+test('AI 服务商：各家地址和 Key 分开，本机 Ollama 不需要 Key，免费模型排前面，/models 不支持时用推荐', async () => {
+  const dir = await tempDir('luobo-providers-');
+  const keys = { zhipu: 'zk-key-1111', openrouter: 'or-key-2222' }, requests = [];
+  let modelsStatus = 200, modelsData = { data: [] };
+  const fetchImpl = async (url, init) => {
+    requests.push({ url, auth: init.headers?.Authorization, body: init.body ? JSON.parse(init.body) : null });
+    if (url.endsWith('/models')) return { ok: modelsStatus === 200, status: modelsStatus, json: async () => modelsData };
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '你好呀' } }] }) };
+  };
+  const robot = await new LiveRobot(dir, { services: fakeServices(), fetchImpl, keyStore: { get: id => keys[id] || '', set: async (id, value) => { keys[id] = value; } } }).init();
+  try {
+    assert.equal(robot.snapshot().config.ai.provider, 'deepseek', '旧配置默认还是 DeepSeek 官方');
+    await assert.rejects(robot.action({ action: 'configure', config: { ai: { provider: 'nope' } } }), /服务商无效/);
+    await assert.rejects(robot.action({ action: 'configure', config: { ai: { provider: 'custom' } } }), /服务地址/);
+    await assert.rejects(robot.action({ action: 'configure', config: { ai: { provider: 'custom', base_url: 'ftp://x' } } }), /服务地址无效/);
+
+    await robot.action({ action: 'configure', config: { ai: { provider: 'zhipu', model: 'glm-4.7-flash' } } });
+    assert.equal((await robot.action({ action: 'test', text: '在吗' })).reply, '你好呀');
+    assert.equal(requests.at(-1).url, 'https://open.bigmodel.cn/api/paas/v4/chat/completions');
+    assert.equal(requests.at(-1).auth, 'Bearer zk-key-1111'); assert.equal(requests.at(-1).body.model, 'glm-4.7-flash');
+    modelsStatus = 404;
+    assert.deepEqual(await robot.action({ action: 'models' }), { models: ['glm-4-flash-250414', 'glm-4.5-flash', 'glm-4.7-flash'], free: ['glm-4-flash-250414', 'glm-4.5-flash', 'glm-4.7-flash'] }, '/models 不支持时用推荐，Flash 标为免费');
+
+    modelsStatus = 200;
+    modelsData = { data: [{ id: 'openai/gpt-x', pricing: { prompt: '0.001', completion: '0.002' } }, { id: 'deepseek/deepseek-chat:free' }, { id: 'google/gemma:free', pricing: { prompt: '0', completion: '0' } }, { id: 'bad id' }] };
+    await robot.action({ action: 'configure', config: { ai: { provider: 'openrouter', model: 'google/gemma:free' } } });
+    const listed = await robot.action({ action: 'models' });
+    assert.deepEqual(listed.models, ['deepseek/deepseek-chat:free', 'google/gemma:free', 'openai/gpt-x']);
+    assert.deepEqual(listed.free, ['deepseek/deepseek-chat:free', 'google/gemma:free']);
+    assert.equal(requests.at(-1).url, 'https://openrouter.ai/api/v1/models'); assert.equal(requests.at(-1).auth, 'Bearer or-key-2222');
+
+    await robot.action({ action: 'configure', config: { ai: { provider: 'siliconflow', model: 'THUDM/GLM-4-9B-0414' } } });
+    assert.equal(robot.snapshot().aiReady, false);
+    await assert.rejects(robot.action({ action: 'test', text: '在吗' }), /硅基流动 SiliconFlow 的 API Key/);
+    await robot.action({ action: 'set_key', key: 'sf-3' });
+    assert.equal(keys.siliconflow, 'sf-3'); assert.equal(robot.snapshot().aiReady, true);
+    assert.equal(robot.snapshot().providers.find(p => p.id === 'zhipu').keyHint, '••••1111');
+    assert.equal(JSON.stringify(robot.snapshot()).includes('or-key-2222'), false, 'Key 本身不回传');
+
+    await robot.action({ action: 'configure', config: { ai: { provider: 'ollama', model: 'qwen2.5:7b' } } });
+    assert.equal(robot.snapshot().aiReady, true, 'Ollama 不需要 Key');
+    await assert.rejects(robot.action({ action: 'set_key', key: 'x' }), /不需要/);
+    await robot.action({ action: 'test', text: '在吗' });
+    assert.equal(requests.at(-1).url, 'http://127.0.0.1:11434/v1/chat/completions'); assert.equal(requests.at(-1).auth, undefined);
+    await robot.action({ action: 'configure', config: { ai: { base_url: 'http://192.168.1.5:11434/v1/' } } });
+    await robot.action({ action: 'test', text: '在吗' });
+    assert.equal(requests.at(-1).url, 'http://192.168.1.5:11434/v1/chat/completions', '本机 Ollama 地址可以改');
+
+    await robot.action({ action: 'configure', config: { ai: { provider: 'custom', base_url: 'https://llm.example.com/v1', model: 'my-model' } } });
+    assert.equal(robot.snapshot().aiReady, true, '自定义服务商可以不填 Key');
+    await robot.action({ action: 'test', text: '在吗' });
+    assert.equal(requests.at(-1).url, 'https://llm.example.com/v1/chat/completions');
+  } finally { await robot.close(); await remove(dir); }
+});
+
+
+test('直播场景：唱歌时按间隔发应援话术 + 场景表情，不连着重复，停止或关机器人就停', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: new Date('2026-11-10T12:00:00').getTime() });
+  const dir = await tempDir('luobo-scenes-');
+  const services = fakeServices();
+  const robot = await new LiveRobot(dir, { services, random: () => 0 }).init();
+  const call = { unique: 'room_1_call', name: '打call', url: 'https://i0.hdslb.com/bfs/live/call.png' };
+  const clap = { unique: 'room_1_clap', name: '鼓掌', url: 'https://i0.hdslb.com/bfs/live/clap.png' };
+  const flush3 = async () => { for (let i = 0; i < 3; i++) { t.mock.timers.tick(1000); await flush(); } };
+  try {
+    assert.deepEqual(robot.snapshot().config.live_scenes.map(s => s.name), ['唱歌', '跳舞', '打游戏'], '自带三个场景');
+    await assert.rejects(robot.action({ action: 'save_scenes', scenes: [{ id: 'Bad Id', name: 'x' }] }), /编号无效/);
+    await assert.rejects(robot.action({ action: 'save_scenes', scenes: [{ id: 'a', name: '' }] }), /名字/);
+    await assert.rejects(robot.action({ action: 'save_scenes', scenes: [{ id: 'a', name: 'x' }, { id: 'a', name: 'y' }] }), /重复/);
+    await robot.action({ action: 'configure', config: { max_length: 100, interval_seconds: 1 } });
+    await robot.action({ action: 'save_scenes', scenes: [{ id: 'sing', name: '唱歌', lines: '好听！\n打call！', interval_seconds: 30 }, { id: 'empty', name: '空场景', lines: '', interval_seconds: 30 }] });
+    await robot.action({ action: 'toggle_emoticon', slot: 'live:sing', emoticon: call });
+    await robot.action({ action: 'toggle_emoticon', slot: 'live:sing', emoticon: clap });
+    await assert.rejects(robot.action({ action: 'toggle_emoticon', slot: 'live:nope', emoticon: call }), /找不到/);
+    await assert.rejects(robot.action({ action: 'scene_start', id: 'empty' }), /还没有应援话术/);
+    services.state.live.status = 'disconnected';
+    await assert.rejects(robot.action({ action: 'scene_start', id: 'sing' }), /未连接/);
+    services.state.live.status = 'connected';
+    await robot.action({ action: 'scene_start', id: 'sing' });
+    assert.equal(robot.snapshot().active_scene.id, 'sing');
+    await flush3();
+    assert.deepEqual(services.sent.map(s => s.text), ['好听！', 'room_1_call']);
+    t.mock.timers.tick(30000); await flush3();
+    assert.deepEqual(services.sent.slice(2).map(s => s.text), ['打call！', 'room_1_clap'], '话术和表情都不连着重复');
+    assert.equal(robot.snapshot().active_scene.sent, 2);
+    assert.equal(robot.snapshot().log[0].kind, 'scene');
+    await robot.action({ action: 'scene_stop' });
+    assert.equal(robot.snapshot().active_scene, null);
+    t.mock.timers.tick(60000); await flush3();
+    assert.equal(services.sent.length, 4, '停止后不再发');
+    await robot.action({ action: 'scene_start', id: 'sing' }); await flush3();
+    await robot.action({ action: 'toggle', enabled: false });
+    assert.equal(robot.snapshot().active_scene, null, '停止机器人时场景也停');
+    await robot.action({ action: 'scene_start', id: 'sing' });
+    await robot.action({ action: 'save_scenes', scenes: [{ id: 'dance', name: '跳舞', lines: '好看', interval_seconds: 30 }] });
+    assert.equal(robot.snapshot().active_scene, null, '删掉正在进行的场景就停');
+    const reloaded = await new LiveRobot(dir, { services }).init();
+    assert.deepEqual(reloaded.snapshot().config.live_scenes.map(s => s.id), ['dance']);
+    await reloaded.close();
   } finally { await robot.close(); await remove(dir); }
 });

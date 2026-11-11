@@ -18,7 +18,7 @@ const { pruneAssets,assetNames } = require('./lib/asset-cleanup.cjs');
 const { generatePanel } = require('./lib/game-panels.cjs');
 const { WebSocketServer } = require('ws');
 const {MODES:LOTTERY_MODES}=require('./lib/lottery.cjs');
-const { LiveRobot } = require('./lib/robot.cjs');
+const { LiveRobot, AI_PROVIDERS } = require('./lib/robot.cjs');
 
 // Overlay pages subscribe to one channel; everything else is a console page.
 const CHANNELS = { bomb:new Set(['number-bomb']), lottery:new Set(['lottery']), feeding:new Set(['feeding','feeding-motion','feeding-physics']), overtime:new Set(['overtime','overtime-clock','overtime-media']), scene:new Set(['noodle','noodle-motion']) };
@@ -42,13 +42,18 @@ async function startServer(options = {}) {
   games.douyin=await createPlatformGames({...common,platform:'douyin',catalog:services.dyGifts.length>=12?services.dyGifts:require('./data/douyin-gifts.json').list,source:games.bilibili.noodle});
   let {noodle,overtime,feeding,lottery,numberBomb}=games[services.platform];
   // 机器人设置跨平台共用；DeepSeek Key 和登录凭证一起加密保存。
+  // 每个 AI 服务商一个 Key；旧版只存了 DeepSeek 的 deepseekKey，读取时沿用。
+  const aiKeys=()=>services.secretData.aiKeys&&typeof services.secretData.aiKeys==='object'?services.secretData.aiKeys:{};
   const keyStore={
-    get:()=>services.secretData.deepseekKey||'',
-    set:async key=>{
-      const previous=services.secretData.deepseekKey;
-      if(key)services.secretData.deepseekKey=key;else delete services.secretData.deepseekKey;
+    get:provider=>aiKeys()[provider]||(provider==='deepseek'?services.secretData.deepseekKey||'':''),
+    set:async(provider,key)=>{
+      const previous=structuredClone(services.secretData);
+      const next={...aiKeys()};
+      if(services.secretData.deepseekKey&&!next.deepseek)next.deepseek=services.secretData.deepseekKey;
+      if(key)next[provider]=key;else delete next[provider];
+      services.secretData.aiKeys=next;delete services.secretData.deepseekKey;
       try{await services.secretStore.save(services.secretData);}
-      catch(error){if(previous)services.secretData.deepseekKey=previous;else delete services.secretData.deepseekKey;throw error;}
+      catch(error){services.secretData=previous;throw error;}
     }
   };
   const robot=await new LiveRobot(services.dataDir,{services,diagnostics,keyStore,fetchImpl:options.robotFetch||globalThis.fetch}).init();
@@ -475,7 +480,7 @@ async function startServer(options = {}) {
     const stopped = new Promise(resolve => server.close(resolve)); server.closeAllConnections(); await stopped;
     await images.close();
   };
-  return { url: origin, services, get noodle(){return noodle;},get overtime(){return overtime;},get feeding(){return feeding;},get lottery(){return lottery;},get numberBomb(){return numberBomb;},robot,onOvertimeMedia(listener){mediaListeners.add(listener);}, close };
+  return { url: origin, services, get noodle(){return noodle;},get overtime(){return overtime;},get feeding(){return feeding;},get lottery(){return lottery;},get numberBomb(){return numberBomb;},robot,aiKeyPages:new Set(Object.values(AI_PROVIDERS).map(p=>p.keyUrl).filter(url=>url.startsWith('https://'))),onOvertimeMedia(listener){mediaListeners.add(listener);}, close };
 }
 
 if (require.main === module) {

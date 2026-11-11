@@ -101,6 +101,8 @@ else {
       if(url===runtime.url+'/feeding/')return {action:'allow',overrideBrowserWindowOptions:{title:'小萝卜吃吃吃 · 网页操作',width:1280,height:760,useContentSize:true,autoHideMenuBar:true,backgroundColor:'#e8ede8',webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false,autoplayPolicy:'no-user-gesture-required'}}};
       if(url===runtime.url+'/number-bomb/')return {action:'allow',overrideBrowserWindowOptions:{title:'数字炸弹 · 直播画面',width:1280,height:720,useContentSize:true,autoHideMenuBar:true,backgroundColor:'#f6f1e7',webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}}};
       if([runtime.url+'/lottery/',...['wheel','duel','scratch'].map(mode=>runtime.url+'/lottery/?game='+mode)].includes(url))return {action:'allow',overrideBrowserWindowOptions:{title:'抽奖工具 · 直播画面',width:1280,height:720,useContentSize:true,autoHideMenuBar:true,backgroundColor:'#f7f3e8',webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}}};
+      // AI 服务商「获取 Key」页面用系统浏览器打开；只放行内置的这几个地址。
+      if (runtime.aiKeyPages?.has(url)) { shell.openExternal(url).catch(error => showError('打开网页失败', error)); return { action:'deny' }; }
       return url.startsWith(runtime.url + '/noodle/') ? { action:'allow', overrideBrowserWindowOptions:{ title:'弹幕面馆', width:1920, height:1080, useContentSize:true, autoHideMenuBar:true, backgroundColor:'#f6e5c4', webPreferences:{ contextIsolation:true, nodeIntegration:false, sandbox:true, backgroundThrottling:false } } } : { action:'deny' };
     });
     window.webContents.on('did-create-window', (child, details) => {
