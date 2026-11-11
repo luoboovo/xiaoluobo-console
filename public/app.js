@@ -99,6 +99,7 @@ export function switchView(view) {
   $('#feeding-view').hidden = view !== 'feeding';
   $('#lottery-view').hidden = view !== 'lottery';
   $('#bomb-view').hidden = view !== 'number-bomb';
+  $('#robot-view').hidden = view !== 'robot';
   syncPreviewFrames(view);
   $('#lottery-frame').contentWindow.postMessage({type:'lottery-preview-visibility',visible:view==='lottery'},location.origin);
   $('#feeding-frame').contentWindow.postMessage({type:'feeding-preview-visibility',visible:view==='feeding'},location.origin);
@@ -142,7 +143,8 @@ function renderEvents() {
     if (!row) {
       const holder=document.createElement('div');
       const giftImage = event.type === 'gift' ? giftById.get(event.giftId) : null;
-      holder.innerHTML=`<div class="event-row ${escapeHtml(event.type)}"><div class="event-avatar">${giftImage?.icon ? `<img loading="lazy" src="${image(giftImage)}" alt="">` : escapeHtml(event.user ? Array.from(event.user)[0] : '·')}</div><span class="event-name">${escapeHtml(event.user || '系统')}</span><span class="event-text">${escapeHtml(event.text)}</span><time class="event-time">${eventTime.format(event.time)}</time></div>`;
+      const mention = event.mention?.name && !/^\s*[@＠]/.test(event.text) ? `<span class="event-mention">@${escapeHtml(event.mention.name)}</span> ` : '';
+      holder.innerHTML=`<div class="event-row ${escapeHtml(event.type)}"><div class="event-avatar">${giftImage?.icon ? `<img loading="lazy" src="${image(giftImage)}" alt="">` : escapeHtml(event.user ? Array.from(event.user)[0] : '·')}</div><span class="event-name">${escapeHtml(event.user || '系统')}</span><span class="event-text">${mention}${escapeHtml(event.text)}</span><time class="event-time">${eventTime.format(event.time)}</time></div>`;
       row=holder.firstElementChild;eventRows.set(event,row);
     }
     if (container.children[index]!==row) container.insertBefore(row,container.children[index] || null);
@@ -232,7 +234,7 @@ document.addEventListener('error', event => {
 }, true);
 try { document.body.classList.toggle('dark', localStorage.getItem('theme') === 'dark'); } catch {}
 $('#theme-button').addEventListener('click', () => { const dark = document.body.classList.toggle('dark'); try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch {} });
-if (['noodle', 'presets', 'gifts', 'overtime', 'gift-rules','feeding','lottery','number-bomb'].includes(location.hash.slice(1))) switchView(location.hash.slice(1));
+if (['noodle', 'presets', 'gifts', 'overtime', 'gift-rules','feeding','lottery','number-bomb','robot'].includes(location.hash.slice(1))) switchView(location.hash.slice(1));
 else syncPreviewFrames('console');
 (async () => {
   try {
@@ -244,6 +246,7 @@ else syncPreviewFrames('console');
     source.addEventListener('feeding', event => window.dispatchEvent(new CustomEvent('feeding-state', {detail:JSON.parse(event.data)})));
     source.addEventListener('lottery', event => window.dispatchEvent(new CustomEvent('lottery-state', {detail:JSON.parse(event.data)})));
     source.addEventListener('number-bomb', event => window.dispatchEvent(new CustomEvent('number-bomb-state', {detail:JSON.parse(event.data)})));
+    source.addEventListener('robot', event => window.dispatchEvent(new CustomEvent('robot-state', {detail:JSON.parse(event.data)})));
     source.addEventListener('overtime-clock', event => window.dispatchEvent(new CustomEvent('overtime-clock', { detail: JSON.parse(event.data) })));
     source.addEventListener('message', event => { events.unshift(JSON.parse(event.data)); events.length = Math.min(events.length, 200); scheduleEvents(); });
     source.onopen = async () => { $('#service-dot').classList.remove('off'); $('#service-label').textContent = '本地运行'; try { const next = await api('/api/state'); renderState(next.state); events = next.events; renderEvents(); } catch {} };

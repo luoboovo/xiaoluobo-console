@@ -282,7 +282,7 @@ test('重复满屏投掷不重写存档，重复头像消息不刷新，过期�
 test('场景只收游戏推送，控制台不收运动，原订阅保留兼容',async t=>{
   const {dir}=await fixture(t),app=await startServer({dataDir:dir,seedDir:dir});
   t.after(()=>app.close());
-  for(const [query,expected] of [['?scene=1',['noodle','noodle-motion']],['?console=1',['state','noodle','overtime','feeding','number-bomb','lottery','lottery','lottery']],['?overtime=1',['overtime']],['?feeding=1',['feeding']],['?bomb=1',['number-bomb']],['?lottery=1',['lottery']],['?lottery=1&game=duel',['lottery']],['?lottery=1&game=scratch',['lottery']],['',['state','noodle','overtime','feeding','number-bomb','lottery','lottery','lottery','noodle-motion']]]) {
+  for(const [query,expected] of [['?scene=1',['noodle','noodle-motion']],['?console=1',['state','noodle','overtime','feeding','number-bomb','lottery','lottery','lottery','robot']],['?overtime=1',['overtime']],['?feeding=1',['feeding']],['?bomb=1',['number-bomb']],['?lottery=1',['lottery']],['?lottery=1&game=duel',['lottery']],['?lottery=1&game=scratch',['lottery']],['',['state','noodle','overtime','feeding','number-bomb','lottery','lottery','lottery','robot','noodle-motion']]]) {
     const stop=new AbortController(),timer=setTimeout(()=>stop.abort(),3000);
     const response=await fetch(app.url+'/api/events'+query,{signal:stop.signal}),reader=response.body.getReader();
     try {

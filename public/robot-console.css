@@ -1,0 +1,69 @@
+.robot-workspace{grid-template-columns:minmax(0,1fr) 340px}
+.robot-power{align-items:center}
+.robot-status{font-size:11px;color:var(--muted);background:var(--surface-soft);border-radius:20px;padding:7px 12px;display:flex;align-items:center;gap:6px}
+.robot-status:before{content:'';width:6px;height:6px;border-radius:50%;background:#acb8c4}
+.robot-status.on{color:#589376;background:#edf7f0}.robot-status.on:before{background:#6fa185}
+.robot-settings{display:flex;flex-direction:column;gap:17px}
+.robot-settings>.button{position:sticky;bottom:14px;box-shadow:0 10px 24px -10px #26394c66}
+.robot-gap{margin-top:8px!important}
+.robot-key{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:-6px 0 12px!important}
+.robot-note{margin:-6px 0 10px!important}
+.robot-log{list-style:none;padding:0;margin:0;max-height:420px;overflow:auto;scrollbar-width:thin}
+.robot-entry{display:flex;gap:11px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--line);font-size:12px}
+.robot-entry>div{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.robot-entry strong{font-weight:500;overflow-wrap:anywhere;line-height:1.6}
+.robot-entry>div>span{font-size:10px;color:var(--muted);overflow-wrap:anywhere}
+.robot-entry .robot-error{color:#b87779}
+.robot-kind{flex-shrink:0;font-size:10px;border-radius:7px;padding:3px 7px;background:var(--surface-soft);color:var(--muted);margin-top:2px}
+.robot-state{flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-size:10px;color:var(--muted);white-space:nowrap}
+.robot-state time{font-size:9px;opacity:.8}
+.robot-entry.sent .robot-state{color:#589376}.robot-entry.failed .robot-state{color:#b87779}.robot-entry.queued .robot-state,.robot-entry.sending .robot-state{color:#ab9153}
+.robot-entry.skipped strong,.robot-entry.preview strong{color:var(--muted)}
+.robot-test-result{margin:14px 0 0!important;padding:12px 14px;border-radius:10px;background:var(--surface-soft);color:var(--text)!important;font-size:12px!important;overflow-wrap:anywhere}
+.lottery-card .robot-search{margin-top:0}
+.robot-import{border:1px solid var(--line);border-radius:12px;padding:12px;margin:0 0 14px;background:var(--surface-soft)}
+.robot-import-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.lottery-card .robot-import select{width:auto;margin:0;background:var(--surface)}
+.robot-import .button{min-height:34px;padding:8px 14px}
+.robot-import .lottery-help{margin:10px 0 0}
+.robot-probe{margin-top:10px;font-size:11px;display:flex;flex-direction:column;gap:6px;overflow-wrap:anywhere}
+.robot-probe strong{font-weight:500}.robot-probe span{color:var(--muted)}
+.robot-probe pre{margin:0;max-height:220px;overflow:auto;background:var(--surface);border-radius:8px;padding:10px;font-size:10px;line-height:1.5;white-space:pre-wrap}
+.robot-blind{max-height:360px;overflow:auto;scrollbar-width:thin}
+.robot-blind table{width:100%;border-collapse:collapse;font-size:11px}
+.robot-blind th{text-align:left;font-weight:500;color:var(--muted);padding:8px 6px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--surface)}
+.robot-blind td{padding:9px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+.robot-blind td:first-child{max-width:140px;overflow:hidden;text-overflow:ellipsis}
+.robot-blind .up{color:#589376}.robot-blind .down{color:#b87779}
+.event-mention{color:#5c8fbf}
+.robot-cue-status{border-top:1px solid var(--line);padding-top:12px;margin-top:4px}
+.robot-cue-status .lottery-help{margin:0 0 10px;overflow-wrap:anywhere}
+.robot-cue-status .button{width:100%;justify-content:center}
+.robot-cue-status .robot-cue-random-note{margin:8px 0 0}
+.lottery-card .robot-model-label>span{display:flex;justify-content:space-between;align-items:center}
+.lottery-card .robot-models-note{margin:-6px 0 13px;overflow-wrap:anywhere}
+.robot-emo-slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:14px}
+.robot-emo-slot{display:flex;align-items:center;gap:8px;min-height:46px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:var(--surface-soft);font-size:11px;min-width:0;cursor:pointer}
+.robot-emo-slot.active{border-color:#8db1d1;box-shadow:0 0 0 3px #8db1d11f;background:var(--surface)}
+.robot-emo-slot>span{color:var(--muted);flex-shrink:0;width:78px;display:flex;align-items:center;gap:4px}
+.robot-emo-slot>span b{font-weight:500;font-size:9px;color:#8a9cac}
+.robot-emo-slot>div{display:flex;flex-wrap:wrap;gap:3px;min-width:0;flex:1}
+.robot-emo-chip{border:0;background:transparent;padding:1px;border-radius:6px;width:30px;height:30px;display:grid;place-items:center}
+.robot-emo-chip:hover{background:#f6dede}
+.robot-emo-chip img{width:28px;height:28px;object-fit:contain}
+.robot-emo-slot em{font-style:normal;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.robot-emo-slot .muted-emo{color:var(--muted)}
+.robot-emo.picked{border-color:#6fa185;background:#edf7f0;box-shadow:inset 0 0 0 2px #6fa185}
+.lottery-card .robot-emo-target{display:flex;align-items:center;gap:10px;white-space:nowrap}
+.lottery-card .robot-emo-target select{width:auto;flex:1;min-width:0;margin:6px 0 12px}
+.robot-emo-grid{max-height:360px;overflow:auto;scrollbar-width:thin}
+.robot-emo-pkg h3{font-size:11px;font-weight:500;color:var(--muted);margin:6px 0 8px}
+.robot-emo-pkg>div{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px;margin-bottom:10px}
+.robot-emo{border:1px solid var(--line);background:var(--surface-soft);border-radius:10px;padding:5px;aspect-ratio:1;display:grid;place-items:center}
+.robot-emo:hover:not(:disabled){border-color:#8db1d1;background:var(--surface)}
+.robot-emo:disabled{cursor:not-allowed;opacity:.35}
+.robot-emo img{width:100%;height:100%;object-fit:contain}
+.robot-log-emo img{width:26px;height:26px;object-fit:contain;vertical-align:middle;margin-left:6px}
+body.dark .robot-status.on{background:#32493f;color:#9fceb5}
+@media(max-width:1080px){.robot-workspace{grid-template-columns:minmax(0,1fr) 300px}}
+@media(max-width:760px){.robot-workspace{grid-template-columns:1fr}.lottery-sidebar.robot-sidebar{display:flex}.robot-power{width:100%;justify-content:space-between}}

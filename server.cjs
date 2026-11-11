@@ -18,6 +18,7 @@ const { pruneAssets,assetNames } = require('./lib/asset-cleanup.cjs');
 const { generatePanel } = require('./lib/game-panels.cjs');
 const { WebSocketServer } = require('ws');
 const {MODES:LOTTERY_MODES}=require('./lib/lottery.cjs');
+const { LiveRobot } = require('./lib/robot.cjs');
 
 // Overlay pages subscribe to one channel; everything else is a console page.
 const CHANNELS = { bomb:new Set(['number-bomb']), lottery:new Set(['lottery']), feeding:new Set(['feeding','feeding-motion','feeding-physics']), overtime:new Set(['overtime','overtime-clock','overtime-media']), scene:new Set(['noodle','noodle-motion']) };
@@ -40,6 +41,17 @@ async function startServer(options = {}) {
   games.bilibili=await createPlatformGames({...common,platform:'bilibili',catalog:services.biliGifts.length>=12?services.biliGifts:require('./data/gifts.json').list,legacyFiles:options.overtimeLegacyFiles||[]});
   games.douyin=await createPlatformGames({...common,platform:'douyin',catalog:services.dyGifts.length>=12?services.dyGifts:require('./data/douyin-gifts.json').list,source:games.bilibili.noodle});
   let {noodle,overtime,feeding,lottery,numberBomb}=games[services.platform];
+  // 机器人设置跨平台共用；DeepSeek Key 和登录凭证一起加密保存。
+  const keyStore={
+    get:()=>services.secretData.deepseekKey||'',
+    set:async key=>{
+      const previous=services.secretData.deepseekKey;
+      if(key)services.secretData.deepseekKey=key;else delete services.secretData.deepseekKey;
+      try{await services.secretStore.save(services.secretData);}
+      catch(error){if(previous)services.secretData.deepseekKey=previous;else delete services.secretData.deepseekKey;throw error;}
+    }
+  };
+  const robot=await new LiveRobot(services.dataDir,{services,diagnostics,keyStore,fetchImpl:options.robotFetch||globalThis.fetch}).init();
   const lotteryFor=mode=>{const key=mode??'wheel';if(!LOTTERY_MODES.includes(key))throw new Error('抽奖玩法无效');return lottery[key];};
   const mediaListeners=new Set();
   let actions = Promise.resolve(), giftBatch, pendingGifts=0, liveStamp='';
@@ -142,6 +154,8 @@ async function startServer(options = {}) {
       if(stamp!==liveStamp){liveStamp=stamp;diagnostics.log(live.error?'warn':'info','live.state',live);}
     }
   });
+  robot.on('state',state=>broadcast('robot',state));
+  services.on('event', event => robot.receive(event));
   services.on('event', event => {
     if(event.type==='system')diagnostics?.log('warn','system.message',{message:event.text,platform:services.platform});
     if (event.uid && event.face) noodle.rememberFace(event);
@@ -221,7 +235,7 @@ async function startServer(options = {}) {
     const scene=client.channel==='scene';
     if(!scene)send(client,'state',services.state);
     sendNoodle(client,noodleFrames(noodle.snapshot()));
-    if(!scene){send(client,'overtime',overtime.snapshot());send(client,'feeding',feeding.snapshot());send(client,'number-bomb',numberBomb.snapshot());for(const target of Object.values(lottery))send(client,'lottery',target.snapshot());}
+    if(!scene){send(client,'overtime',overtime.snapshot());send(client,'feeding',feeding.snapshot());send(client,'number-bomb',numberBomb.snapshot());for(const target of Object.values(lottery))send(client,'lottery',target.snapshot());send(client,'robot',robot.snapshot());}
     if(!client.consoleOnly)send(client,'noodle-motion',noodle.motionSnapshot());
   };
   const download=(res,filename,data)=>{res.setHeader('Content-Disposition',`attachment; filename=${filename}`);return data;};
@@ -256,6 +270,7 @@ async function startServer(options = {}) {
         broadcast('feeding',feeding.snapshot());
         broadcast('number-bomb',numberBomb.snapshot());
         for(const target of Object.values(lottery))broadcast('lottery',target.snapshot());
+        robot.reset();
       });
       return {ok:true};
     },
@@ -265,6 +280,7 @@ async function startServer(options = {}) {
     '/api/feeding/motion': input => ({ok:true,accepted:feeding.motion(input)}),
     '/api/feeding/action': async (input,scoped) => {const state=await enqueue(scoped(()=>feeding.action(input)));schedulePrune();return {ok:true,state};},
     '/api/lottery/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>lotteryFor(input.game).action(input)))}),
+    '/api/robot/action': async input => {const result=await robot.action(input);return result.config?{ok:true,state:result}:{ok:true,...result};},
     '/api/number-bomb/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>numberBomb.action(input)))}),
     '/api/panels/generate': async (input,scoped) => ({ok:true,panel:await enqueue(scoped(()=>generatePanel(input.game,{noodle,overtime,feeding})))}),
     '/api/overtime/action': async (input,scoped) => {const state=await enqueue(scoped(()=>overtime.action(input)));schedulePrune();return {ok:true,state};},
@@ -302,6 +318,7 @@ async function startServer(options = {}) {
     '/api/overtime/state': () => overtime.snapshot(),
     '/api/feeding/state': () => feeding.snapshot(),
     '/api/number-bomb/state': () => numberBomb.snapshot(),
+    '/api/robot/state': () => robot.snapshot(),
     '/api/lottery/state': (_res,url) => lotteryFor(url.searchParams.get('game')||'wheel').snapshot(),
     '/api/lottery/export': (res,url) => {const target=lotteryFor(url.searchParams.get('game')||'wheel');return download(res,`xiaoluobo-${target.mode}-results.json`,target.state.history);},
     '/api/feeding/export': res => download(res,'xiaoluobo-feeding.json',feeding.state.config),
@@ -450,7 +467,7 @@ async function startServer(options = {}) {
   }, 15000);
   const close = async () => {
     for (const timer of [lotteryTimer, physicsTimer, keepAlive, sealTimer, cleanupTimer, overtimeTimer, checkpointTimer]) clearInterval(timer);
-    clearTimeout(pruneTimer); services.close(); await actions; await pruning;
+    clearTimeout(pruneTimer); services.close(); await robot.close(); await actions; await pruning;
     for(const game of Object.values(games)){game.overtime.close();await game.overtime.checkpoint();await game.feeding.close();await game.numberBomb.close();for(const target of Object.values(game.lottery))await target.close();}
     await services.flush();
     mediaListeners.clear();clearTimeout(broadcastTimer);clearTimeout(peopleTimer); pendingStates.clear(); pendingMessages.length = 0; avatars.clear();
@@ -458,7 +475,7 @@ async function startServer(options = {}) {
     const stopped = new Promise(resolve => server.close(resolve)); server.closeAllConnections(); await stopped;
     await images.close();
   };
-  return { url: origin, services, get noodle(){return noodle;},get overtime(){return overtime;},get feeding(){return feeding;},get lottery(){return lottery;},get numberBomb(){return numberBomb;},onOvertimeMedia(listener){mediaListeners.add(listener);}, close };
+  return { url: origin, services, get noodle(){return noodle;},get overtime(){return overtime;},get feeding(){return feeding;},get lottery(){return lottery;},get numberBomb(){return numberBomb;},robot,onOvertimeMedia(listener){mediaListeners.add(listener);}, close };
 }
 
 if (require.main === module) {
