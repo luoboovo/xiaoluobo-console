@@ -43,6 +43,10 @@ Type: files; Name: "{app}\resources\app\public\noodle\assets\chef-body.png"
 Type: files; Name: "{app}\resources\app\public\noodle\assets\chef-hand.png"
 Type: files; Name: "{app}\resources\app\data\*.luobo"
 
+[UninstallDelete]
+; 增量更新包装进来的新文件不在卸载记录里，卸载时整个程序目录一起删。
+Type: filesandordirs; Name: "{app}\resources\app"
+
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"; WorkingDir: "{app}"; IconFilename: "{app}\resources\app\public\app-icon.ico"
 Name: "{group}\卸载{#AppName}"; Filename: "{uninstallexe}"

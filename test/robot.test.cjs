@@ -7,7 +7,7 @@ const { EventEmitter } = require('node:events');
 const { danmuReply, mentionOf } = require('../lib/protocol.cjs');
 const { ConsoleServices } = require('../lib/services.cjs');
 const { decodeFrame, field, varint } = require('../lib/douyin.cjs');
-const { LiveRobot, splitText, cleanReply, normalizeConfig } = require('../lib/robot.cjs');
+const { LiveRobot, splitText, cleanReply, normalizeConfig, DEFAULTS } = require('../lib/robot.cjs');
 
 const tempDir = prefix => fs.mkdtemp(path.join(os.tmpdir(), prefix));
 const remove = dir => fs.rm(dir, { recursive: true, force: true });
@@ -76,6 +76,9 @@ test('文本切分与 AI 回复清理', () => {
   assert.ok(parts.every(part => Array.from(part).length <= 12)); assert.equal(parts.join(''), '谢谢大家的支持，今天我们一起玩游戏吧，晚点还有抽奖哦');
   assert.equal(cleanReply('<think>想想</think>**你好**\n呀', 40), '你好 呀');
   assert.equal(cleanReply('一二三四五六', 3), '一二三');
+  assert.equal(cleanReply('好呀，今天一起吃萝卜吧', 8), '好呀，今天一起吃', '前一半没有标点就硬切');
+  assert.equal(cleanReply('今天天气真好，一起出去玩吧！', 10), '今天天气真好', '在标点处截断，去掉句末逗号');
+  assert.equal(cleanReply('太好听了！再来一首好不好呀', 9), '太好听了！', '保留感叹号');
   assert.throws(() => normalizeConfig({ max_length: 5 }), /单条弹幕字数/);
   assert.throws(() => normalizeConfig({ ai: { model: 'x y' } }), /模型名称/);
 });
@@ -141,7 +144,7 @@ test('机器人：盲盒记账，@机器人查询自己的记录并回复对方'
   } finally { await robot.close(); await remove(dir); }
 });
 
-test('机器人：@机器人走 DeepSeek，人设进 system，长回复分条，失败写入记录', async t => {
+test('机器人：@机器人走 DeepSeek，人设进 system，回复不超过一条弹幕的字数（在标点处截断），失败写入记录', async t => {
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: new Date('2026-11-10T12:00:00').getTime() });
   const dir = await tempDir('luobo-ai-');
   const services = fakeServices();
@@ -161,12 +164,13 @@ test('机器人：@机器人走 DeepSeek，人设进 system，长回复分条，
     assert.equal(requests[0].url, 'https://api.deepseek.com/chat/completions');
     assert.equal(requests[0].init.headers.Authorization, 'Bearer sk-test1234');
     assert.match(requests[0].body.messages[0].content, /你是一只猫娘/);
+    assert.match(requests[0].body.messages[0].content, /不超过20个字/, 'AI 最多字数 40 比单条弹幕字数 20 大时按 20');
     assert.match(requests[0].body.messages.at(-1).content, /观众「甲」说：主播吃什么$/);
     for (let i = 0; i < 4; i++) { t.mock.timers.tick(1000); await flush(); }
-    assert.equal(services.sent[0].replyMid, 2); assert.equal(services.sent[1].replyMid, 0);
-    assert.equal(services.sent.map(s => s.text).join(''), '今天吃萝卜炖排骨，香喷喷的，要不要一起来呀？');
+    assert.deepEqual(services.sent.map(s => [s.text, s.replyMid]), [['今天吃萝卜炖排骨，香喷喷的', 2]], '一条发完，不拆');
+    await robot.action({ action: 'configure', config: { max_length: 40 } });
     const test = await robot.action({ action: 'test', text: '你好' });
-    assert.equal(test.reply, '今天吃萝卜炖排骨，香喷喷的，要不要一起来呀？');
+    assert.equal(test.reply, '今天吃萝卜炖排骨，香喷喷的，要不要一起来呀？', '账号能发更长时整句保留');
     status = 402;
     await assert.rejects(robot.action({ action: 'test', text: '你好' }), /余额不足/);
   } finally { await robot.close(); await remove(dir); }
@@ -587,5 +591,426 @@ test('直播场景：唱歌时按间隔发应援话术 + 场景表情，不连�
     const reloaded = await new LiveRobot(dir, { services }).init();
     assert.deepEqual(reloaded.snapshot().config.live_scenes.map(s => s.id), ['dance']);
     await reloaded.close();
+  } finally { await robot.close(); await remove(dir); }
+});
+
+
+test('直播场景 AI 现编：模型现写应援并按语气挑场景表情，出错回落到写好的话术，停掉后不再发；AI 写几句', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: new Date('2026-11-12T12:00:00').getTime() });
+  const dir = await tempDir('luobo-scene-ai-');
+  const services = fakeServices();
+  const bodies = [], replies = [];
+  let key = '';
+  const fetchImpl = async (url, init) => {
+    bodies.push(JSON.parse(init.body));
+    const next = replies.shift();
+    if (next instanceof Promise) return next;
+    if (next === 'fail') return { ok: false, status: 500, json: async () => ({}) };
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: next } }] }) };
+  };
+  const robot = await new LiveRobot(dir, { services, fetchImpl, random: () => 0, keyStore: { get: () => key, set: async () => {} } }).init();
+  const call = { unique: 'room_1_call', name: '[打call]', url: 'https://i0.hdslb.com/bfs/live/call.png' };
+  const clap = { unique: 'room_1_clap', name: '[鼓掌]', url: 'https://i0.hdslb.com/bfs/live/clap.png' };
+  const flush3 = async () => { for (let i = 0; i < 3; i++) { t.mock.timers.tick(1000); await flush(); } };
+  try {
+    assert.equal(robot.snapshot().config.live_scenes[0].use_ai, false, '默认不开 AI 现编');
+    await robot.action({ action: 'configure', config: { max_length: 100, interval_seconds: 1 } });
+    await robot.action({ action: 'save_scenes', scenes: [{ id: 'sing', name: '唱歌', lines: '好听！', use_ai: true, interval_seconds: 30 }] });
+    await robot.action({ action: 'toggle_emoticon', slot: 'live:sing', emoticon: call });
+    await robot.action({ action: 'toggle_emoticon', slot: 'live:sing', emoticon: clap });
+    await assert.rejects(robot.action({ action: 'scene_start', id: 'sing' }), /AI 现编/, '没填 Key 不能开');
+    key = 'sk-test';
+    replies.push('主播唱得太好听啦！【表情:鼓掌】');
+    await robot.action({ action: 'scene_start', id: 'sing' });
+    await flush3();
+    assert.deepEqual(services.sent.map(s => s.text), ['主播唱得太好听啦！', 'room_1_clap'], 'AI 写的话术 + 它挑的场景表情');
+    const prompt = bodies[0].messages.at(-1).content, system = bodies[0].messages[0].content;
+    assert.match(prompt, /唱歌/); assert.match(prompt, /好听！/, '写好的话术当风格参考');
+    assert.match(system, /打call、鼓掌/, '只让它从场景表情里挑'); assert.match(system, /不超过30个字/);
+    replies.push('fail');
+    t.mock.timers.tick(30000); await flush3();
+    assert.deepEqual(services.sent.slice(2).map(s => s.text), ['好听！', 'room_1_call'], 'AI 出错用写好的话术');
+    replies.push('打call打call~【表情:不存在】');
+    t.mock.timers.tick(30000); await flush3();
+    assert.equal(services.sent[4].text, '打call打call');
+    assert.ok(['room_1_call', 'room_1_clap'].includes(services.sent[5].text), '模型挑了不存在的表情时从场景表情里随机');
+    assert.match(bodies[2].messages.at(-1).content, /不要和这些刚发过的重复：主播唱得太好听啦！/);
+    assert.equal(robot.snapshot().active_scene.sent, 3);
+    // 等 AI 时场景被停掉：回来的话术不发，也不再排下一轮。
+    let resolve; replies.push(new Promise(r => { resolve = r; }));
+    t.mock.timers.tick(30000); await flush();
+    await robot.action({ action: 'scene_stop' });
+    resolve({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '晚到的应援' } }] }) });
+    await flush3(); t.mock.timers.tick(60000); await flush3();
+    assert.equal(services.sent.length, 6, '停掉后不发');
+    assert.equal(bodies.length, 4);
+    replies.push('1. 好听！\n2. “太强了”\n- 打call打call\n好听！\n\n');
+    const { lines } = await robot.action({ action: 'scene_lines', name: '唱歌' });
+    assert.deepEqual(lines, ['好听！', '太强了', '打call打call'], '去掉编号、引号和重复');
+    assert.match(bodies[4].messages.at(-1).content, /唱歌/);
+    await assert.rejects(robot.action({ action: 'scene_lines', name: '' }), /场景名字/);
+  } finally { await robot.close(); await remove(dir); }
+});
+
+test('@机器人 切换场景：主播、房管和名单里的人能开关，其他人被婉拒；不是指令的照常交给 AI', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: new Date('2026-11-12T12:00:00').getTime() });
+  const dir = await tempDir('luobo-scene-cmd-');
+  const services = fakeServices();
+  const robot = await new LiveRobot(dir, { services, random: () => 0 }).init();
+  const flush3 = async () => { for (let i = 0; i < 3; i++) { t.mock.timers.tick(1000); await flush(); } };
+  const say = (user, uid, text, extra = {}) => robot.receive({ type: 'chat', user, uid, text, ...extra });
+  try {
+    await assert.rejects(robot.action({ action: 'configure', config: { scene_command: { who: 'boss' } } }), /谁能开启场景/);
+    await robot.action({ action: 'configure', config: { enabled: true, max_length: 100, interval_seconds: 1 } });
+    await robot.action({ action: 'save_scenes', scenes: [{ id: 'sing', name: '唱歌', lines: '打call！', interval_seconds: 30 }, { id: 'dance', name: '跳舞', lines: '好看！', interval_seconds: 30 }] });
+    say('路人', 5, '@萝卜机器人 开启唱歌模式'); await flush3();
+    assert.equal(robot.snapshot().active_scene, null, '普通观众不能开');
+    assert.deepEqual(services.sent.map(s => [s.text, s.replyMid]), [['只有主播和房管可以切换场景哦~', 5]]);
+    t.mock.timers.tick(6000);
+    say('路人', 5, '@萝卜机器人 开启唱歌模式'); await flush3();
+    assert.equal(services.sent.length, 1, '婉拒一分钟只说一次');
+    say('房管', 6, '@萝卜机器人 唱歌打call', { admin: true }); await flush3();
+    assert.equal(robot.snapshot().active_scene.id, 'sing');
+    assert.deepEqual(services.sent.slice(1).map(s => s.text), ['收到！唱歌模式开启，一起打call~', '打call！'], '先回话再开始应援');
+    t.mock.timers.tick(6000);
+    say('房管', 6, '@萝卜机器人 开启唱歌模式', { admin: true }); await flush3();
+    assert.equal(services.sent.at(-1).text, '已经在唱歌模式啦，一起打call~');
+    services.state.live.anchorUid = 7;
+    say('主播', 7, '@萝卜机器人 关闭打call'); await flush3();
+    assert.equal(robot.snapshot().active_scene, null, '主播能关');
+    assert.equal(services.sent.at(-1).text, '好的，唱歌模式结束啦~');
+    await robot.action({ action: 'configure', config: { scene_command: { users: '小明，123' } } });
+    say('小明', 8, '@萝卜机器人 开始跳舞'); await flush3();
+    assert.equal(robot.snapshot().active_scene.id, 'dance', '名单里的昵称能开');
+    say('别人', 123, '@萝卜机器人 停止应援'); await flush3();
+    assert.equal(robot.snapshot().active_scene, null, '名单里的 UID 能关');
+    const before = services.sent.length;
+    say('房管', 6, '@萝卜机器人 你唱歌好听吗', { admin: true }); await flush3();
+    assert.equal(robot.snapshot().active_scene, null, '没有开关的意思就不是指令');
+    assert.equal(services.sent.length, before);
+    await robot.action({ action: 'configure', config: { scene_command: { who: 'all' } } });
+    say('路人', 5, '@萝卜机器人 跳舞模式'); await flush3();
+    assert.equal(robot.snapshot().active_scene.id, 'dance', '设成所有观众后谁都能开');
+    say('路人2', 9, '跳舞模式'); await flush3();
+    await robot.action({ action: 'configure', config: { scene_command: { enabled: false } } });
+    t.mock.timers.tick(6000);
+    say('路人', 5, '@萝卜机器人 关闭跳舞模式'); await flush3();
+    assert.equal(robot.snapshot().active_scene.id, 'dance', '关掉后不认指令，没 @ 的也不认');
+  } finally { await robot.close(); await remove(dir); }
+});
+
+
+test('感谢礼物分档：按连击合并后的总金额选档，每档话术不同，醒目留言也分档；档位校验与旧话术迁移', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: new Date('2026-11-12T12:00:00').getTime() });
+  const dir = await tempDir('luobo-gift-tiers-');
+  const services = fakeServices();
+  const robot = await new LiveRobot(dir, { services, random: () => 0 }).init();
+  const gift = (user, uid, giftId, giftName, count, tid) => robot.receive({ type: 'gift', user, uid, giftId, giftName, count, transactionId: tid });
+  try {
+    assert.deepEqual(robot.snapshot().config.gift.tiers.map(x => x.min), [0, 10, 100, 1000], '自带四档');
+    const tiers = [{ min: 100, lines: '大礼物！谢谢{user}', use_ai: false }, { min: 0, lines: '谢谢{user}的{gift}', use_ai: false }, { min: 10, lines: '感谢{user}的{gift}×{count}，共{value}元', use_ai: false }];
+    await robot.action({ action: 'configure', config: { enabled: true, max_length: 100, interval_seconds: 1, welcome: { enabled: false }, gift: { merge_seconds: 1, tiers } } });
+    assert.deepEqual(robot.snapshot().config.gift.tiers.map(x => x.min), [0, 10, 100], '保存时按金额排好');
+    gift('甲', 2, 10, '小花花', 1, 'a');
+    gift('乙', 3, 12, '大鸡腿', 1, 'b');
+    gift('丙', 4, 12, '大鸡腿', 2, 'c');
+    gift('丙', 4, 12, '大鸡腿', 3, 'd');
+    robot.receive({ type: 'chat', user: '丁', uid: 5, text: '加油', superChat: true, price: 30 });
+    for (let i = 0; i < 8; i++) { t.mock.timers.tick(1000); await flush(); }
+    assert.deepEqual(services.sent.map(s => s.text).sort(), ['大礼物！谢谢丙', '感谢丁的醒目留言×1，共30元', '感谢乙的大鸡腿×1，共20元', '谢谢甲的小花花'].sort(), '0.1元、20元、连击合并后100元、30元醒目留言各走各的档');
+
+    const bad = list => robot.action({ action: 'configure', config: { gift: { tiers: list } } });
+    await assert.rejects(bad([]), /1～8档/);
+    await assert.rejects(bad(Array.from({ length: 9 }, (_, i) => ({ min: i, lines: 'x' }))), /1～8档/);
+    await assert.rejects(bad([{ min: 0, lines: 'a' }, { min: 0, lines: 'b' }]), /不能重复/);
+    await assert.rejects(bad([{ min: 0, lines: '谢谢{name}' }]), /\{name\} 不认识/);
+    await assert.rejects(bad([{ min: 5, lines: '' }]), /还没有话术/);
+    await assert.rejects(bad([{ min: -1, lines: 'a' }]), /档位金额/);
+    await bad([{ min: 5, lines: '', use_ai: true }]);
+
+    const migrated = normalizeConfig({ gift: { template: '老板{user}威武，{gift}收到' } });
+    assert.equal(migrated.gift.tiers[0].lines, '老板{user}威武，{gift}收到', '旧版改过的礼物话术放进最低一档');
+    assert.equal(migrated.gift.tiers.length, 4);
+    assert.equal(normalizeConfig({ gift: { template: DEFAULTS.gift.template } }).gift.tiers[0].lines, DEFAULTS.gift.tiers[0].lines);
+  } finally { await robot.close(); await remove(dir); }
+});
+
+test('感谢礼物 AI 现写：按档位让模型写，带上金额和档位；出错或只开 AI 的档回落到话术；试一试和 AI 写几句', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: new Date('2026-11-12T12:00:00').getTime() });
+  const dir = await tempDir('luobo-gift-ai-');
+  const services = fakeServices();
+  const bodies = [], replies = [];
+  const fetchImpl = async (url, init) => {
+    bodies.push(JSON.parse(init.body));
+    const next = replies.shift();
+    if (next === 'fail') return { ok: false, status: 500, json: async () => ({}) };
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: next } }] }) };
+  };
+  const robot = await new LiveRobot(dir, { services, fetchImpl, random: () => 0, keyStore: { get: () => 'sk-test', set: async () => {} } }).init();
+  const gift = (user, uid, giftId, giftName, count, tid) => robot.receive({ type: 'gift', user, uid, giftId, giftName, count, transactionId: tid });
+  const settle = async () => { for (let i = 0; i < 6; i++) { t.mock.timers.tick(1000); await flush(); } };
+  try {
+    const tiers = [{ min: 0, lines: '谢谢{user}', use_ai: false }, { min: 10, lines: '感谢{user}的{gift}！', use_ai: true }, { min: 100, lines: '', use_ai: true }];
+    await robot.action({ action: 'configure', config: { enabled: true, max_length: 100, interval_seconds: 1, welcome: { enabled: false }, gift: { merge_seconds: 1, tiers } } });
+    replies.push('哇乙老板送的大鸡腿太香啦，谢谢老板！');
+    gift('乙', 3, 12, '大鸡腿', 1, 'b');
+    await settle();
+    assert.deepEqual(services.sent.map(s => s.text), ['哇乙老板送的大鸡腿太香啦，谢谢老板！']);
+    const prompt = bodies[0].messages.at(-1).content;
+    assert.match(prompt, /观众「乙」送了大鸡腿×1，价值约20元，属于「10～100元」这一档/);
+    assert.match(prompt, /感谢乙的大鸡腿！/, '写好的话术填好变量当风格参考');
+    assert.match(bodies[0].messages[0].content, /不超过40个字/);
+    replies.push('fail');
+    gift('丙', 4, 12, '大鸡腿', 1, 'c');
+    await settle();
+    assert.equal(services.sent.at(-1).text, '感谢丙的大鸡腿！', 'AI 出错用这一档的话术');
+    replies.push('fail');
+    gift('丁', 5, 12, '大鸡腿', 5, 'd');
+    await settle();
+    assert.equal(services.sent.at(-1).text, '感谢丁的大鸡腿！', '只开 AI 的档出错时往下找有话术的档');
+    gift('戊', 6, 10, '小花花', 1, 'e');
+    await settle();
+    assert.equal(services.sent.at(-1).text, '谢谢戊', '没开 AI 的档不调用模型');
+    assert.equal(bodies.length, 3);
+
+    replies.push('戊老板太大气了！');
+    assert.equal((await robot.action({ action: 'test_gift', user: '戊', value: 52 })).reply, '[10～100元这一档 · AI] 戊老板太大气了！');
+    assert.equal((await robot.action({ action: 'test_gift', user: '戊', value: 1 })).reply, '[0～10元这一档] 谢谢戊');
+    assert.equal(services.sent.length, 4, '试一试不发到直播间');
+
+    replies.push('1. 谢谢{user}的{gift}×{count}！\n2. 感谢老板！\n- {user}老板大气，{name}收到\n“{user}送的{gift}太棒了”');
+    const { lines } = await robot.action({ action: 'gift_lines', min: 100 });
+    assert.deepEqual(lines, ['谢谢{user}的{gift}×{count}！', '{user}送的{gift}太棒了'], '只留带 {user} 且变量都认识的');
+    assert.match(bodies.at(-1).messages.at(-1).content, /100元以上/);
+    replies.push('谢谢老板！');
+    await assert.rejects(robot.action({ action: 'gift_lines', min: 0 }), /没带 \{user\}/);
+  } finally { await robot.close(); await remove(dir); }
+});
+
+test('发言队列：正在分段发的消息不会被后来的高优先级消息插队打断', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: new Date('2026-11-12T12:00:00').getTime() });
+  const dir = await tempDir('luobo-queue-');
+  const services = fakeServices();
+  const robot = await new LiveRobot(dir, { services }).init();
+  try {
+    await robot.action({ action: 'configure', config: { enabled: true, max_length: 10, interval_seconds: 1, welcome: { merge_seconds: 1, template: '欢迎{user}来到直播间，今天也要开开心心哦，记得点个关注' } } });
+    robot.receive({ type: 'member', user: '甲', uid: 2 });
+    t.mock.timers.tick(1000); await flush();
+    t.mock.timers.tick(1000); await flush();
+    assert.equal(robot.snapshot().log.find(e => e.kind === 'welcome').status, 'sending', '欢迎发了一部分，还没发完');
+    await robot.action({ action: 'say', text: '插队消息' });
+    for (let i = 0; i < 8; i++) { t.mock.timers.tick(1000); await flush(); }
+    const texts = services.sent.map(s => s.text);
+    assert.equal(texts.at(-1), '插队消息', '等欢迎分段发完再发');
+    assert.equal(texts.slice(0, -1).join(''), '欢迎甲来到直播间，今天也要开开心心哦，记得点个关注');
+    assert.equal(robot.snapshot().log.find(e => e.kind === 'welcome').status, 'sent');
+    assert.equal(robot.snapshot().log.find(e => e.kind === 'manual').status, 'sent');
+  } finally { await robot.close(); await remove(dir); }
+});
+
+
+test('给直播间点赞：B站点赞请求带房间、自己和主播的 uid、csrf；没登录、没连接、次数不对都拦下', async () => {
+  const dir = await tempDir('luobo-like-');
+  const posts = [];
+  let reply = { code: 0, message: '0' };
+  const services = await new ConsoleServices({ dataDir: dir, seedDir: dir, postImpl: async (url, body, cookie) => { posts.push({ url, body: new URLSearchParams(body), cookie }); return { body: Buffer.from(JSON.stringify(reply)), headers: {} }; } }).init();
+  try {
+    await assert.rejects(services.likeRoom(10), /未连接/);
+    services.state.live = { status: 'connected', roomId: 1889484822 };
+    await assert.rejects(services.likeRoom(10), /主播信息/);
+    services.state.live.anchorUid = 777;
+    await assert.rejects(services.likeRoom(10), /登录/);
+    services.secretData.cookie = 'SESSDATA=a; bili_jct=tok; DedeUserID=9';
+    await assert.rejects(services.likeRoom(0), /1～1000/);
+    await assert.rejects(services.likeRoom(1001), /1～1000/);
+    assert.equal(posts.length, 0);
+    assert.deepEqual(await services.likeRoom(25), { ok: true, count: 25 });
+    const [post] = posts;
+    assert.equal(post.url, 'https://api.live.bilibili.com/xlive/app-ucenter/v1/like_info_v3/like/likeReportV3');
+    assert.deepEqual(Object.fromEntries(post.body), { click_time: '25', room_id: '1889484822', uid: '9', anchor_id: '777', csrf: 'tok', csrf_token: 'tok', visit_id: '' });
+    assert.match(post.cookie, /bili_jct=tok/);
+    reply = { code: 1200000, message: '点赞太频繁' };
+    await assert.rejects(services.likeRoom(5), /B站：点赞太频繁/);
+  } finally { await remove(dir); }
+});
+
+test('机器人点赞：记进发言记录，按天累计；失败也记下原因；抖音不支持', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-12T23:59:00').getTime() });
+  const dir = await tempDir('luobo-robot-like-');
+  const likes = [];
+  let fail = null;
+  const services = fakeServices({ likeRoom: async count => { if (fail) throw fail; likes.push(count); return { ok: true, count }; } });
+  const robot = await new LiveRobot(dir, { services }).init();
+  try {
+    assert.equal(robot.snapshot().likes_today, 0);
+    assert.deepEqual(await robot.action({ action: 'like', count: 10 }), { liked: 10, likes_today: 10 });
+    await robot.action({ action: 'like', count: 5 });
+    assert.equal(robot.snapshot().likes_today, 15);
+    assert.deepEqual(robot.snapshot().log.slice(0, 2).map(e => [e.kind, e.text, e.status]), [['like', '给直播间点赞 ×5', 'sent'], ['like', '给直播间点赞 ×10', 'sent']]);
+    await assert.rejects(robot.action({ action: 'like', count: 0 }), /点赞次数/);
+    await assert.rejects(robot.action({ action: 'like', count: 2.5 }), /整数/);
+    fail = new Error('B站：点赞太频繁');
+    await assert.rejects(robot.action({ action: 'like', count: 3 }), /太频繁/);
+    assert.deepEqual([robot.snapshot().log[0].status, robot.snapshot().log[0].error], ['failed', 'B站：点赞太频繁']);
+    assert.equal(robot.snapshot().likes_today, 15, '失败的不算');
+    fail = null;
+    t.mock.timers.tick(2 * 60000);
+    assert.equal(robot.snapshot().likes_today, 0, '过了零点重新算');
+    await robot.action({ action: 'like', count: 1 });
+    assert.equal(robot.snapshot().likes_today, 1);
+    assert.deepEqual(likes, [10, 5, 1]);
+  } finally { await robot.close(); await remove(dir); }
+});
+
+
+test('礼物档位可以设上限：含起点不含上限，档位之间空出来的金额用默认一句；重叠、上限不大于起点、不封顶后面还有档都拦下；旧格式自动补上限', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: new Date('2026-11-12T12:00:00').getTime() });
+  const dir = await tempDir('luobo-tier-max-');
+  const services = fakeServices();
+  const robot = await new LiveRobot(dir, { services, random: () => 0 }).init();
+  const thank = async value => (await robot.action({ action: 'test_gift', user: '甲', value })).reply;
+  try {
+    assert.deepEqual(robot.snapshot().config.gift.tiers.map(x => [x.min, x.max]), [[0, 10], [10, 100], [100, 1000], [1000, null]], '默认四档带上限');
+    await robot.action({ action: 'configure', config: { gift: { tiers: [{ min: 50, max: null, lines: '大哥{user}' }, { min: 1, max: 10, lines: '谢谢{user}' }] } } });
+    assert.equal(await thank(0.5), '[不在任何档位，用默认一句] 谢谢甲送的小花花×1', '比最低档还少');
+    assert.equal(await thank(1), '[1～10元这一档] 谢谢甲', '含起点');
+    assert.equal(await thank(9.9), '[1～10元这一档] 谢谢甲');
+    assert.equal(await thank(10), '[不在任何档位，用默认一句] 谢谢甲送的小花花×1', '不含上限，10～50 元没设档');
+    assert.equal(await thank(50), '[50元以上这一档] 大哥甲');
+    assert.equal(await thank(99999), '[50元以上这一档] 大哥甲', '最高档不封顶');
+
+    const bad = list => robot.action({ action: 'configure', config: { gift: { tiers: list } } });
+    await assert.rejects(bad([{ min: 0, max: null, lines: 'a' }, { min: 10, max: 20, lines: 'b' }]), /不封顶，会和「10元起」那一档重叠/);
+    await assert.rejects(bad([{ min: 0, max: 30, lines: 'a' }, { min: 10, max: 50, lines: 'b' }]), /「0～30元」和「10～50元」重叠了/);
+    await assert.rejects(bad([{ min: 5, max: 5, lines: 'a' }]), /上限要比起点大/);
+    await assert.rejects(bad([{ min: 5, max: -1, lines: 'a' }]), /上限/);
+    await bad([{ min: 0, max: 10, lines: 'a' }, { min: 10, max: '', lines: 'b' }]);
+    assert.deepEqual(robot.snapshot().config.gift.tiers.map(x => [x.min, x.max]), [[0, 10], [10, null]], '上限填空就是不封顶');
+
+    assert.deepEqual(normalizeConfig({ gift: { tiers: [{ min: 100, lines: 'c' }, { min: 0, lines: 'a' }, { min: 10, lines: 'b' }] } }).gift.tiers.map(x => [x.min, x.max]), [[0, 10], [10, 100], [100, null]], '旧版只有起点：到下一档为止');
+    assert.throws(() => normalizeConfig({ gift: { tiers: [{ min: 0, lines: 'a' }, { min: 0, lines: 'b' }] } }), /起点不能重复/);
+  } finally { await robot.close(); await remove(dir); }
+});
+
+test('AI 写的话跟着「一条弹幕最多几个字」：礼物感谢、打call 现编、AI 写几句都不超过它', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: new Date('2026-11-12T12:00:00').getTime() });
+  const dir = await tempDir('luobo-ai-limit-');
+  const services = fakeServices();
+  const bodies = [];
+  const fetchImpl = async (url, init) => { bodies.push(JSON.parse(init.body)); return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '谢谢{user}老板送的{gift}，老板大气，爱你哟，比心比心比心！' } }] }) }; };
+  const robot = await new LiveRobot(dir, { services, fetchImpl, random: () => 0, keyStore: { get: () => 'sk-test', set: async () => {} } }).init();
+  try {
+    await robot.action({ action: 'configure', config: { max_length: 15, gift: { tiers: [{ min: 0, max: null, lines: '', use_ai: true }] } } });
+    const { reply } = await robot.action({ action: 'test_gift', user: '甲', value: 20 });
+    assert.match(bodies[0].messages.at(-1).content, /不超过15个字/);
+    assert.match(bodies[0].messages[0].content, /不超过15个字/);
+    assert.ok(Array.from(reply.replace(/^\[[^\]]*\] /, '')).length <= 15, '截到 15 个字以内');
+    await robot.action({ action: 'gift_lines', min: 0, max: null }).catch(() => {});
+    assert.match(bodies[1].messages.at(-1).content, /每句不超过15个字/);
+    await robot.action({ action: 'scene_lines', name: '唱歌' });
+    assert.match(bodies[2].messages.at(-1).content, /每句不超过15个字/, '打call 默认 30 字，也被压到 15');
+    await robot.action({ action: 'configure', config: { max_length: 100, ai: { max_chars: 25 } } });
+    await robot.action({ action: 'test_gift', user: '甲', value: 20 });
+    assert.match(bodies[3].messages.at(-1).content, /不超过25个字/, '账号能发更长时按「AI 回复最多几个字」');
+  } finally { await robot.close(); await remove(dir); }
+});
+
+test('每个礼物都用 AI 谢：不在档位里的、大航海、盲盒都交给 AI，严格按人设；忙时排队不换话术；AI 出错才用话术并记日志', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: new Date('2026-11-12T12:00:00').getTime() });
+  const dir = await tempDir('luobo-gift-ai-all-');
+  const services = fakeServices();
+  const bodies = [], waiting = [];
+  let fail = false;
+  const fetchImpl = async (url, init) => {
+    bodies.push(JSON.parse(init.body));
+    if (fail) return { ok: false, status: 500, json: async () => ({ error: { message: '服务器开小差' } }) };
+    await new Promise(resolve => waiting.push(resolve));
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '本喵收到啦谢谢老板喵' } }] }) };
+  };
+  const robot = await new LiveRobot(dir, { services, fetchImpl, random: () => 0, keyStore: { get: () => 'sk-test', set: async () => {} } }).init();
+  const run = async n => { for (let i = 0; i < n; i++) { t.mock.timers.tick(1000); await flush(); } };
+  try {
+    assert.equal(normalizeConfig({}).gift.ai_all, false, '默认不打开');
+    await robot.action({ action: 'configure', config: { enabled: true, interval_seconds: 1, max_length: 100, ai: { persona: '你是猫娘小萝卜，自称本喵，句尾带喵' }, gift: { ai_all: true, merge_seconds: 0, tiers: [{ min: 10000, max: null, lines: '大哥{user}' }] } } });
+    for (const user of ['甲', '乙', '丙', '丁', '戊']) robot.receive({ type: 'gift', user, uid: user.charCodeAt(0), giftId: 10, giftName: '小花花', count: 1, transactionId: user });
+    robot.receive({ type: 'gift', user: '己', uid: 7, count: 1, guardName: '舰长', transactionId: 'g' });
+    robot.receive({ type: 'gift', user: '庚', uid: 8, giftId: 10, giftName: '小花花', count: 1, blindGiftName: '心动盲盒', transactionId: 'b' });
+    await run(1);
+    assert.equal(bodies.length, 3, '同时最多 3 个在等 AI，其余排队');
+    while (waiting.length) { waiting.splice(0).forEach(resolve => resolve()); await run(1); }
+    await run(10);
+    assert.equal(bodies.length, 7, '7 份礼物全都问了 AI');
+    const texts = services.sent.filter(s => !s.emoticon).map(s => s.text);
+    assert.deepEqual(texts, Array(7).fill('本喵收到啦谢谢老板喵'), '没有一条用写好的话术');
+    const system = bodies[0].messages[0].content;
+    assert.ok(system.startsWith('【你的人设，必须严格遵守】\n你是猫娘小萝卜，自称本喵，句尾带喵'), '人设放在最前面');
+    assert.match(system, /感谢送礼物的观众/); assert.match(system, /不能跳出人设/);
+    const asks = bodies.map(b => b.messages.at(-1).content);
+    assert.ok(asks.some(x => /观众「己」开通了舰长/.test(x)), '大航海');
+    assert.ok(asks.some(x => /观众「庚」开了心动盲盒×1，开出了小花花×1/.test(x)), '盲盒');
+    assert.ok(asks.every(x => !x.includes('大哥')), '没勾「AI 现写」的档，话术不给 AI 当参考');
+
+    fail = true;
+    robot.receive({ type: 'gift', user: '辛', uid: 9, giftId: 10, giftName: '小花花', count: 1, transactionId: 'f' });
+    await run(4);
+    assert.equal(services.sent.filter(s => !s.emoticon).at(-1).text, '谢谢辛送的小花花×1', 'AI 出错时用默认一句');
+    const failed = robot.snapshot().log.find(e => e.status === 'failed');
+    assert.match(failed.error, /AI 没写出来（.*服务器开小差），改用写好的话术/);
+  } catch (error) { waiting.splice(0).forEach(resolve => resolve()); throw error; }
+  finally { await robot.close(); await remove(dir); }
+});
+
+test('盲盒感谢带上盈亏：这次赚了/亏了多少、今天累计、一直累计；旧默认话术自动换成带盈亏的', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: new Date('2026-11-13T12:00:00').getTime() });
+  const dir = await tempDir('luobo-box-profit-');
+  const services = fakeServices();
+  const robot = await new LiveRobot(dir, { services, random: () => 0 }).init();
+  const run = async () => { for (let i = 0; i < 4; i++) { t.mock.timers.tick(1000); await flush(); } };
+  const words = () => services.sent.filter(s => !s.emoticon).map(s => s.text);
+  try {
+    assert.equal(normalizeConfig({ gift: { blind_template: '谢谢{user}的{box}×{count}，开出了{gift}' } }).gift.blind_template, '谢谢{user}的{box}×{count}，开出了{gift}，{profit}', '没改过的旧默认换成新的');
+    assert.equal(normalizeConfig({ gift: { blind_template: '谢{user}' } }).gift.blind_template, '谢{user}', '自己改过的不动');
+    await robot.action({ action: 'configure', config: { enabled: true, interval_seconds: 1, max_length: 100, gift: { merge_seconds: 0 } } });
+    robot.receive({ type: 'gift', user: '甲', uid: 2, giftId: 12, giftName: '大鸡腿', count: 1, blindGiftName: '心动盲盒', blindGiftPrice: 15000, giftPrice: 20000, transactionId: 'a' }); await run();
+    assert.equal(words().at(-1), '谢谢甲的心动盲盒×1，开出了大鸡腿×1，赚了5元');
+    await robot.action({ action: 'configure', config: { gift: { blind_template: '{user}花{cost}开出{value}，{profit}，今天{today_profit}，累计{total_profit}' } } });
+    robot.receive({ type: 'gift', user: '甲', uid: 2, giftId: 10, giftName: '小花花', count: 1, blindGiftName: '心动盲盒', blindGiftPrice: 15000, giftPrice: 100, transactionId: 'b' }); await run();
+    assert.equal(words().at(-1), '甲花15开出0.1，亏了14.9元，今天亏了9.9元，累计亏了9.9元');
+  } finally { await robot.close(); await remove(dir); }
+});
+
+test('欢迎时记得观众多久没来：超过设定天数说好久不见，重启后也记得；没到天数或第一次来用普通欢迎', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: new Date('2026-11-13T20:00:00').getTime() });
+  const dir = await tempDir('luobo-welcome-back-');
+  const services = fakeServices();
+  const run = async () => { for (let i = 0; i < 4; i++) { t.mock.timers.tick(1000); await flush(); } };
+  const words = () => services.sent.filter(s => !s.emoticon).map(s => s.text);
+  let robot = await new LiveRobot(dir, { services, random: () => 0 }).init();
+  try {
+    assert.deepEqual([robot.snapshot().config.welcome.back_days, robot.snapshot().config.welcome.back_template], [1, '好久不见呀{user}，都{ago}没来啦，想你了~']);
+    await robot.action({ action: 'configure', config: { enabled: true, interval_seconds: 1, max_length: 100, welcome: { merge_seconds: 0, user_cooldown_minutes: 30 } } });
+    robot.receive({ type: 'member', user: '甲', uid: 2 }); await run();
+    robot.receive({ type: 'chat', user: '丙', uid: 4, text: '主播好' }); await run();
+    assert.deepEqual(words(), ['欢迎甲来到直播间~'], '第一次来用普通欢迎');
+    await robot.close();
+
+    t.mock.timers.tick(12 * 3600000);
+    robot = await new LiveRobot(dir, { services, random: () => 0 }).init();
+    robot.receive({ type: 'member', user: '甲', uid: 2 }); await run();
+    assert.equal(words().at(-1), '欢迎甲来到直播间~', '隔了半天，不到 1 天');
+    await robot.close();
+
+    t.mock.timers.tick(3 * 86400000);
+    robot = await new LiveRobot(dir, { services, random: () => 0 }).init();
+    robot.receive({ type: 'member', user: '甲', uid: 2 });
+    robot.receive({ type: 'member', user: '乙', uid: 3 });
+    robot.receive({ type: 'member', user: '丙', uid: 4 });
+    await run(); await run();
+    assert.deepEqual(words().slice(-3), ['好久不见呀甲，都3天没来啦，想你了~', '好久不见呀丙，都3天没来啦，想你了~', '欢迎乙来到直播间~'], '重启后也记得；说过话的也算来过；新观众普通欢迎');
+
+    await robot.action({ action: 'configure', config: { welcome: { back_days: 0, user_cooldown_minutes: 0 } } });
+    t.mock.timers.tick(5 * 86400000);
+    robot.receive({ type: 'member', user: '甲', uid: 2 }); await run();
+    assert.equal(words().at(-1), '欢迎甲来到直播间~', '设成 0 就不区分');
   } finally { await robot.close(); await remove(dir); }
 });

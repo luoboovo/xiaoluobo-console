@@ -1,7 +1,7 @@
 {
   "name": "xiaoluobo-console",
   "productName": "小萝卜游戏控制台",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "private": true,
   "description": "B站与抖音直播互动、礼物库和游戏场景控制台",
   "main": "desktop.cjs",
@@ -10,7 +10,8 @@
     "dev": "node server.cjs",
     "test": "node --test test/*.test.cjs",
     "sync:gifts": "node scripts/sync-gifts.cjs",
-    "package": "node scripts/package.cjs"
+    "package": "node scripts/package.cjs",
+    "package:update": "node scripts/package-update.cjs"
   },
   "dependencies": {
     "qrcode": "^1.5.4",

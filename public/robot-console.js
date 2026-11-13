@@ -3,8 +3,8 @@ import {state as consoleState} from './app.js';
 
 const form=$('#robot-settings'),testForm=$('#robot-test-form');
 // 表单字段与配置路径一一对应；数字字段提交时转成数字。
-const FIELDS=['names','max_length','interval_seconds','welcome.enabled','welcome.template','welcome.merge_seconds','welcome.user_cooldown_minutes','gift.enabled','gift.template','gift.blind_template','gift.guard_template','gift.merge_seconds','gift.min_value','gift.big_value','follow.enabled','follow.template','blindbox.enabled','blindbox.keyword','blindbox.require_mention','blindbox.template','blindbox.empty_template','ai.enabled','ai.provider','ai.base_url','ai.model','ai.persona','ai.max_chars','ai.user_cooldown_seconds','cue.enabled','cue.interval_minutes','cue.silent_minutes','cue.active_minutes','cue.user_cooldown_minutes','cue.templates','cue.random_templates','cue.use_ai'];
-const KINDS={welcome:'欢迎',gift:'谢礼',guard:'大航海',follow:'关注',query:'盲盒',ai:'AI',manual:'手动',cue:'点名',scene:'场景'};
+const FIELDS=['names','max_length','interval_seconds','welcome.enabled','welcome.template','welcome.merge_seconds','welcome.user_cooldown_minutes','welcome.back_days','welcome.back_template','gift.enabled','gift.ai_all','gift.blind_template','gift.guard_template','gift.merge_seconds','gift.min_value','gift.big_value','follow.enabled','follow.template','blindbox.enabled','blindbox.keyword','blindbox.require_mention','blindbox.template','blindbox.empty_template','ai.enabled','ai.provider','ai.base_url','ai.model','ai.persona','ai.max_chars','ai.user_cooldown_seconds','cue.enabled','cue.interval_minutes','cue.silent_minutes','cue.active_minutes','cue.user_cooldown_minutes','cue.templates','cue.random_templates','cue.use_ai','scene_command.enabled','scene_command.who','scene_command.users'];
+const KINDS={welcome:'欢迎',gift:'谢礼',guard:'大航海',follow:'关注',query:'盲盒',ai:'AI',manual:'手动',cue:'点名',scene:'场景',like:'点赞'};
 const STATUS={queued:'待发送',sending:'发送中',sent:'已发送',failed:'失败',skipped:'已跳过',preview:'仅显示'};
 const time=new Intl.DateTimeFormat('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 let robot,pending=false,dirty=false,configStamp='',logStamp='',blindStamp='';
@@ -16,6 +16,7 @@ function readForm(){
     const [head,tail]=key.split('.');
     if(tail)(config[head]??={})[tail]=value;else config[head]=value;
   }
+  config.gift.tiers=tiersDraft.map(t=>({min:Number(t.min),max:t.max===null||t.max===undefined||String(t.max).trim()===''?null:Number(t.max),lines:t.lines,use_ai:!!t.use_ai}));
   return config;
 }
 const yuan=milli=>{const value=Math.round(milli/10)/100;return Number.isInteger(value)?String(value):value.toFixed(2).replace(/0$/,'');};
@@ -38,6 +39,7 @@ function render(next){
     if(modelProvider!==robot.config.ai.provider){modelProvider=robot.config.ai.provider;modelList=providerInfo(modelProvider)?.models||[];freeModels=new Set(providerInfo(modelProvider)?.free_models||[]);modelsTried=false;}
     setModelOptions(modelList,robot.config.ai.model);
     for(const key of FIELDS){const el=form.elements[key],value=get(robot.config,key);if(el.type==='checkbox')el.checked=!!value;else el.value=value??'';}
+    tiersDraft=structuredClone(robot.config.gift.tiers);renderTiers();
   }
   renderProvider();
   const nextLog=JSON.stringify(robot.log);
@@ -45,6 +47,11 @@ function render(next){
     logStamp=nextLog;
     $('#robot-log').innerHTML=robot.log.length?robot.log.map(entry=>`<li class="robot-entry ${escapeHtml(entry.status)}"><span class="robot-kind">${KINDS[entry.kind]||'发言'}</span><div><strong>${escapeHtml(entry.to?`@${entry.to} `:'')}${escapeHtml(entry.text)}${entry.emoticon?`<span class="robot-log-emo">${emoImage(entry.emoticon)}</span>`:''}</strong>${entry.question?`<span>问：${escapeHtml(entry.question)}</span>`:''}${entry.error?`<span class="robot-error">${escapeHtml(entry.error)}</span>`:''}</div><span class="robot-state">${STATUS[entry.status]||''}<time>${time.format(entry.time)}</time></span></li>`).join(''):'<li class="lottery-empty">还没有发言。启动后，欢迎、感谢和回复都会记在这里。</li>';
   }
+  const giftAiNote=$('#robot-gift-ai-note');
+  giftAiNote.textContent=!robot.config.gift.ai_all?'':robot.aiReady?'已打开：每条礼物感谢都由 AI 按人设现写，下面的话术只在 AI 出错时用。':'已打开，但还没填 API Key，现在仍用写好的话术。去「AI 聊天」里填好 Key 就生效。';
+  giftAiNote.hidden=!giftAiNote.textContent;
+  $('#robot-like-note').textContent=robot.likes_today?`今天已经点了 ${robot.likes_today} 个赞（从这次打开控制台算起）。`:'今天还没点赞。';
+  $('#robot-like-form button').disabled=pending;
   renderBlind();renderImport();renderSlots();renderCue();renderScenes();note();
   if(robot.aiReady&&!modelsTried&&modelProvider===robot.config.ai.provider){modelsTried=true;loadModels(false);}
 }
@@ -88,6 +95,19 @@ async function loadModels(report=true){
   finally{button.disabled=false;}
 }
 // —— 直播场景：在页面上编辑草稿，点「保存场景」才生效；表情直接用已保存的那份 ——
+// —— 感谢礼物分档（草稿跟着设置表单一起保存）——
+let tiersDraft=[];
+const yuanText=value=>String(Math.round(Number(value)*100)/100);
+function renderTiers(){
+  const container=$('#robot-tiers'),focused=document.activeElement?.closest?.('[data-tier-field]'),focus=focused&&{index:focused.closest('[data-tier]').dataset.tier,field:focused.dataset.tierField,start:focused.selectionStart,end:focused.selectionEnd};
+  container.innerHTML=tiersDraft.map((t,i)=>`<div class="robot-tier" data-tier="${i}">
+      <div class="robot-tier-head"><label><input type="number" data-tier-field="min" min="0" max="100000" step="0.1" value="${escapeHtml(String(t.min))}" aria-label="这一档从多少元起（含）">元</label><span class="robot-tier-to">到</span><label><input type="number" data-tier-field="max" min="0" max="100000" step="0.1" value="${t.max===null||t.max===undefined?'':escapeHtml(String(t.max))}" placeholder="不封顶" aria-label="这一档到多少元为止（不含），空着就是不封顶">元</label><span class="robot-tier-range"></span><button type="button" class="text-button" data-tier-delete ${tiersDraft.length<=1?'disabled':''}>删除</button></div>
+      <textarea data-tier-field="lines" rows="2" maxlength="600" aria-label="这一档的感谢话术" placeholder="${t.use_ai?'AI 现写时可留空；填了会当作风格参考，AI 出错时也用它':'每行一句，随机挑，比如：谢谢{user}送的{gift}×{count}'}">${escapeHtml(t.lines)}</textarea>
+      <div class="robot-scene-ai"><label><input type="checkbox" data-tier-field="use_ai" ${t.use_ai?'checked':''}>AI 现写（金额越高越隆重）</label><button type="button" class="text-button" data-tier-ai-lines ${pending?'disabled':''}>AI 写几句</button></div>
+    </div>`).join('');
+  if(focus){const el=container.querySelector(`[data-tier="${focus.index}"] [data-tier-field="${focus.field}"]`);if(el){el.focus();try{el.setSelectionRange(focus.start,focus.end);}catch{}}}
+  $('#robot-tier-add').disabled=tiersDraft.length>=8;
+}
 let scenesDraft=null,scenesDirty=false,scenesStamp='';
 function renderScenes(){
   if(!scenesDirty&&JSON.stringify(robot.config.live_scenes.map(({emoticons,...s})=>s))!==JSON.stringify((scenesDraft||[]).map(({emoticons,...s})=>s)))scenesDraft=structuredClone(robot.config.live_scenes);
@@ -100,7 +120,8 @@ function renderScenes(){
       <div class="robot-scene-head"><input data-scene-field="name" maxlength="12" value="${escapeHtml(s.name)}" aria-label="场景名字" placeholder="场景名字"><label>每<input data-scene-field="interval_seconds" type="number" min="10" max="600" step="5" value="${s.interval_seconds}" aria-label="发送间隔（秒）">秒一次</label>
       <button type="button" class="button ${running?'dark-button':'white-button'}" data-scene-toggle ${pending||!saved?'disabled':''}>${running?'停止':'开始'}</button></div>
       ${running?`<p class="robot-scene-live">● 进行中 · 已发 ${active.sent} 条</p>`:''}
-      <textarea data-scene-field="lines" rows="3" maxlength="600" placeholder="应援话术，每行一句，随机发；不填就只发表情" aria-label="应援话术">${escapeHtml(s.lines)}</textarea>
+      <textarea data-scene-field="lines" rows="3" maxlength="600" placeholder="${s.use_ai?'AI 现编时可留空；填了会当作风格参考，AI 出错时也用它':'应援话术，每行一句，随机发；不填就只发表情'}" aria-label="应援话术">${escapeHtml(s.lines)}</textarea>
+      <div class="robot-scene-ai"><label><input type="checkbox" data-scene-field="use_ai" ${s.use_ai?'checked':''}>AI 现编话术（每次让模型现写一句，按语气配场景表情）</label><button type="button" class="text-button" data-scene-ai-lines ${pending?'disabled':''}>AI 写几句</button></div>
       <div class="robot-scene-foot"><span class="robot-scene-emos">${emos.length?emos.map(emoImage).join(''):`<em>${saved?'还没配表情，会用「通用」组':'保存后才能配表情'}</em>`}</span><span><button type="button" class="text-button" data-scene-emo ${saved?'':'disabled'}>配表情</button><button type="button" class="text-button" data-scene-delete>删除</button></span></div>
     </div>`;}).join(''):'<p class="lottery-empty">还没有场景，点「新增场景」。</p>';
   if(focus){const el=container.querySelector(`[data-scene="${CSS.escape(focus.id)}"] [data-scene-field="${focus.field}"]`);if(el){el.focus();try{el.setSelectionRange(focus.start,focus.end);}catch{}}}
@@ -194,6 +215,34 @@ form.addEventListener('submit',run(async()=>{
   dirty=false;configStamp='';render();toast('机器人设置已保存');
   if(key||!modelList.length&&robot.aiReady){modelsTried=true;loadModels(false);}
 }));
+$('#robot-tiers').addEventListener('input',event=>{
+  const field=event.target.closest('[data-tier-field]');if(!field)return;
+  const tier=tiersDraft[Number(field.closest('[data-tier]').dataset.tier)];if(!tier)return;
+  tier[field.dataset.tierField]=field.type==='checkbox'?field.checked:field.value;
+  dirty=true;note();
+  if(field.type==='checkbox'||field.dataset.tierField==='min')renderTiers();
+});
+const tierClick=run(async event=>{
+  const row=event.target.closest('[data-tier]');if(!row)return;
+  const index=Number(row.dataset.tier),tier=tiersDraft[index];if(!tier)return;
+  if(event.target.closest('[data-tier-delete]')){tiersDraft.splice(index,1);dirty=true;note();renderTiers();return;}
+  if(event.target.closest('[data-tier-ai-lines]')){
+    const max=tier.max===null||tier.max===undefined||String(tier.max).trim()===''?null:Number(tier.max);
+    const {lines}=await action({action:'gift_lines',min:Number(tier.min)||0,max});
+    // 接在已有话术后面，去重，最多 10 行。
+    tier.lines=[...new Set([...String(tier.lines).split(/\r?\n/).map(x=>x.trim()).filter(Boolean),...lines])].slice(0,10).join('\n');
+    dirty=true;note();renderTiers();toast(`AI 写了 ${lines.length} 句，看看合适就保存机器人设置`);
+  }
+});
+// 只接管按钮点击；勾选框要保留默认行为（run 会 preventDefault）。
+$('#robot-tiers').addEventListener('click',event=>{if(event.target.closest('button'))tierClick(event);});
+$('#robot-tier-add').onclick=()=>{
+  // 新的一档接在最高一档后面：原来不封顶的最高档改成到新档的起点为止。
+  const top=tiersDraft.reduce((a,t)=>!a||(Number(t.min)||0)>(Number(a.min)||0)?t:a,null),open=top&&(top.max===null||top.max===undefined||String(top.max).trim()==='');
+  const start=top?(open?((Number(top.min)||0)?(Number(top.min)||0)*10:10):Number(top.max)):0;
+  if(open)top.max=start;
+  tiersDraft.push({min:start,max:null,lines:'感谢{user}送的{gift}×{count}！',use_ai:false});dirty=true;note();renderTiers();
+};
 // 换服务商：先把服务商存下来（模型先用这家的推荐），再读这家的模型列表。
 $('#robot-provider').addEventListener('change',run(async()=>{
   const p=providerInfo($('#robot-provider').value);renderProvider();
@@ -207,20 +256,31 @@ $('#robot-provider').addEventListener('change',run(async()=>{
 $('#robot-scenes').addEventListener('input',event=>{
   const field=event.target.closest('[data-scene-field]');if(!field)return;
   const scene=scenesDraft.find(s=>s.id===field.closest('[data-scene]').dataset.scene);if(!scene)return;
-  scene[field.dataset.sceneField]=field.type==='number'?Number(field.value):field.value;
-  scenesDirty=true;$('#robot-scenes-save').disabled=false;$('#robot-scenes-note').textContent='场景还没保存';
+  scene[field.dataset.sceneField]=field.type==='checkbox'?field.checked:field.type==='number'?Number(field.value):field.value;
+  scenesDirty=true;
+  if(field.type==='checkbox'){scenesStamp='';renderScenes();}$('#robot-scenes-save').disabled=false;$('#robot-scenes-note').textContent='场景还没保存';
 });
-$('#robot-scenes').addEventListener('click',run(async event=>{
+const sceneClick=run(async event=>{
   const row=event.target.closest('[data-scene]');if(!row)return;
   const id=row.dataset.scene;
   if(event.target.closest('[data-scene-delete]')){scenesDraft=scenesDraft.filter(s=>s.id!==id);scenesDirty=true;scenesStamp='';renderScenes();return;}
+  if(event.target.closest('[data-scene-ai-lines]')){
+    const scene=scenesDraft.find(s=>s.id===id);if(!scene)return;
+    const {lines}=await action({action:'scene_lines',name:scene.name});
+    // 接在已有话术后面，去重，最多 10 行。
+    const merged=[...new Set([...scene.lines.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),...lines])].slice(0,10);
+    scene.lines=merged.join('\n');scenesDirty=true;scenesStamp='';renderScenes();
+    toast(`AI 写了 ${lines.length} 句，看看合适就保存场景`);return;
+  }
   if(event.target.closest('[data-scene-emo]')){$('#robot-emo-target').value='live:'+id;slotStamp='';renderSlots();$('#robot-emo-target').scrollIntoView({block:'center',behavior:'smooth'});return;}
   if(event.target.closest('[data-scene-toggle]')){
     if(robot.active_scene?.id===id){await action({action:'scene_stop'});toast('场景已停止');return;}
     if(scenesDirty)throw new Error('请先保存场景');
     await action({action:'scene_start',id});toast(`「${robot.config.live_scenes.find(s=>s.id===id)?.name}」开始了`);
   }
-}));
+});
+// 只接管按钮点击；勾选框等要保留默认行为（run 会 preventDefault）。
+$('#robot-scenes').addEventListener('click',event=>{if(event.target.closest('button'))sceneClick(event);});
 $('#robot-scene-add').onclick=()=>{scenesDraft.push({id:'s-'+Date.now().toString(36),name:'新场景',lines:'',interval_seconds:40,emoticons:[]});scenesDirty=true;scenesStamp='';renderScenes();};
 $('#robot-scenes-save').onclick=run(async()=>{
   // 表情以已保存的为准，避免编辑草稿时覆盖刚配好的表情。
@@ -275,6 +335,12 @@ $('#robot-probe').onclick=run(async()=>{
   try{showProbe((await action({action:'probe_stream'})).probe);}
   finally{button.textContent='先检查流水';}
 });
+$('#robot-like-form').addEventListener('submit',run(async event=>{
+  const count=Number(event.target.elements.count.value);
+  if(!Number.isInteger(count)||count<1||count>1000)throw new Error('点赞次数要在1～1000之间');
+  const result=await action({action:'like',count});
+  toast(`点了 ${result.liked} 个赞`);
+}));
 testForm.addEventListener('submit',run(async()=>{
   const mode=testForm.elements.mode.value,user=testForm.elements.user.value.trim()||'测试观众',text=testForm.elements.text.value.trim();
   const output=$('#robot-test-result'),button=testForm.querySelector('button');
@@ -282,11 +348,15 @@ testForm.addEventListener('submit',run(async()=>{
   button.disabled=true;output.hidden=false;output.textContent=mode==='ai'?'DeepSeek 思考中…':'处理中…';
   try{
     if(mode==='say'){await action({action:'say',text});output.textContent='已加入发言队列，结果见发言记录。';}
+    else if(mode==='gift'){
+      const value=Number(text);if(!Number.isFinite(value)||value<0)throw new Error('请填礼物金额（元），比如 52');
+      const result=await action({action:'test_gift',user,value});output.textContent=result.reply;
+    }
     else{const result=await action({action:mode==='ai'?'test':'test_blindbox',user,text});output.textContent=result.reply;}
   }catch(error){output.textContent=error.message;throw error;}
   finally{button.disabled=false;}
 }));
-testForm.elements.mode.addEventListener('change',()=>{const mode=testForm.elements.mode.value;testForm.elements.text.placeholder=mode==='blindbox'?'填上面的观众昵称即可，这里可不填':mode==='say'?'要发到直播间的弹幕':'比如：主播今天吃什么？';});
+testForm.elements.mode.addEventListener('change',()=>{const mode=testForm.elements.mode.value;testForm.elements.text.placeholder=mode==='gift'?'礼物总金额（元），比如 52；按已保存的分档':mode==='blindbox'?'填上面的观众昵称即可，这里可不填':mode==='say'?'要发到直播间的弹幕':'比如：主播今天吃什么？';});
 addEventListener('robot-state',event=>render(event.detail));
 addEventListener('console-state',note);
 async function load(){render(await api('/api/robot/state'));}
