@@ -1,13 +1,17 @@
 import {$,api,toast,escapeHtml} from './console-shared.js';
 import {state as consoleState} from './app.js';
+import {probe} from './overtime-console.js';
 
 const form=$('#robot-settings'),testForm=$('#robot-test-form');
 // 表单字段与配置路径一一对应；数字字段提交时转成数字。
-const FIELDS=['names','max_length','interval_seconds','welcome.enabled','welcome.template','welcome.merge_seconds','welcome.user_cooldown_minutes','welcome.back_days','welcome.back_template','gift.enabled','gift.ai_all','gift.blind_template','gift.guard_template','gift.merge_seconds','gift.min_value','gift.big_value','follow.enabled','follow.template','blindbox.enabled','blindbox.keyword','blindbox.require_mention','blindbox.template','blindbox.empty_template','ai.enabled','ai.provider','ai.base_url','ai.model','ai.persona','ai.max_chars','ai.user_cooldown_seconds','cue.enabled','cue.interval_minutes','cue.silent_minutes','cue.active_minutes','cue.user_cooldown_minutes','cue.templates','cue.random_templates','cue.use_ai','scene_command.enabled','scene_command.who','scene_command.users'];
-const KINDS={welcome:'欢迎',gift:'谢礼',guard:'大航海',follow:'关注',query:'盲盒',ai:'AI',manual:'手动',cue:'点名',scene:'场景',like:'点赞'};
+const FIELDS=['names','max_length','interval_seconds','welcome.enabled','welcome.template','welcome.merge_seconds','welcome.user_cooldown_minutes','welcome.back_days','welcome.back_template','gift.enabled','gift.ai_all','gift.blind_template','gift.guard_template','gift.merge_seconds','gift.min_value','gift.big_value','follow.enabled','follow.template','blindbox.enabled','blindbox.keyword','blindbox.require_mention','blindbox.template','blindbox.empty_template','ai.enabled','ai.provider','ai.base_url','ai.model','ai.persona','ai.max_chars','ai.user_cooldown_seconds','cue.enabled','cue.interval_minutes','cue.silent_minutes','cue.active_minutes','cue.user_cooldown_minutes','cue.templates','cue.random_templates','cue.use_ai','scene_command.enabled','scene_command.who','scene_command.users','entrance.enabled','entrance.cooldown_minutes'];
+const KINDS={welcome:'欢迎',gift:'谢礼',guard:'大航海',follow:'关注',query:'盲盒',ai:'AI',manual:'手动',cue:'点名',scene:'场景',like:'点赞',entrance:'进场'};
 const STATUS={queued:'待发送',sending:'发送中',sent:'已发送',failed:'失败',skipped:'已跳过',preview:'仅显示'};
 const time=new Intl.DateTimeFormat('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 let robot,pending=false,dirty=false,configStamp='',logStamp='',blindStamp='';
+// 多直播间：页面一次只显示一个直播间的机器人，所有操作都带上它的编号（main 是控制台连接的主直播间）。
+let currentRoom='main',rooms=[];
+const robotApi=(input)=>api('/api/robot/action',{...input,room:currentRoom});
 const get=(object,key)=>key.split('.').reduce((value,part)=>value?.[part],object);
 function readForm(){
   const config={};
@@ -16,18 +20,20 @@ function readForm(){
     const [head,tail]=key.split('.');
     if(tail)(config[head]??={})[tail]=value;else config[head]=value;
   }
+  config.entrance.list=entranceDraft.map(x=>({uid:String(x.uid??'').trim(),note:String(x.note||'').trim(),media:x.media}));
   config.gift.tiers=tiersDraft.map(t=>({min:Number(t.min),max:t.max===null||t.max===undefined||String(t.max).trim()===''?null:Number(t.max),lines:t.lines,use_ai:!!t.use_ai,ai_style:String(t.ai_style||'').trim()}));
   return config;
 }
 const yuan=milli=>{const value=Math.round(milli/10)/100;return Number.isInteger(value)?String(value):value.toFixed(2).replace(/0$/,'');};
 function note(){
   if(!robot)return;
-  const live=consoleState?.live?.status==='connected',douyin=robot.platform==='douyin',account=consoleState?.account;
-  $('#robot-note').textContent=dirty?'设置还没保存':douyin?'抖音暂不支持机器人发言：回复只显示在这里，可以由主播念出来。':!account?.loggedIn?'请先在控制台扫码登录 B 站账号，机器人会用这个账号发弹幕。':!live?'连接直播间后才会发言。':robot.config.enabled?'机器人正在值班。':'机器人已关闭。';
+  const live=robot.live?.status==='connected',douyin=robot.platform==='douyin',account=consoleState?.account,main=currentRoom==='main';
+  $('#robot-note').textContent=dirty?'设置还没保存':douyin?'抖音暂不支持机器人发言：回复只显示在这里，可以由主播念出来。':main&&!account?.loggedIn?'请先在控制台扫码登录 B 站账号，机器人会用这个账号发弹幕。':!live?(main?'连接直播间后才会发言。':'这个直播间还没连上，点上面的「连接」。'):robot.config.enabled?'机器人正在值班。':'机器人已关闭。';
   $('#robot-names').textContent=robot.names.length?`当前触发昵称：${robot.names.join('、')}`:'登录 B 站后，默认用登录账号的昵称触发。';
 }
 function render(next){
-  if(next)robot=next;if(!robot)return;
+  if(next){if((next.room||'main')!==currentRoom)return;robot=next;}
+  if(!robot)return;
   const on=robot.config.enabled;
   $('#robot-status').textContent=on?'值班中':'已关闭';$('#robot-status').classList.toggle('on',on);
   $('#robot-toggle').textContent=on?'停止机器人':'启动机器人';$('#robot-toggle').disabled=pending;
@@ -40,6 +46,7 @@ function render(next){
     setModelOptions(modelList,robot.config.ai.model);
     for(const key of FIELDS){const el=form.elements[key],value=get(robot.config,key);if(el.type==='checkbox')el.checked=!!value;else el.value=value??'';}
     tiersDraft=structuredClone(robot.config.gift.tiers);renderTiers();
+    entranceDraft=structuredClone(robot.config.entrance.list);renderEntrance();
   }
   renderProvider();
   const nextLog=JSON.stringify(robot.log);
@@ -52,7 +59,7 @@ function render(next){
   giftAiNote.hidden=!giftAiNote.textContent;
   $('#robot-like-note').textContent=robot.likes_today?`今天已经点了 ${robot.likes_today} 个赞（从这次打开控制台算起）。`:'今天还没点赞。';
   $('#robot-like-form button').disabled=pending;
-  renderBlind();renderImport();renderSlots();renderCue();renderScenes();note();
+  renderBlind();renderImport();renderSlots();renderCue();renderScenes();renderRecent();note();
   if(robot.aiReady&&!modelsTried&&modelProvider===robot.config.ai.provider){modelsTried=true;loadModels(false);}
 }
 // —— AI 服务商：下拉里免费的排前面；切换后先存服务商，再读这家的模型 ——
@@ -85,7 +92,7 @@ async function loadModels(report=true){
   const note=$('#robot-models-note'),button=$('#robot-models-refresh'),p=providerInfo(robot.config.ai.provider);
   button.disabled=true;note.textContent=`正在读取 ${p?.name||''} 的模型列表…`;
   try{
-    const result=await api('/api/robot/action',{action:'models'});
+    const result=await robotApi({action:'models'});
     modelList=result.models;freeModels=new Set(result.free||[]);
     setModelOptions(modelList);
     const shown=modelList.slice(0,8).join('、');
@@ -95,6 +102,68 @@ async function loadModels(report=true){
   finally{button.disabled=false;}
 }
 // —— 直播场景：在页面上编辑草稿，点「保存场景」才生效；表情直接用已保存的那份 ——
+// —— 专属进场视频（名单草稿跟着设置表单一起保存；视频用加班机的素材上传）——
+let entranceDraft=[],recentStamp='';
+// 这段在 run 定义之前就要挂上事件，用自己的出错提示。
+function guard(work){return async event=>{try{await work(event);}catch(error){toast(error.message,true);}};}
+function renderEntrance(){
+  $('#robot-entrance-list').innerHTML=entranceDraft.length?entranceDraft.map((item,i)=>{
+    const m=item.media;
+    const extra=m?.kind==='video'?`<label><input type="checkbox" data-entrance-field="green_screen" ${m.green_screen!==false?'checked':''}>去绿幕</label>`:m?.kind==='image'?`<label><input type="number" data-entrance-field="seconds" min="0.1" max="120" step="0.1" value="${escapeHtml(String(m.duration))}" aria-label="图片显示几秒">秒</label>`:'';
+    return `<div class="robot-tier robot-entrance" data-entrance="${i}">
+      <div class="robot-entrance-head"><input data-entrance-field="uid" inputmode="numeric" maxlength="16" autocomplete="off" placeholder="UID" value="${escapeHtml(String(item.uid??''))}" aria-label="观众 UID"><input data-entrance-field="note" maxlength="30" autocomplete="off" placeholder="备注，比如：大哥" value="${escapeHtml(item.note||'')}" aria-label="备注"><button type="button" class="text-button" data-entrance-delete>删除</button></div>
+      <div class="robot-entrance-media"><button type="button" class="text-button" data-entrance-pick>${m?'换一个':'选视频/图片'}</button><span title="${escapeHtml(m?.name||'')}">${escapeHtml(m?.name||'还没选')}</span>${extra}${m?'<button type="button" class="text-button" data-entrance-test>试播</button>':''}<input type="file" data-entrance-file accept=".png,.jpg,.jpeg,.gif,.webp,.mp4,.webm" hidden></div>
+    </div>`;
+  }).join(''):'<p class="lottery-help robot-entrance-empty">还没有人。点「加一个人」，或从下面最近进场的观众里选。</p>';
+  $('#robot-entrance-add').disabled=entranceDraft.length>=50;
+}
+function renderRecent(){
+  const can=robot.can_entrance!==false;
+  $('#robot-entrance-body').hidden=!can;$('#robot-entrance-off').hidden=can;
+  const list=robot.recent_members||[],stamp=JSON.stringify(list);if(stamp===recentStamp)return;recentStamp=stamp;
+  $('#robot-entrance-recent').innerHTML=`<option value="">${list.length?`最近进场的观众（${list.length}）`:'最近进场的观众（连上直播间后才有）'}</option>`+list.map(m=>`<option value="${m.uid}">${escapeHtml(m.name||'观众')} · UID ${m.uid}</option>`).join('');
+  $('#robot-entrance-pick').disabled=!list.length;
+}
+function entranceRow(event){const row=event.target.closest('[data-entrance]');return row?[row,entranceDraft[Number(row.dataset.entrance)]]:[];}
+$('#robot-entrance-list').addEventListener('input',event=>{
+  const field=event.target.dataset.entranceField,[,item]=entranceRow(event);if(!field||!item)return;
+  if(field==='green_screen')item.media.green_screen=event.target.checked;
+  else if(field==='seconds')item.media.duration=Number(event.target.value);
+  else item[field]=event.target.value;
+  dirty=true;note();
+});
+$('#robot-entrance-list').addEventListener('click',event=>{
+  const button=event.target.closest('button');if(!button)return;
+  const [row,item]=entranceRow(event);if(!item)return;
+  if(button.hasAttribute('data-entrance-delete')){entranceDraft.splice(Number(row.dataset.entrance),1);dirty=true;note();renderEntrance();}
+  else if(button.hasAttribute('data-entrance-pick'))row.querySelector('[data-entrance-file]').click();
+  else if(button.hasAttribute('data-entrance-test'))guard(async()=>{
+    if(dirty)throw new Error('先点「保存机器人设置」，再试播');
+    await action({action:'entrance_test',uid:Number(item.uid)});toast('已在素材窗口 / OBS 素材源播放');
+  })();
+});
+$('#robot-entrance-list').addEventListener('change',guard(async event=>{
+  const input=event.target.closest('[data-entrance-file]');if(!input)return;
+  const file=input.files[0],[row,item]=entranceRow(event);input.value='';if(!file||!item)return;
+  const button=row.querySelector('[data-entrance-pick]');button.disabled=true;button.textContent='正在导入…';
+  try{
+    if(file.size>200*1024*1024)throw new Error('素材文件最大200MB');
+    const response=await fetch(`/api/overtime/media?name=${encodeURIComponent(file.name)}`,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:file});
+    const media=await response.json();if(!response.ok)throw new Error(media.error||'素材导入失败');
+    const duration=await probe(media);
+    item.media={asset:media.asset,name:media.name,kind:media.kind,duration,green_screen:media.kind==='video'};
+    dirty=true;note();toast('已导入，点「保存机器人设置」后生效');
+  }finally{renderEntrance();}
+}));
+$('#robot-entrance-add').onclick=()=>{entranceDraft.push({uid:'',note:'',media:null});dirty=true;note();renderEntrance();};
+$('#robot-entrance-pick').onclick=guard(async()=>{
+  const uid=Number($('#robot-entrance-recent').value),member=(robot.recent_members||[]).find(m=>m.uid===uid);
+  if(!member)throw new Error('先在下拉里选一位观众');
+  if(entranceDraft.some(x=>Number(x.uid)===uid))throw new Error('这位已经在名单里了');
+  if(entranceDraft.length>=50)throw new Error('名单最多 50 个人');
+  entranceDraft.push({uid:String(uid),note:member.name,media:null});dirty=true;note();renderEntrance();
+  toast(`已加入「${member.name}」，再给他选个视频`);
+});
 // —— 感谢礼物分档（草稿跟着设置表单一起保存）——
 let tiersDraft=[];
 const yuanText=value=>String(Math.round(Number(value)*100)/100);
@@ -204,7 +273,7 @@ function renderBlind(){
 }
 async function action(input){
   pending=true;render();
-  try{const result=await api('/api/robot/action',input);if(result.state)render(result.state);return result;}
+  try{const result=await robotApi(input);if(result.state)render(result.state);return result;}
   finally{pending=false;render();}
 }
 const run=work=>async event=>{event?.preventDefault();try{await work(event);}catch(error){toast(error.message,true);}};
@@ -312,7 +381,7 @@ $('#robot-import').onclick=run(async()=>{
 });
 $('#robot-emo-load').onclick=run(async()=>{
   const button=$('#robot-emo-load');button.disabled=true;button.textContent='读取中…';
-  try{emoticons=(await api('/api/robot/action',{action:'emoticons'})).emoticons;renderGrid();}
+  try{emoticons=(await robotApi({action:'emoticons'})).emoticons;renderGrid();}
   finally{button.disabled=false;button.textContent='重新读取';}
 });
 $('#robot-emo-grid').onclick=run(async event=>{
@@ -360,6 +429,53 @@ testForm.addEventListener('submit',run(async()=>{
 testForm.elements.mode.addEventListener('change',()=>{const mode=testForm.elements.mode.value;testForm.elements.text.placeholder=mode==='gift'?'礼物总金额（元），比如 52；按已保存的分档':mode==='blindbox'?'填上面的观众昵称即可，这里可不填':mode==='say'?'要发到直播间的弹幕':'比如：主播今天吃什么？';});
 addEventListener('robot-state',event=>render(event.detail));
 addEventListener('console-state',note);
-async function load(){render(await api('/api/robot/state'));}
+async function load(){const room=currentRoom,state=await api(`/api/robot/state?room=${encodeURIComponent(room)}`);if(room===currentRoom)render({...state,room});}
+// —— 多直播间：顶部的直播间标签 ——
+const ROOM_STATUS={connected:'已连接',connecting:'连接中',reconnecting:'重连中',error:'连接失败',disconnected:'未连接'};
+const roomShort=room=>String(room||'').match(/(\d+)\D*$/)?.[1]||'';
+function roomLabel(r){return r.main?'主直播间':r.title||`房间 ${roomShort(r.room)||r.room}`;}
+function renderRooms(){
+  const box=$('#robot-rooms');if(!box)return;
+  // 正在看的直播间被删掉了（可能是在别的窗口删的）：回到主直播间，重新读它的设置。
+  if(currentRoom!=='main'&&!rooms.some(r=>r.id===currentRoom)){enterRoom('main');return;}
+  box.innerHTML=rooms.map(r=>`<button type="button" role="tab" class="robot-room-chip${r.id===currentRoom?' active':''}" data-room="${escapeHtml(r.id)}" aria-selected="${r.id===currentRoom}"><i class="robot-room-dot ${escapeHtml(r.status)}"></i><b>${escapeHtml(roomLabel(r))}</b><span>${escapeHtml(ROOM_STATUS[r.status]||'')}${r.enabled?' · 值班':''}</span></button>`).join('');
+  const r=rooms.find(x=>x.id===currentRoom),tools=$('#robot-room-tools');
+  if(!r){tools.innerHTML='';return;}
+  const where=r.main?`跟着控制台连接${r.room?`（${escapeHtml(r.room)}）`:''}，在「控制台」页连接或换直播间。`:`房间号 ${escapeHtml(r.room)}${r.title?` · ${escapeHtml(r.title)}`:''}${r.error?` · <span class="robot-error">${escapeHtml(r.error)}</span>`:''}`;
+  const live=['connected','connecting','reconnecting'].includes(r.status);
+  tools.innerHTML=`<span>${where}</span>${r.main?'':`<span class="robot-room-actions"><button type="button" class="text-button" data-room-act="${live?'disconnect':'connect'}">${live?'断开':'连接'}</button><button type="button" class="text-button" data-room-act="remove">删除</button></span>`}`;
+  $('#robot-room-add').hidden=rooms.length>5;
+}
+function switchRoom(id){
+  if(id===currentRoom)return;
+  if((dirty||scenesDirty)&&!confirm('这个直播间的设置还没保存，切换后改动会丢掉，确定切换？'))return;
+  enterRoom(id);
+}
+function enterRoom(id){
+  currentRoom=id;robot=null;dirty=false;scenesDirty=false;scenesDraft=null;
+  configStamp=logStamp=blindStamp=slotStamp=scenesStamp=providerStamp=sceneOptionStamp=recentStamp='';
+  emoticons=[];renderGrid();$('#robot-emo-load').textContent='读取直播间表情';$('#robot-test-result').hidden=true;
+  renderRooms();load().catch(error=>toast(error.message,true));
+}
+async function roomAction(input){const result=await api('/api/robot/rooms',input);rooms=result.rooms;renderRooms();return result;}
+$('#robot-rooms').addEventListener('click',event=>{const chip=event.target.closest('[data-room]');if(chip)switchRoom(chip.dataset.room);});
+$('#robot-room-tools').addEventListener('click',run(async event=>{
+  const button=event.target.closest('[data-room-act]');if(!button)return;
+  const act=button.dataset.roomAct,r=rooms.find(x=>x.id===currentRoom);if(!r||r.main)return;
+  if(act==='remove'&&!confirm(`不再连接「${roomLabel(r)}」？这个直播间的设置和盲盒记录会留着，以后加回来还在。`))return;
+  button.disabled=true;
+  try{await roomAction({action:act,id:r.id});}finally{button.disabled=false;}
+  if(act==='remove'){switchRoom('main');toast('已删除这个直播间');}
+}));
+$('#robot-room-add').addEventListener('submit',run(async event=>{
+  const input=event.target.elements.room,room=input.value.trim();
+  if(!room)throw new Error('请填 B站直播间房间号或链接');
+  const from=roomLabel(rooms.find(r=>r.id===currentRoom)||{main:true});
+  const result=await roomAction({action:'add',room,copy_from:currentRoom});
+  input.value='';switchRoom(result.id);
+  toast(result.restored?'这个直播间以前加过，用回了它原来的设置':`已加上，照抄了「${from}」的设置（机器人先关着，改好人设和表情再启动）`);
+}));
+addEventListener('robot-rooms',event=>{rooms=event.detail;renderRooms();});
+roomAction({action:'list'}).catch(error=>toast(error.message,true));
 addEventListener('view-changed',event=>{if(event.detail==='robot')load().catch(error=>toast(error.message,true));});
 load().catch(error=>toast(error.message,true));

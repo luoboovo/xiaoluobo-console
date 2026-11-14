@@ -19,6 +19,7 @@ const { generatePanel } = require('./lib/game-panels.cjs');
 const { WebSocketServer } = require('ws');
 const {MODES:LOTTERY_MODES}=require('./lib/lottery.cjs');
 const { LiveRobot, AI_PROVIDERS } = require('./lib/robot.cjs');
+const { RobotRooms } = require('./lib/robot-rooms.cjs');
 
 // Overlay pages subscribe to one channel; everything else is a console page.
 const CHANNELS = { bomb:new Set(['number-bomb']), lottery:new Set(['lottery']), feeding:new Set(['feeding','feeding-motion','feeding-physics']), overtime:new Set(['overtime','overtime-clock','overtime-media']), scene:new Set(['noodle','noodle-motion']) };
@@ -57,6 +58,8 @@ async function startServer(options = {}) {
     }
   };
   const robot=await new LiveRobot(services.dataDir,{services,diagnostics,keyStore,fetchImpl:options.robotFetch||globalThis.fetch}).init();
+  // 机器人的其他直播间（主直播间就是上面这个 robot），各自一套设置，共用登录账号和 AI Key。
+  const robotRooms=await new RobotRooms({services,dataDir:services.dataDir,main:robot,robotOptions:{diagnostics,keyStore,fetchImpl:options.robotFetch||globalThis.fetch},...(options.robotLink?{createLink:options.robotLink}:{})}).init();
   const lotteryFor=mode=>{const key=mode??'wheel';if(!LOTTERY_MODES.includes(key))throw new Error('抽奖玩法无效');return lottery[key];};
   const mediaListeners=new Set();
   let actions = Promise.resolve(), giftBatch, pendingGifts=0, liveStamp='';
@@ -65,7 +68,7 @@ async function startServer(options = {}) {
   // 上传素材只增不减会占满系统盘；启动时和改完设置后，清理已不在任何规则里的素材。
   let pruneTimer,pruning=Promise.resolve();
   const prune=()=>{pruning=pruning.then(async()=>{for(const game of Object.values(games)){
-    const result=await pruneAssets(game.dir,assetNames(game.overtime.state,game.feeding.state)).catch(error=>{diagnostics?.log('warn','assets.prune_failed',{error});return {removed:0};});
+    const result=await pruneAssets(game.dir,assetNames(game.overtime.state,game.feeding.state,robot.config,...[...robotRooms.extra.values()].map(entry=>entry.robot.config))).catch(error=>{diagnostics?.log('warn','assets.prune_failed',{error});return {removed:0};});
     if(result.removed)diagnostics?.log('info','assets.pruned',{dir:path.basename(game.dir),...result});
   }});return pruning;};
   const schedulePrune=()=>{clearTimeout(pruneTimer);pruneTimer=setTimeout(prune,30000);pruneTimer.unref();};
@@ -138,7 +141,7 @@ async function startServer(options = {}) {
     if (type === 'message') {
       pendingMessages.push(data);
       if (pendingMessages.length > 200) pendingMessages.shift();
-    } else pendingStates.set(type==='lottery'?'lottery:'+data.game:type, data);
+    } else pendingStates.set(type==='lottery'?'lottery:'+data.game:type==='robot'?'robot:'+(data.room||'main'):type, data);
     if (broadcastTimer) return;
     broadcastTimer = setTimeout(() => {
       broadcastTimer = null;
@@ -152,14 +155,18 @@ async function startServer(options = {}) {
     }, 100);
   };
   services.on('state', state => {
-    broadcast('state',state);
+    broadcast('state',state);robotRooms.changed();
     if(diagnostics){
       const live={platform:services.platform,status:state.live.status,liveStatus:state.live.liveStatus,error:state.live.error};
       const stamp=JSON.stringify(live);
       if(stamp!==liveStamp){liveStamp=stamp;diagnostics.log(live.error?'warn':'info','live.state',live);}
     }
   });
-  robot.on('state',state=>broadcast('robot',state));
+  robot.on('state',state=>{broadcast('robot',{...state,room:'main'});robotRooms.changed();});
+  robotRooms.on('robot',(id,state)=>broadcast('robot',{...state,room:id}));
+  // 主直播间的专属进场视频：交给当前平台的加班机素材队列播（和礼物素材排队，加班机没开也播）。
+  robot.on('entrance',cue=>overtime.playEntrance(cue.media).catch(error=>{cue.fail(error);diagnostics?.log('warn','robot.entrance_failed',{error});}));
+  robotRooms.on('rooms',list=>broadcast('robot-rooms',list));
   services.on('event', event => robot.receive(event));
   services.on('event', event => {
     if(event.type==='system')diagnostics?.log('warn','system.message',{message:event.text,platform:services.platform});
@@ -240,7 +247,7 @@ async function startServer(options = {}) {
     const scene=client.channel==='scene';
     if(!scene)send(client,'state',services.state);
     sendNoodle(client,noodleFrames(noodle.snapshot()));
-    if(!scene){send(client,'overtime',overtime.snapshot());send(client,'feeding',feeding.snapshot());send(client,'number-bomb',numberBomb.snapshot());for(const target of Object.values(lottery))send(client,'lottery',target.snapshot());send(client,'robot',robot.snapshot());}
+    if(!scene){send(client,'overtime',overtime.snapshot());send(client,'feeding',feeding.snapshot());send(client,'number-bomb',numberBomb.snapshot());for(const target of Object.values(lottery))send(client,'lottery',target.snapshot());send(client,'robot',{...robot.snapshot(),room:'main'});for(const entry of robotRooms.extra.values())send(client,'robot',{...entry.robot.snapshot(),room:entry.id});send(client,'robot-rooms',robotRooms.list());}
     if(!client.consoleOnly)send(client,'noodle-motion',noodle.motionSnapshot());
   };
   const download=(res,filename,data)=>{res.setHeader('Content-Disposition',`attachment; filename=${filename}`);return data;};
@@ -285,7 +292,8 @@ async function startServer(options = {}) {
     '/api/feeding/motion': input => ({ok:true,accepted:feeding.motion(input)}),
     '/api/feeding/action': async (input,scoped) => {const state=await enqueue(scoped(()=>feeding.action(input)));schedulePrune();return {ok:true,state};},
     '/api/lottery/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>lotteryFor(input.game).action(input)))}),
-    '/api/robot/action': async input => {const result=await robot.action(input);return result.config?{ok:true,state:result}:{ok:true,...result};},
+    '/api/robot/action': async input => {const room=input.room||'main',result=await robotRooms.robotFor(room).action(input);return result.config?{ok:true,state:{...result,room}}:{ok:true,...result};},
+    '/api/robot/rooms': async input => ({ok:true,...await robotRooms.action(input)}),
     '/api/number-bomb/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>numberBomb.action(input)))}),
     '/api/panels/generate': async (input,scoped) => ({ok:true,panel:await enqueue(scoped(()=>generatePanel(input.game,{noodle,overtime,feeding})))}),
     '/api/overtime/action': async (input,scoped) => {const state=await enqueue(scoped(()=>overtime.action(input)));schedulePrune();return {ok:true,state};},
@@ -323,7 +331,7 @@ async function startServer(options = {}) {
     '/api/overtime/state': () => overtime.snapshot(),
     '/api/feeding/state': () => feeding.snapshot(),
     '/api/number-bomb/state': () => numberBomb.snapshot(),
-    '/api/robot/state': () => robot.snapshot(),
+    '/api/robot/state': (_res,url) => {const room=url.searchParams.get('room')||'main';return {...robotRooms.robotFor(room).snapshot(),room};},
     '/api/lottery/state': (_res,url) => lotteryFor(url.searchParams.get('game')||'wheel').snapshot(),
     '/api/lottery/export': (res,url) => {const target=lotteryFor(url.searchParams.get('game')||'wheel');return download(res,`xiaoluobo-${target.mode}-results.json`,target.state.history);},
     '/api/feeding/export': res => download(res,'xiaoluobo-feeding.json',feeding.state.config),
@@ -472,7 +480,7 @@ async function startServer(options = {}) {
   }, 15000);
   const close = async () => {
     for (const timer of [lotteryTimer, physicsTimer, keepAlive, sealTimer, cleanupTimer, overtimeTimer, checkpointTimer]) clearInterval(timer);
-    clearTimeout(pruneTimer); services.close(); await robot.close(); await actions; await pruning;
+    clearTimeout(pruneTimer); services.close(); await robot.close(); await robotRooms.close(); await actions; await pruning;
     for(const game of Object.values(games)){game.overtime.close();await game.overtime.checkpoint();await game.feeding.close();await game.numberBomb.close();for(const target of Object.values(game.lottery))await target.close();}
     await services.flush();
     mediaListeners.clear();clearTimeout(broadcastTimer);clearTimeout(peopleTimer); pendingStates.clear(); pendingMessages.length = 0; avatars.clear();
@@ -480,7 +488,7 @@ async function startServer(options = {}) {
     const stopped = new Promise(resolve => server.close(resolve)); server.closeAllConnections(); await stopped;
     await images.close();
   };
-  return { url: origin, services, get noodle(){return noodle;},get overtime(){return overtime;},get feeding(){return feeding;},get lottery(){return lottery;},get numberBomb(){return numberBomb;},robot,aiKeyPages:new Set(Object.values(AI_PROVIDERS).map(p=>p.keyUrl).filter(url=>url.startsWith('https://'))),onOvertimeMedia(listener){mediaListeners.add(listener);}, close };
+  return { url: origin, services, get noodle(){return noodle;},get overtime(){return overtime;},get feeding(){return feeding;},get lottery(){return lottery;},get numberBomb(){return numberBomb;},robot,robotRooms,aiKeyPages:new Set(Object.values(AI_PROVIDERS).map(p=>p.keyUrl).filter(url=>url.startsWith('https://'))),onOvertimeMedia(listener){mediaListeners.add(listener);}, close };
 }
 
 if (require.main === module) {

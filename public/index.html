@@ -60,6 +60,12 @@
     </section>
     <section id="robot-view" hidden>
       <div class="lottery-heading"><div><div class="eyebrow">LIVE ROOM ASSISTANT</div><h1>直播间机器人<span>。</span></h1><p>欢迎进场、感谢礼物；观众 @ 它可以查盲盒记录，也能按人设聊天。</p></div><div class="lottery-output robot-power"><span id="robot-status" class="robot-status">已关闭</span><button class="button dark-button" id="robot-toggle" type="button">启动机器人</button></div></div>
+      <div class="robot-rooms-bar">
+        <div id="robot-rooms" class="robot-rooms" role="tablist" aria-label="直播间"></div>
+        <form id="robot-room-add" class="robot-room-add"><input name="room" maxlength="200" autocomplete="off" placeholder="再加一个 B站直播间：房间号或链接" aria-label="要添加的 B站直播间"><button class="button dark-button" type="submit">＋ 添加直播间</button></form>
+        <p id="robot-room-tools" class="lottery-help robot-room-tools" role="status"></p>
+        <p class="lottery-help robot-room-help">每个直播间一套机器人设置（人设、表情、礼物档位、欢迎语都分开），都用控制台登录的账号发言。新加的直播间照抄当前选中直播间的设置，机器人先关着；表情包要在那个直播间里重新读取。最多再加 5 个。</p>
+      </div>
       <div class="lottery-workspace robot-workspace">
         <div class="lottery-main">
           <article class="lottery-card"><div class="lottery-card-title"><h2>发言记录 <span id="robot-outbox">0 条待发</span></h2><button class="text-button" id="robot-clear-log" type="button">清空记录</button></div><p id="robot-note" class="lottery-help robot-note" role="status"></p><ol id="robot-log" class="robot-log"><li class="lottery-empty">还没有发言。启动后，欢迎、感谢和回复都会记在这里。</li></ol></article>
@@ -105,6 +111,17 @@
               <label>多久没来算「好久不见」/ 天（0 为不区分）<input name="welcome.back_days" type="number" min="0" max="365" step="0.5" required></label>
               <label>好久不见的欢迎语<input name="welcome.back_template" maxlength="60" required autocomplete="off"></label>
               <p class="lottery-help">{ago} 多久没来（比如「3天」「2个月」），{days} 天数。控制台会记住每位观众最后一次进场、说话或送礼的时间，隔了这么久再来就单独打招呼（一次最多 3 位，其余并进普通欢迎）。从这个版本开始记，第一次见到的观众先用普通欢迎语。</p>
+            </article>
+            <article class="lottery-card"><div class="lottery-card-title"><h2>专属进场视频</h2><span class="lottery-step">VIP</span></div>
+              <p id="robot-entrance-off" class="lottery-help" hidden>专属进场视频只在主直播间可用（视频在你自己的直播画面里播）。</p>
+              <div id="robot-entrance-body">
+                <label class="lottery-check"><input type="checkbox" name="entrance.enabled">名单里的人进直播间时播放专属视频</label>
+                <label>同一个人多久内不重复播 / 分<input name="entrance.cooldown_minutes" type="number" min="0" max="1440" step="1" required></label>
+                <div class="robot-tiers-head"><span>名单（按 UID 认人）</span><button type="button" class="text-button" id="robot-entrance-add">加一个人 ＋</button></div>
+                <div id="robot-entrance-list" class="robot-tiers"></div>
+                <div class="robot-entrance-recent"><select id="robot-entrance-recent" aria-label="最近进场的观众"></select><button type="button" class="text-button" id="robot-entrance-pick">加入名单</button></div>
+                <p class="lottery-help">按 UID 认人，改昵称、戴装扮都能认出来。UID 是对方 B站个人空间网址里的那串数字，也可以从上面「最近进场的观众」里直接选。视频和礼物素材在同一个地方播（桌面版的素材小窗，或 OBS 浏览器源 <code>http://127.0.0.1:3181/overtime/?media=1</code>），会排队不叠在一起，加班机没开也播；音量跟着加班机的素材音量。对方用「神秘人」进场时 B站不给 UID，这时认不出来。</p>
+              </div>
             </article>
             <article class="lottery-card"><div class="lottery-card-title"><h2>感谢礼物</h2><span class="lottery-step">03</span></div>
               <label class="lottery-check"><input type="checkbox" name="gift.enabled">感谢礼物、盲盒、大航海和醒目留言</label>

@@ -247,6 +247,7 @@ else syncPreviewFrames('console');
     source.addEventListener('lottery', event => window.dispatchEvent(new CustomEvent('lottery-state', {detail:JSON.parse(event.data)})));
     source.addEventListener('number-bomb', event => window.dispatchEvent(new CustomEvent('number-bomb-state', {detail:JSON.parse(event.data)})));
     source.addEventListener('robot', event => window.dispatchEvent(new CustomEvent('robot-state', {detail:JSON.parse(event.data)})));
+    source.addEventListener('robot-rooms', event => window.dispatchEvent(new CustomEvent('robot-rooms', {detail:JSON.parse(event.data)})));
     source.addEventListener('overtime-clock', event => window.dispatchEvent(new CustomEvent('overtime-clock', { detail: JSON.parse(event.data) })));
     source.addEventListener('message', event => { events.unshift(JSON.parse(event.data)); events.length = Math.min(events.length, 200); scheduleEvents(); });
     source.onopen = async () => { $('#service-dot').classList.remove('off'); $('#service-label').textContent = '本地运行'; try { const next = await api('/api/state'); renderState(next.state); events = next.events; renderEvents(); } catch {} };

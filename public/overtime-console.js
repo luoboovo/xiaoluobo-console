@@ -34,7 +34,7 @@ function mediaControls(row) {
   seconds.disabled = media?.kind !== 'image';
 }
 function rowMedia(row) { return row.media ? {...row.media, green_screen:row.querySelector('.rule-media-green').checked, duration:row.media.kind === 'image' ? Number(row.querySelector('.rule-media-seconds').value) : row.media.duration} : null; }
-async function probe(media) {
+export async function probe(media) {
   const element = document.createElement(media.kind === 'video' ? 'video' : 'img');
   const wait = event => new Promise((resolve,reject) => { element.addEventListener(event,resolve,{once:true}); element.addEventListener('error',() => reject(new Error('素材无法读取；视频请使用MP4（H.264）或WebM')),{once:true}); });
   let timeout, seekTimeout;
