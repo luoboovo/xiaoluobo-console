@@ -60,6 +60,8 @@
 .robot-tier-to{flex:none;font-size:12px;color:#7a8794}
 .robot-tier-head input::placeholder{font-size:11px}
 .robot-tier textarea{margin:0}
+.lottery-card .robot-tier .robot-tier-style{margin:0;font-size:12px;padding-top:7px;padding-bottom:7px}
+.robot-tier-style::placeholder{font-size:11px}
 .robot-scene-ai{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:6px 0;font-size:11px}
 .robot-scene-ai label{display:flex;align-items:center;gap:6px;margin:0;font-size:11px;font-weight:500;flex:1;min-width:0}
 .robot-scene-ai input{width:auto;margin:0;flex:none}

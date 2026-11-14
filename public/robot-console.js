@@ -16,7 +16,7 @@ function readForm(){
     const [head,tail]=key.split('.');
     if(tail)(config[head]??={})[tail]=value;else config[head]=value;
   }
-  config.gift.tiers=tiersDraft.map(t=>({min:Number(t.min),max:t.max===null||t.max===undefined||String(t.max).trim()===''?null:Number(t.max),lines:t.lines,use_ai:!!t.use_ai}));
+  config.gift.tiers=tiersDraft.map(t=>({min:Number(t.min),max:t.max===null||t.max===undefined||String(t.max).trim()===''?null:Number(t.max),lines:t.lines,use_ai:!!t.use_ai,ai_style:String(t.ai_style||'').trim()}));
   return config;
 }
 const yuan=milli=>{const value=Math.round(milli/10)/100;return Number.isInteger(value)?String(value):value.toFixed(2).replace(/0$/,'');};
@@ -103,7 +103,8 @@ function renderTiers(){
   container.innerHTML=tiersDraft.map((t,i)=>`<div class="robot-tier" data-tier="${i}">
       <div class="robot-tier-head"><label><input type="number" data-tier-field="min" min="0" max="100000" step="0.1" value="${escapeHtml(String(t.min))}" aria-label="这一档从多少元起（含）">元</label><span class="robot-tier-to">到</span><label><input type="number" data-tier-field="max" min="0" max="100000" step="0.1" value="${t.max===null||t.max===undefined?'':escapeHtml(String(t.max))}" placeholder="不封顶" aria-label="这一档到多少元为止（不含），空着就是不封顶">元</label><span class="robot-tier-range"></span><button type="button" class="text-button" data-tier-delete ${tiersDraft.length<=1?'disabled':''}>删除</button></div>
       <textarea data-tier-field="lines" rows="2" maxlength="600" aria-label="这一档的感谢话术" placeholder="${t.use_ai?'AI 现写时可留空；填了会当作风格参考，AI 出错时也用它':'每行一句，随机挑，比如：谢谢{user}送的{gift}×{count}'}">${escapeHtml(t.lines)}</textarea>
-      <div class="robot-scene-ai"><label><input type="checkbox" data-tier-field="use_ai" ${t.use_ai?'checked':''}>AI 现写（金额越高越隆重）</label><button type="button" class="text-button" data-tier-ai-lines ${pending?'disabled':''}>AI 写几句</button></div>
+      <div class="robot-scene-ai"><label><input type="checkbox" data-tier-field="use_ai" ${t.use_ai?'checked':''}>AI 现写</label><button type="button" class="text-button" data-tier-ai-lines ${pending?'disabled':''}>AI 写几句</button></div>
+      <input class="robot-tier-style" data-tier-field="ai_style" maxlength="100" autocomplete="off" value="${escapeHtml(t.ai_style||'')}" placeholder="AI 写这一档时的要求（可不填），比如：阴阳怪气地谢，嫌礼物小" aria-label="AI 写这一档时的要求">
     </div>`).join('');
   if(focus){const el=container.querySelector(`[data-tier="${focus.index}"] [data-tier-field="${focus.field}"]`);if(el){el.focus();try{el.setSelectionRange(focus.start,focus.end);}catch{}}}
   $('#robot-tier-add').disabled=tiersDraft.length>=8;
@@ -228,7 +229,7 @@ const tierClick=run(async event=>{
   if(event.target.closest('[data-tier-delete]')){tiersDraft.splice(index,1);dirty=true;note();renderTiers();return;}
   if(event.target.closest('[data-tier-ai-lines]')){
     const max=tier.max===null||tier.max===undefined||String(tier.max).trim()===''?null:Number(tier.max);
-    const {lines}=await action({action:'gift_lines',min:Number(tier.min)||0,max});
+    const {lines}=await action({action:'gift_lines',min:Number(tier.min)||0,max,style:String(tier.ai_style||'').trim()});
     // 接在已有话术后面，去重，最多 10 行。
     tier.lines=[...new Set([...String(tier.lines).split(/\r?\n/).map(x=>x.trim()).filter(Boolean),...lines])].slice(0,10).join('\n');
     dirty=true;note();renderTiers();toast(`AI 写了 ${lines.length} 句，看看合适就保存机器人设置`);

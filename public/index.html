@@ -117,7 +117,7 @@
               <label>大航海<input name="gift.guard_template" maxlength="60" required autocomplete="off"></label>
               <div class="lottery-field-pair"><label>连击合并 / 秒<input name="gift.merge_seconds" type="number" min="0" max="30" step="0.5" required></label><label>最低价值 / 元<input name="gift.min_value" type="number" min="0" max="100000" step="0.1" required></label></div>
               <label>大礼物 / 元（达到后用「谢大礼物」表情，0 为不区分）<input name="gift.big_value" type="number" min="0" max="100000" step="1" required></label>
-              <p class="lottery-help">{user} 观众，{gift} 礼物（盲盒里是开出的礼物），{box} 盲盒名，{count} 数量，{value} 金额（元，只能用在分档话术里）。连击会先合并再按总金额选档：每档含起点、不含上限（比如 10～100 元里有 10 元，没有 100 元），最高一档上限空着就是不封顶；不在任何档位里的礼物用默认一句「谢谢{user}送的{gift}×{count}」。醒目留言也按金额分档，盲盒和大航海用各自那一句。勾「AI 现写」的档每次让模型现写一句，AI 出错或送礼太密时用写好的话术。打开「每个礼物都用 AI 谢」后，所有礼物、盲盒、大航海和醒目留言都由 AI 按人设现写，送礼密的时候排队等 AI，不换成话术；只有 AI 出错时才用写好的话术，日志里会标出来。</p>
+              <p class="lottery-help">{user} 观众，{gift} 礼物（盲盒里是开出的礼物），{box} 盲盒名，{count} 数量，{value} 金额（元，只能用在分档话术里）。连击会先合并再按总金额选档：每档含起点、不含上限（比如 10～100 元里有 10 元，没有 100 元），最高一档上限空着就是不封顶；不在任何档位里的礼物用默认一句「谢谢{user}送的{gift}×{count}」。醒目留言也按金额分档，盲盒和大航海用各自那一句。勾「AI 现写」的档每次让模型现写一句，AI 出错或送礼太密时用写好的话术。打开「每个礼物都用 AI 谢」后，所有礼物、盲盒、大航海和醒目留言都由 AI 按人设现写，送礼密的时候排队等 AI，不换成话术；只有 AI 出错时才用写好的话术，日志里会标出来。想让不同金额的礼物用不同语气（比如不到 1 元、也就是 10 电池以下的阴阳怪气），就把这个金额单独设一档，在这一档的「AI 要求」里写上：礼物落在哪一档由程序判断，AI 只管照着这一档的要求写，比写在人设里可靠。</p>
               <label class="lottery-check robot-gap"><input type="checkbox" name="follow.enabled">感谢关注</label>
               <label>关注<input name="follow.template" maxlength="60" required autocomplete="off"></label>
             </article>

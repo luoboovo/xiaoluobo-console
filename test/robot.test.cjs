@@ -757,7 +757,7 @@ test('感谢礼物 AI 现写：按档位让模型写，带上金额和档位；�
     await settle();
     assert.deepEqual(services.sent.map(s => s.text), ['哇乙老板送的大鸡腿太香啦，谢谢老板！']);
     const prompt = bodies[0].messages.at(-1).content;
-    assert.match(prompt, /观众「乙」送了大鸡腿×1，价值约20元，属于「10～100元」这一档/);
+    assert.match(prompt, /观众「乙」送了大鸡腿×1，价值20元（200电池）/);
     assert.match(prompt, /感谢乙的大鸡腿！/, '写好的话术填好变量当风格参考');
     assert.match(bodies[0].messages[0].content, /不超过40个字/);
     replies.push('fail');
@@ -1012,5 +1012,100 @@ test('欢迎时记得观众多久没来：超过设定天数说好久不见，�
     t.mock.timers.tick(5 * 86400000);
     robot.receive({ type: 'member', user: '甲', uid: 2 }); await run();
     assert.equal(words().at(-1), '欢迎甲来到直播间~', '设成 0 就不区分');
+  } finally { await robot.close(); await remove(dir); }
+});
+
+test('每档可以写「AI 要求」：金额落在哪一档由程序判断，AI 照这一档的要求写；价值带上电池；AI 写几句也用它', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: new Date('2026-11-13T12:00:00').getTime() });
+  const dir = await tempDir('luobo-tier-style-');
+  const bodies = [];
+  const fetchImpl = async (url, init) => { bodies.push(JSON.parse(init.body)); return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '哟{user}，{gift}好大方哦' } }] }) }; };
+  const robot = await new LiveRobot(dir, { services: fakeServices(), fetchImpl, random: () => 0, keyStore: { get: () => 'sk-test', set: async () => {} } }).init();
+  const ask = () => bodies.at(-1).messages.at(-1).content;
+  try {
+    await robot.action({ action: 'configure', config: { max_length: 100, ai: { persona: '你是小萝卜，礼物小于1元要阴阳怪气' }, gift: { ai_all: true, tiers: [{ min: 0, max: 1, lines: '', use_ai: true, ai_style: '阴阳怪气地谢，嫌礼物小' }, { min: 1, max: null, lines: '谢谢{user}' }] } } });
+    assert.equal(robot.snapshot().config.gift.tiers[0].ai_style, '阴阳怪气地谢，嫌礼物小', '保存下来');
+    assert.equal(robot.snapshot().config.gift.tiers[1].ai_style, '');
+
+    await robot.action({ action: 'test_gift', user: '甲', gift: '小花花', value: 0.5 });
+    assert.match(ask(), /观众「甲」送了小花花×1，价值0\.5元（5电池）/);
+    assert.match(ask(), /这份礼物在「0～1元」这一档，这一档的要求必须照做：阴阳怪气地谢，嫌礼物小。语气以这条要求为准/);
+    assert.doesNotMatch(ask(), /隆重热情/, '不再叫 AI 越贵越热情，免得和这一档的要求打架');
+
+    await robot.action({ action: 'test_gift', user: '乙', gift: '大鸡腿', value: 20 });
+    assert.match(ask(), /价值20元（200电池）/);
+    assert.match(ask(), /按这次的20元来判断/, '没写要求的档：让 AI 按真实金额对照人设');
+    assert.doesNotMatch(ask(), /阴阳怪气/);
+
+    await robot.action({ action: 'gift_lines', min: 0, max: 1, style: '阴阳怪气地谢，嫌礼物小' });
+    assert.match(ask(), /语气要求（必须照做）：阴阳怪气地谢，嫌礼物小/);
+    assert.doesNotMatch(ask(), /隆重热情/);
+
+    await assert.rejects(robot.action({ action: 'configure', config: { gift: { tiers: [{ min: 0, max: null, lines: 'a', ai_style: '长'.repeat(101) }] } } }), /AI 要求/);
+  } finally { await robot.close(); await remove(dir); }
+});
+
+test('礼物价格：银瓜子礼物算免费、单价缺失用总价；礼物库没有的去直播间礼物面板查，10 分钟内不重复查', async () => {
+  const dir = await tempDir('luobo-gift-price-');
+  const services = await new ConsoleServices({ dataDir: dir, seedDir: dir }).init();
+  const urls = [];
+  services.request = async url => { urls.push(url); return { body: Buffer.from(JSON.stringify({ code: 0, data: { list: [{ id: 34999, name: '乐园星球', price: 1000, coin_type: 'gold' }, { id: 1, name: '辣条', price: 100, coin_type: 'silver' }] } })), headers: {} }; };
+  try {
+    services.liveMessage({ cmd: 'SEND_GIFT', data: { uname: '甲', uid: 2, giftId: 1, giftName: '辣条', num: 5, price: 100, coin_type: 'silver' } });
+    assert.equal(services.events[0].giftFree, true); assert.equal(services.events[0].giftPrice, undefined, '银瓜子不是钱');
+    services.liveMessage({ cmd: 'SEND_GIFT', data: { uname: '乙', uid: 3, giftId: 34999, giftName: '乐园星球', num: 2, price: 0, total_coin: 2000, coin_type: 'gold' } });
+    assert.equal(services.events[0].giftPrice, 1000, '单价缺失时用总价 / 数量');
+    services.state.live = { status: 'connected', roomId: 5050 };
+    assert.equal(await services.giftPriceOf(34999), 1000);
+    assert.equal(await services.giftPriceOf(1), 0, '面板里的银瓜子礼物算 0');
+    assert.equal(await services.giftPriceOf(424242), null, '面板里也没有');
+    assert.equal(urls.length, 1, '10 分钟内只读一次');
+    assert.match(urls[0], /giftPanel\/giftConfig\?platform=pc&room_id=5050/);
+    assert.ok(services.gifts.some(g => g.id === 34999 && g.name === '乐园星球' && g.price === 1000), '查到的新礼物合并进礼物库');
+    assert.ok(!services.gifts.some(g => g.name === '辣条'), '免费礼物不进礼物库');
+    assert.equal(services.state.gifts.count, services.gifts.length, '礼物库页面的数量跟着更新');
+    const saved = JSON.parse(await fs.readFile(path.join(dir, 'gifts.json'), 'utf8'));
+    assert.ok(saved.list.some(g => g.id === 34999), '存进 gifts.json，重启后也有');
+
+    services.roomGiftPrices = null;
+    await fs.mkdir(path.join(dir, 'images'), { recursive: true });
+    await services.syncGifts('5050');
+    assert.equal(urls.length, 2, '手动「刷新礼物库」');
+    assert.equal(await services.giftPriceOf(34999), 1000);
+    assert.equal(urls.length, 2, '手动刷新过，机器人查价直接用，不再读');
+  } finally { services.close(); await remove(dir); }
+});
+
+test('礼物库里没有的礼物：发感谢前去查价格，查到按真实金额分档；查不到算「价值不清楚」，不进任何档、不让 AI 猜金额', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: new Date('2026-11-14T12:00:00').getTime() });
+  const dir = await tempDir('luobo-unknown-price-');
+  let price = 1000;
+  const asked = [];
+  const services = fakeServices({ giftPriceOf: async id => { asked.push(id); return price; } });
+  const bodies = [];
+  const fetchImpl = async (url, init) => { bodies.push(JSON.parse(init.body)); return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '谢谢老板的乐园星球' } }] }) }; };
+  const robot = await new LiveRobot(dir, { services, fetchImpl, random: () => 0, keyStore: { get: () => 'sk-test', set: async () => {} } }).init();
+  const run = async () => { for (let i = 0; i < 4; i++) { t.mock.timers.tick(1000); await flush(); } };
+  const ask = () => bodies.at(-1).messages.at(-1).content;
+  try {
+    await robot.action({ action: 'configure', config: { enabled: true, interval_seconds: 1, max_length: 100, gift: { ai_all: true, merge_seconds: 0, min_value: 0.05, tiers: [{ min: 0, max: 1, lines: '', use_ai: true, ai_style: '阴阳怪气地谢，嫌礼物小' }, { min: 1, max: null, lines: '谢谢{user}' }] } } });
+    robot.receive({ type: 'gift', user: '甲', uid: 2, giftId: 34999, giftName: '乐园星球', count: 1, transactionId: 'a' }); await run();
+    assert.deepEqual(asked, [34999], '礼物库没有，去查价格');
+    assert.match(ask(), /价值1元（10电池）/, '查到 1 元');
+    assert.doesNotMatch(ask(), /阴阳怪气/, '1 元不在「0～1元」这一档');
+
+    price = null;
+    robot.receive({ type: 'gift', user: '乙', uid: 3, giftId: 34999, giftName: '乐园星球', count: 1, transactionId: 'b' }); await run();
+    assert.equal(bodies.length, 2, '价值不清楚也照样感谢（不被最低价值拦下）');
+    assert.match(ask(), /这份礼物的价值查不到，不要猜它值多少钱/);
+    assert.doesNotMatch(ask(), /阴阳怪气|价值0元/);
+
+    robot.receive({ type: 'gift', user: '丙', uid: 4, giftId: 10, giftName: '小花花', count: 1, transactionId: 'c' }); await run();
+    assert.deepEqual(asked, [34999, 34999], '礼物库里有的不用查');
+    assert.match(ask(), /价值0\.1元（1电池）/);
+
+    robot.receive({ type: 'gift', user: '丁', uid: 5, giftId: 1, giftName: '辣条', count: 3, giftFree: true, transactionId: 'd' }); await run();
+    assert.equal(bodies.length, 3, '免费的银瓜子礼物不到最低价值，不谢');
+    assert.deepEqual(asked, [34999, 34999], '免费礼物不用查');
   } finally { await robot.close(); await remove(dir); }
 });
