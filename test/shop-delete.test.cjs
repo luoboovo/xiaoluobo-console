@@ -26,7 +26,7 @@ test('最后一家店铺可删除到空列表，重启不补回，空列表不�
 });
 
 test('删除店铺保留安装的模板，全部店铺删除后仍可导入模板并立即出现在模板库',async t=>{
-  const folder=await dir(t);let app=await startServer({dataDir:folder});t.after(()=>app.close());
+  const folder=await dir(t);let app=await startServer({featuresOn:true, dataDir:folder});t.after(()=>app.close());
   const post=(route,body)=>fetch(app.url+route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const source=require('./fixtures/templates.cjs').templatePackage('刀削面馆-v1.0.1.luobo');
   const importResponse=await post('/api/templates/import',source);assert.equal(importResponse.status,200);const imported=await importResponse.json(),id=imported.template.id,shopId=imported.state.active_preset;
@@ -35,7 +35,7 @@ test('删除店铺保留安装的模板，全部店铺删除后仍可导入模�
   await fs.access(path.join(folder,'templates',id,'manifest.json'));
   const exported=await (await fetch(app.url+'/api/templates/'+id+'/export')).json();assert.deepEqual(exported.assets,source.assets);
   assert.equal((await post('/api/noodle/action',{action:'preset_delete',id:'saozi'})).status,200);
-  await app.close();app=await startServer({dataDir:folder});assert.equal(app.noodle.presets.length,0);assert.equal(app.noodle.templates.list().length,2);
+  await app.close();app=await startServer({featuresOn:true, dataDir:folder});assert.equal(app.noodle.presets.length,0);assert.equal(app.noodle.templates.list().length,2);
   const reinstalled=await post('/api/templates/import',source);assert.equal(reinstalled.status,200);const latest=await reinstalled.json();assert.equal(latest.state.presets.length,1);assert.equal(latest.state.templates.length,2);assert.equal(latest.state.template.id,id);
   assert.equal((await post('/api/templates/delete',{id})).status,200);assert.equal(app.noodle.activePreset,null);assert.equal(app.noodle.presets.length,0);assert.equal(app.noodle.templates.list().length,1);
 });

@@ -247,6 +247,7 @@ else syncPreviewFrames('console');
     source.addEventListener('lottery', event => window.dispatchEvent(new CustomEvent('lottery-state', {detail:JSON.parse(event.data)})));
     source.addEventListener('number-bomb', event => window.dispatchEvent(new CustomEvent('number-bomb-state', {detail:JSON.parse(event.data)})));
     source.addEventListener('robot', event => window.dispatchEvent(new CustomEvent('robot-state', {detail:JSON.parse(event.data)})));
+    source.addEventListener('features', event => renderFeatureBars(JSON.parse(event.data)));
     source.addEventListener('robot-rooms', event => window.dispatchEvent(new CustomEvent('robot-rooms', {detail:JSON.parse(event.data)})));
     source.addEventListener('overtime-clock', event => window.dispatchEvent(new CustomEvent('overtime-clock', { detail: JSON.parse(event.data) })));
     source.addEventListener('message', event => { events.unshift(JSON.parse(event.data)); events.length = Math.min(events.length, 200); scheduleEvents(); });
@@ -254,3 +255,38 @@ else syncPreviewFrames('console');
     source.onerror = () => { $('#service-dot').classList.add('off'); $('#service-label').textContent = '本地服务重连中'; };
   } catch (error) { toast(`加载失败：${error.message}`, true); }
 })();
+
+// —— 玩法总开关：每个玩法页面最上面一个，默认关着；关着时这个玩法不接直播间的礼物和弹幕 ——
+const FEATURE_VIEWS = { noodle: 'noodle-view', feeding: 'feeding-view', lottery: 'lottery-view', number_bomb: 'bomb-view', overtime: 'overtime-view' };
+const featureBusy = new Set();
+function featureBar(id) {
+  let bar = document.querySelector(`[data-feature-bar="${id}"]`);
+  if (bar) return bar;
+  const view = document.getElementById(FEATURE_VIEWS[id]);
+  if (!view) return null;
+  bar = document.createElement('div');
+  bar.className = 'feature-bar'; bar.dataset.featureBar = id;
+  bar.innerHTML = '<label class="feature-toggle"><input type="checkbox"><i class="feature-switch" aria-hidden="true"></i><b></b></label><span class="feature-text"></span>';
+  bar.querySelector('input').addEventListener('change', async event => {
+    const input = event.target, enabled = input.checked, name = bar.dataset.name || '';
+    featureBusy.add(id); input.disabled = true;
+    try { const result = await api('/api/features', { id, enabled }); renderFeatureBars(result.features); toast(`${name}已${enabled ? '打开' : '关闭'}`); }
+    catch (error) { input.checked = !enabled; toast(error.message, true); }
+    finally { featureBusy.delete(id); input.disabled = false; }
+  });
+  view.prepend(bar);
+  return bar;
+}
+function renderFeatureBars(list) {
+  if (!Array.isArray(list)) return;
+  for (const feature of list) {
+    const bar = featureBar(feature.id); if (!bar) continue;
+    const input = bar.querySelector('input');
+    bar.dataset.name = feature.name;
+    if (!featureBusy.has(feature.id)) input.checked = feature.enabled;
+    input.setAttribute('aria-label', `${feature.name}总开关`);
+    bar.classList.toggle('on', input.checked);
+    bar.querySelector('b').textContent = `${feature.name} · ${input.checked ? '已打开' : '已关闭'}`;
+    bar.querySelector('.feature-text').textContent = input.checked ? `直播间的${feature.hint}会送到这里。` : `不接直播间的礼物和弹幕，页面上的按钮照常能用。要用就打开。`;
+  }
+}

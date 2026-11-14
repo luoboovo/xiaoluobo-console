@@ -60,12 +60,25 @@
     </section>
     <section id="robot-view" hidden>
       <div class="lottery-heading"><div><div class="eyebrow">LIVE ROOM ASSISTANT</div><h1>直播间机器人<span>。</span></h1><p>欢迎进场、感谢礼物；观众 @ 它可以查盲盒记录，也能按人设聊天。</p></div><div class="lottery-output robot-power"><span id="robot-status" class="robot-status">已关闭</span><button class="button dark-button" id="robot-toggle" type="button">启动机器人</button></div></div>
+      <section class="robot-features" id="robot-features" aria-labelledby="robot-features-title">
       <div class="robot-rooms-bar">
-        <div id="robot-rooms" class="robot-rooms" role="tablist" aria-label="直播间"></div>
+        <div class="robot-rooms-row"><span class="robot-top-label">直播间</span><div id="robot-rooms" class="robot-rooms" role="tablist" aria-label="直播间"></div></div>
         <form id="robot-room-add" class="robot-room-add"><input name="room" maxlength="200" autocomplete="off" placeholder="再加一个 B站直播间：房间号或链接" aria-label="要添加的 B站直播间"><button class="button dark-button" type="submit">＋ 添加直播间</button></form>
         <p id="robot-room-tools" class="lottery-help robot-room-tools" role="status"></p>
-        <p class="lottery-help robot-room-help">每个直播间一套机器人设置（人设、表情、礼物档位、欢迎语都分开），都用控制台登录的账号发言。新加的直播间照抄当前选中直播间的设置，机器人先关着；表情包要在那个直播间里重新读取。最多再加 5 个。</p>
+        <p class="lottery-help robot-room-help">每个直播间一套设置（人设、表情、话术都分开），都用控制台登录的账号发言。新加的直播间照抄当前直播间的设置、机器人先关着，表情包要在那边重新读取。最多再加 5 个。</p>
       </div>
+        <div class="robot-features-head"><h2 id="robot-features-title">这个直播间的功能 <span id="robot-features-count">全部关着</span></h2><p class="lottery-help">默认全关，打开哪个机器人才做哪个；点一下马上生效。</p></div>
+        <div class="robot-feature-grid">
+          <label class="robot-feature"><input type="checkbox" data-feature="welcome"><i class="robot-switch" aria-hidden="true"></i><span><b>欢迎进场</b><small>欢迎进直播间的观众，好久没来的单独打招呼</small></span></label>
+          <label class="robot-feature"><input type="checkbox" data-feature="entrance"><i class="robot-switch" aria-hidden="true"></i><span><b>专属进场视频</b><small>名单里的人进来时播视频（只在主直播间）</small></span></label>
+          <label class="robot-feature"><input type="checkbox" data-feature="gift"><i class="robot-switch" aria-hidden="true"></i><span><b>感谢礼物</b><small>礼物、盲盒、大航海和醒目留言</small></span></label>
+          <label class="robot-feature"><input type="checkbox" data-feature="follow"><i class="robot-switch" aria-hidden="true"></i><span><b>感谢关注</b><small>有人关注时道谢</small></span></label>
+          <label class="robot-feature"><input type="checkbox" data-feature="blindbox"><i class="robot-switch" aria-hidden="true"></i><span><b>盲盒查询</b><small>观众发口令查自己的盲盒记录</small></span></label>
+          <label class="robot-feature"><input type="checkbox" data-feature="ai"><i class="robot-switch" aria-hidden="true"></i><span><b>AI 聊天</b><small>有人 @ 机器人时用 AI 回复</small></span></label>
+          <label class="robot-feature"><input type="checkbox" data-feature="cue"><i class="robot-switch" aria-hidden="true"></i><span><b>点名冒泡</b><small>定时 @ 进场后一直没说话的观众</small></span></label>
+          <label class="robot-feature"><input type="checkbox" data-feature="scene_command"><i class="robot-switch" aria-hidden="true"></i><span><b>@ 切换场景</b><small>观众 @ 机器人开关直播场景</small></span></label>
+        </div>
+      </section>
       <div class="lottery-workspace robot-workspace">
         <div class="lottery-main">
           <article class="lottery-card"><div class="lottery-card-title"><h2>发言记录 <span id="robot-outbox">0 条待发</span></h2><button class="text-button" id="robot-clear-log" type="button">清空记录</button></div><p id="robot-note" class="lottery-help robot-note" role="status"></p><ol id="robot-log" class="robot-log"><li class="lottery-empty">还没有发言。启动后，欢迎、感谢和回复都会记在这里。</li></ol></article>
@@ -103,8 +116,7 @@
               <div class="lottery-field-pair"><label>一条弹幕最多几个字<input name="max_length" type="number" min="10" max="100" step="1" required></label><label>发言间隔 / 秒<input name="interval_seconds" type="number" min="1" max="30" step="0.5" required></label></div>
               <p class="lottery-help">超过这个字数的话会拆成几条发。B站普通账号一条最多 20 个字；你的账号能发更长就调大（最多 100），但别超过账号实际能发的，不然 B站会拒收。AI 写的话（聊天、点名、礼物感谢、打call）都不会超过这个字数，一条发完。</p>
             </article>
-            <article class="lottery-card"><div class="lottery-card-title"><h2>欢迎进场</h2><span class="lottery-step">02</span></div>
-              <label class="lottery-check"><input type="checkbox" name="welcome.enabled">欢迎进入直播间的观众</label>
+            <article class="lottery-card"><div class="lottery-card-title"><h2>欢迎进场 <span class="robot-off-tag" data-off="welcome" hidden>未开启</span></h2><span class="lottery-step">02</span></div>
               <label>欢迎语<input name="welcome.template" maxlength="60" required autocomplete="off"></label>
               <div class="lottery-field-pair"><label>合并 / 秒<input name="welcome.merge_seconds" type="number" min="0" max="60" step="1" required></label><label>同一人间隔 / 分<input name="welcome.user_cooldown_minutes" type="number" min="0" max="1440" step="1" required></label></div>
               <p class="lottery-help">{user} 是观众昵称。几秒内进来多人时合并成一句。</p>
@@ -112,10 +124,9 @@
               <label>好久不见的欢迎语<input name="welcome.back_template" maxlength="60" required autocomplete="off"></label>
               <p class="lottery-help">{ago} 多久没来（比如「3天」「2个月」），{days} 天数。控制台会记住每位观众最后一次进场、说话或送礼的时间，隔了这么久再来就单独打招呼（一次最多 3 位，其余并进普通欢迎）。从这个版本开始记，第一次见到的观众先用普通欢迎语。</p>
             </article>
-            <article class="lottery-card"><div class="lottery-card-title"><h2>专属进场视频</h2><span class="lottery-step">VIP</span></div>
+            <article class="lottery-card"><div class="lottery-card-title"><h2>专属进场视频 <span class="robot-off-tag" data-off="entrance" hidden>未开启</span></h2><span class="lottery-step">VIP</span></div>
               <p id="robot-entrance-off" class="lottery-help" hidden>专属进场视频只在主直播间可用（视频在你自己的直播画面里播）。</p>
               <div id="robot-entrance-body">
-                <label class="lottery-check"><input type="checkbox" name="entrance.enabled">名单里的人进直播间时播放专属视频</label>
                 <label>同一个人多久内不重复播 / 分<input name="entrance.cooldown_minutes" type="number" min="0" max="1440" step="1" required></label>
                 <div class="robot-tiers-head"><span>名单（按 UID 认人）</span><button type="button" class="text-button" id="robot-entrance-add">加一个人 ＋</button></div>
                 <div id="robot-entrance-list" class="robot-tiers"></div>
@@ -125,8 +136,7 @@
                 <p class="lottery-help">按 UID 认人，改昵称、戴装扮都能认出来。UID 是对方 B站个人空间网址里的那串数字；不知道的话用上面的「按昵称找」：先列出来过你直播间的观众，再列 B站搜索结果，同名的看头像、等级和粉丝数分辨。也可以从「最近进场的观众」里直接选。视频和礼物素材在同一个地方播（桌面版的素材小窗，或 OBS 浏览器源 <code>http://127.0.0.1:3181/overtime/?media=1</code>），会排队不叠在一起，加班机没开也播；音量跟着加班机的素材音量。对方用「神秘人」进场时 B站不给 UID，这时认不出来。</p>
               </div>
             </article>
-            <article class="lottery-card"><div class="lottery-card-title"><h2>感谢礼物</h2><span class="lottery-step">03</span></div>
-              <label class="lottery-check"><input type="checkbox" name="gift.enabled">感谢礼物、盲盒、大航海和醒目留言</label>
+            <article class="lottery-card"><div class="lottery-card-title"><h2>感谢礼物 <span class="robot-off-tag" data-off="gift" hidden>未开启</span></h2><span class="lottery-step">03</span></div>
               <label class="lottery-check"><input type="checkbox" name="gift.ai_all">每个礼物都用 AI 谢（严格按「AI 聊天」里的人设）</label>
               <p class="lottery-help robot-note" id="robot-gift-ai-note"></p>
               <div class="robot-tiers-head"><span>礼物（按总金额分档）</span><button type="button" class="text-button" id="robot-tier-add">加一档 ＋</button></div>
@@ -137,19 +147,16 @@
               <div class="lottery-field-pair"><label>连击合并 / 秒<input name="gift.merge_seconds" type="number" min="0" max="30" step="0.5" required></label><label>最低价值 / 元<input name="gift.min_value" type="number" min="0" max="100000" step="0.1" required></label></div>
               <label>大礼物 / 元（达到后用「谢大礼物」表情，0 为不区分）<input name="gift.big_value" type="number" min="0" max="100000" step="1" required></label>
               <p class="lottery-help">{user} 观众，{gift} 礼物（盲盒里是开出的礼物），{box} 盲盒名，{count} 数量，{value} 金额（元，只能用在分档话术里）。连击会先合并再按总金额选档：每档含起点、不含上限（比如 10～100 元里有 10 元，没有 100 元），最高一档上限空着就是不封顶；不在任何档位里的礼物用默认一句「谢谢{user}送的{gift}×{count}」。醒目留言也按金额分档，盲盒和大航海用各自那一句。勾「AI 现写」的档每次让模型现写一句，AI 出错或送礼太密时用写好的话术。打开「每个礼物都用 AI 谢」后，所有礼物、盲盒、大航海和醒目留言都由 AI 按人设现写，送礼密的时候排队等 AI，不换成话术；只有 AI 出错时才用写好的话术，日志里会标出来。想让不同金额的礼物用不同语气（比如不到 1 元、也就是 10 电池以下的阴阳怪气），就把这个金额单独设一档，在这一档的「AI 要求」里写上：礼物落在哪一档由程序判断，AI 只管照着这一档的要求写，比写在人设里可靠。</p>
-              <label class="lottery-check robot-gap"><input type="checkbox" name="follow.enabled">感谢关注</label>
-              <label>关注<input name="follow.template" maxlength="60" required autocomplete="off"></label>
+              <label class="robot-gap">关注 <span class="robot-off-tag" data-off="follow" hidden>未开启</span><input name="follow.template" maxlength="60" required autocomplete="off"></label>
             </article>
-            <article class="lottery-card"><div class="lottery-card-title"><h2>盲盒查询</h2><span class="lottery-step">04</span></div>
-              <label class="lottery-check"><input type="checkbox" name="blindbox.enabled">观众发口令查询自己的盲盒记录</label>
+            <article class="lottery-card"><div class="lottery-card-title"><h2>盲盒查询 <span class="robot-off-tag" data-off="blindbox" hidden>未开启</span></h2><span class="lottery-step">04</span></div>
               <label>查询口令<input name="blindbox.keyword" maxlength="20" required autocomplete="off"></label>
               <label class="lottery-check"><input type="checkbox" name="blindbox.require_mention">需要 @ 机器人才回复</label>
               <label>回复<textarea name="blindbox.template" rows="3" maxlength="120" required></textarea></label>
               <label>没有记录时<input name="blindbox.empty_template" maxlength="60" required autocomplete="off"></label>
               <p class="lottery-help">{count} {cost} {value} {profit} 是累计的个数、投入、开出、盈亏；加 today_ 前缀是今天的，例如 {today_count}。</p>
             </article>
-            <article class="lottery-card"><div class="lottery-card-title"><h2>AI 聊天</h2><span class="lottery-step">05</span></div>
-              <label class="lottery-check"><input type="checkbox" name="ai.enabled">@ 机器人时用 AI 回复</label>
+            <article class="lottery-card"><div class="lottery-card-title"><h2>AI 聊天 <span class="robot-off-tag" data-off="ai" hidden>未开启</span></h2><span class="lottery-step">05</span></div>
               <label>AI 服务商<select name="ai.provider" id="robot-provider"></select></label>
               <p class="lottery-help robot-provider-note" id="robot-provider-note"></p>
               <label id="robot-base-label" hidden>服务地址<input name="ai.base_url" maxlength="300" autocomplete="off" placeholder="https://…/v1"></label>
@@ -161,8 +168,7 @@
               <div class="lottery-field-pair"><label>AI 回复最多几个字<input name="ai.max_chars" type="number" min="10" max="200" step="1" required></label><label>每人间隔 / 秒<input name="ai.user_cooldown_seconds" type="number" min="0" max="600" step="1" required></label></div>
               <p class="lottery-help">谁 @ 机器人就回复谁。「AI 回复最多几个字」比「一条弹幕最多几个字」大时，按后者算。每家服务商的 Key 分开加密保存在本机；免费模型的名单和次数限制由服务商决定，可能随时调整。</p>
             </article>
-            <article class="lottery-card"><div class="lottery-card-title"><h2>点名冒泡</h2><span class="lottery-step">06</span></div>
-              <label class="lottery-check"><input type="checkbox" name="cue.enabled">定时 @ 进场后一直没说话的观众</label>
+            <article class="lottery-card"><div class="lottery-card-title"><h2>点名冒泡 <span class="robot-off-tag" data-off="cue" hidden>未开启</span></h2><span class="lottery-step">06</span></div>
               <p>机器人记下谁进了直播间、谁说过话或送过礼。进场满一段时间还一句话没说的，会被隔一阵 @ 一位，优先最近进来的人。</p>
               <div class="lottery-field-pair"><label>点名间隔 / 分<input name="cue.interval_minutes" type="number" min="0.5" max="120" step="0.5" required></label><label>没说话多久 / 分<input name="cue.silent_minutes" type="number" min="1" max="240" step="1" required></label></div>
               <div class="lottery-field-pair"><label>进场多久内 / 分<input name="cue.active_minutes" type="number" min="5" max="600" step="1" required></label><label>同一人间隔 / 分<input name="cue.user_cooldown_minutes" type="number" min="0" max="1440" step="1" required></label></div>
@@ -172,8 +178,7 @@
               <p class="lottery-help">话术前面会自动 @ 对方，一般不用再写 {user}。「进场多久内」之外的人可能已经离开，不会被点到。</p>
               <div class="robot-cue-status"><p id="robot-cue-status" class="lottery-help">还没记录到观众进场。</p><button class="button dark-button" id="robot-cue-random" type="button">🎲 随机点名一次</button><p class="lottery-help robot-cue-random-note">从房间里的观众中随便抽一位 @ 一下，说没说过话都可能被点到，不用打开定时点名。</p></div>
             </article>
-            <article class="lottery-card"><div class="lottery-card-title"><h2>@ 切换场景</h2><span class="lottery-step">07</span></div>
-              <label class="lottery-check"><input type="checkbox" name="scene_command.enabled">可以 @机器人 开关直播场景</label>
+            <article class="lottery-card"><div class="lottery-card-title"><h2>@ 切换场景 <span class="robot-off-tag" data-off="scene_command" hidden>未开启</span></h2><span class="lottery-step">07</span></div>
               <p>比如发「@机器人 开启唱歌模式」「@机器人 唱歌打call」就开始「唱歌」场景，「@机器人 关闭打call」就停下。场景名要和「直播场景」里的一致。</p>
               <label>谁可以切换<select name="scene_command.who"><option value="admin">主播、房管和下面名单里的人</option><option value="all">所有观众</option></select></label>
               <label>额外允许的观众（昵称或 UID，用逗号或换行隔开）<textarea name="scene_command.users" rows="2" maxlength="500" placeholder="选「所有观众」时不用填"></textarea></label>

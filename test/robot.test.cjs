@@ -7,7 +7,18 @@ const { EventEmitter } = require('node:events');
 const { danmuReply, mentionOf } = require('../lib/protocol.cjs');
 const { ConsoleServices } = require('../lib/services.cjs');
 const { decodeFrame, field, varint } = require('../lib/douyin.cjs');
-const { LiveRobot, splitText, cleanReply, normalizeConfig, DEFAULTS } = require('../lib/robot.cjs');
+const { LiveRobot: BaseRobot, splitText, cleanReply, normalizeConfig, DEFAULTS } = require('../lib/robot.cjs');
+// 下面的用例是按旧默认（欢迎、谢礼物、谢关注、盲盒查询、@切场景、进场视频都开着）写的。
+// 功能开关改成默认全关后，第一次建机器人时在这里把这几个打开；重启读回来的照存下的来。
+const OLD_DEFAULT_ON = ['welcome', 'gift', 'follow', 'blindbox', 'scene_command', 'entrance'];
+class LiveRobot extends BaseRobot {
+  async init() {
+    const fresh = await fs.access(this.file).then(() => false, () => true);
+    await super.init();
+    if (fresh) this.config = normalizeConfig(Object.fromEntries(OLD_DEFAULT_ON.map(key => [key, { enabled: true }])), this.config);
+    return this;
+  }
+}
 
 const tempDir = prefix => fs.mkdtemp(path.join(os.tmpdir(), prefix));
 const remove = dir => fs.rm(dir, { recursive: true, force: true });
@@ -1108,4 +1119,37 @@ test('礼物库里没有的礼物：发感谢前去查价格，查到按真实�
     assert.equal(bodies.length, 3, '免费的银瓜子礼物不到最低价值，不谢');
     assert.deepEqual(asked, [34999, 34999], '免费礼物不用查');
   } finally { await robot.close(); await remove(dir); }
+});
+
+test('功能开关：默认全关，开哪个只开哪个、重启后记得；旧版配置（功能默认开着）升级后先全部关掉，再开不会被关回去', async () => {
+  const { FEATURES } = require('../lib/robot.cjs');
+  assert.deepEqual(FEATURES, ['welcome', 'entrance', 'gift', 'follow', 'blindbox', 'ai', 'cue', 'scene_command']);
+  const fresh = normalizeConfig({});
+  for (const key of FEATURES) assert.equal(fresh[key].enabled, false, key + ' 默认关着');
+  const dir = await tempDir('luobo-switches-');
+  const sent = [];
+  const services = Object.assign(new EventEmitter(), { platform: 'bilibili', selfUid: 1, gifts: [{ id: 1, name: '小花花', price: 100 }], state: { live: { status: 'connected' }, account: { loggedIn: true, name: '萝卜机器人' } }, async sendChat(text) { sent.push(text); return { ok: true }; } });
+  try {
+    // 旧版存下的配置：没有 switches，欢迎、谢礼物等开着。
+    await fs.writeFile(path.join(dir, 'robot.json'), JSON.stringify({ enabled: true, welcome: { enabled: true, template: '欢迎{user}呀' }, gift: { enabled: true }, follow: { enabled: true }, ai: { enabled: true, persona: '旧人设' } }));
+    let robot = await new BaseRobot(dir, { services }).init();
+    const c = robot.snapshot().config;
+    for (const key of FEATURES) assert.equal(c[key].enabled, false, key + ' 升级后关掉');
+    assert.equal(c.enabled, true, '机器人总开关不动'); assert.equal(c.welcome.template, '欢迎{user}呀', '话术留着'); assert.equal(c.ai.persona, '旧人设');
+    robot.receive({ type: 'member', user: '甲', uid: 2 });
+    robot.receive({ type: 'gift', user: '乙', uid: 3, giftId: 1, gift: '小花花', count: 1, giftPrice: 100 });
+    await robot.close();
+    assert.equal(robot.outbox.length + sent.length, 0, '全关时什么都不发');
+
+    robot = await new BaseRobot(dir, { services }).init();
+    assert.equal(robot.snapshot().config.welcome.enabled, false, '没打开过的重启后还是关着');
+    await robot.action({ action: 'configure', config: { gift: { enabled: true } } });
+    let next = robot.snapshot().config;
+    assert.equal(next.gift.enabled, true); assert.equal(next.welcome.enabled, false, '只开了谢礼物'); assert.equal(next.switches, 1);
+    await robot.close();
+    robot = await new BaseRobot(dir, { services }).init();
+    next = robot.snapshot().config;
+    assert.equal(next.gift.enabled, true, '打开的重启后不会被关回去'); assert.equal(next.welcome.enabled, false);
+    await robot.close();
+  } finally { await remove(dir); }
 });

@@ -72,7 +72,7 @@ test('WBI 签名稳定且不修改输入', () => {
 test('本机服务：数据读写、配置验证、跨来源保护与断线状态', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'xiaoluobo-test-'));
   await atomicJson(path.join(dir, 'gifts.json'), { list: [{ id: 1, name: '小花花', price: 100, coinType: 'gold', icon: '' }], updatedAt: null });
-  const runtime = await startServer({ dataDir: dir, seedDir: dir });
+  const runtime = await startServer({featuresOn:true, dataDir: dir, seedDir: dir });
   try {
     const response = await fetch(runtime.url); assert.equal(response.status, 200); assert.match(await response.text(), /小萝卜游戏控制台/);
     const icon = await fetch(runtime.url + '/app-icon.png'); assert.equal(icon.status, 200); assert.equal(icon.headers.get('content-type'), 'image/png');

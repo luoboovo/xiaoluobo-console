@@ -83,7 +83,7 @@ test('吃吃吃同一音效复用一个播放器，最多保留 8 个，切平�
 
 test('面馆画面连接只在模板、配置、模板列表或店铺列表变化时收到它们，控制台始终收到完整快照', async t => {
   const os = require('node:os'), { WebSocket } = require('ws'), { startServer } = require('../server.cjs');
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(),'luobo-noodle-push-')), runtime = await startServer({ dataDir:dir }), sockets = [];
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(),'luobo-noodle-push-')), runtime = await startServer({featuresOn:true, dataDir:dir }), sockets = [];
   t.after(async () => { for (const ws of sockets) ws.terminate(); await runtime.close(); await fs.rm(dir,{ recursive:true, force:true }); });
   const open = query => new Promise((resolve, reject) => {
     const ws = new WebSocket(runtime.url.replace('http:','ws:')+'/api/events/socket?'+query,{ origin:runtime.url }), frames = [];

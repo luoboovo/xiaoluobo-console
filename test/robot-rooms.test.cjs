@@ -95,7 +95,7 @@ test('多直播间：加直播间照抄设置（先不启动），各自的人�
   let rooms = await new RobotRooms({ services, dataDir: dir, main, robotOptions: { random: () => 0 }, createLink: fakeLinks(log) }).init();
   const run = async () => { for (let i = 0; i < 4; i++) { t.mock.timers.tick(1000); await flush(); } };
   try {
-    await main.action({ action: 'configure', config: { enabled: true, ai: { persona: '主直播间的人设' }, gift: { merge_seconds: 0 } } });
+    await main.action({ action: 'configure', config: { enabled: true, ai: { persona: '主直播间的人设' }, gift: { enabled: true, merge_seconds: 0 } } });
     assert.deepEqual((await rooms.action({ action: 'list' })).rooms.map(r => [r.id, r.main, r.status]), [['main', true, 'connected']]);
 
     const added = await rooms.action({ action: 'add', room: '123', copy_from: 'main' });
@@ -143,7 +143,7 @@ test('多直播间：加直播间照抄设置（先不启动），各自的人�
 test('多直播间接口：加直播间、按直播间读写机器人设置、推送状态带直播间编号', async () => {
   const dir = await tempDir('luobo-rooms-server-');
   const log = [];
-  const runtime = await startServer({ dataDir: dir, seedDir: dir, robotLink: fakeLinks(log) });
+  const runtime = await startServer({featuresOn:true, dataDir: dir, seedDir: dir, robotLink: fakeLinks(log) });
   const post = async (url, body) => { const response = await fetch(runtime.url + url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const json = await response.json(); if (!response.ok) throw new Error(json.error || response.status); return json; };
   try {
     const added = await post('/api/robot/rooms', { action: 'add', room: '321', copy_from: 'main' });

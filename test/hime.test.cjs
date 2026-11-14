@@ -52,7 +52,7 @@ test('直播姬本机导入：运行中拒绝、备份原文、账号验证、�
     await fs.writeFile(file, before); let checks = 0;
     const changed = new HimeIntegration('http://127.0.0.1:3181', { root: dir, running: async () => ++checks > 1 });
     await assert.rejects(changed.run({ profile }), /已更新/); assert.equal(await fs.readFile(file, 'utf8'), before);
-    runtime = await startServer({ dataDir: path.join(dir, 'app'), seedDir: path.join(dir, 'app'), himeOptions: { root: dir, running: async () => false } });
+    runtime = await startServer({featuresOn:true, dataDir: path.join(dir, 'app'), seedDir: path.join(dir, 'app'), himeOptions: { root: dir, running: async () => false } });
     const status = await (await fetch(runtime.url + '/api/hime/status')).json(); assert.deepEqual(status.profiles, [{ id: profile }]);
     const post = (body, origin) => fetch(runtime.url + '/api/hime/import', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(origin ? { Origin: origin } : {}) }, body: JSON.stringify(body) });
     assert.equal((await post({ profile }, 'https://evil.com')).status, 403); assert.equal(await fs.readFile(file, 'utf8'), before);

@@ -127,7 +127,7 @@ test('全部重置恢复初始时间与清空锁，并同步清空及保存全�
 test('服务整合：真实新旧礼物共用直播连接，事件同步、跨来源保护与浮窗页面', async t => {
   const {dir} = await fixture(t);
   await atomicJson(path.join(dir,'seed','gifts.json'),{list:[],updatedAt:null});
-  const runtime = await startServer({dataDir:path.join(dir,'runtime'),seedDir:path.join(dir,'seed')});
+  const runtime = await startServer({featuresOn:true, dataDir:path.join(dir,'runtime'),seedDir:path.join(dir,'seed')});
   try {
     const post = async input => fetch(runtime.url+'/api/overtime/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)});
     assert.equal((await post({action:'start'})).status,200);

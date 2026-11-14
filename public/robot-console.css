@@ -1,6 +1,9 @@
 .robot-workspace{grid-template-columns:minmax(0,1fr) 340px}
 .robot-workspace>*{min-width:0}
-.robot-rooms-bar{display:flex;flex-direction:column;gap:8px;margin:0 0 16px}
+.robot-rooms-bar{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,360px);align-items:center;gap:8px 16px;margin:0 0 14px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.robot-rooms-bar>p{grid-column:1/-1}
+.robot-rooms-row{display:flex;align-items:center;gap:10px;min-width:0}
+.robot-top-label{flex:none;font-size:13px;font-weight:600;color:var(--text)}
 .robot-rooms{display:flex;flex-wrap:wrap;gap:8px}
 .robot-room-chip{display:flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface-soft);border-radius:12px;padding:8px 12px;font-size:12px;color:var(--text);cursor:pointer;max-width:260px}
 .robot-room-chip b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
@@ -9,7 +12,7 @@
 .robot-room-dot{width:7px;height:7px;border-radius:50%;background:#acb8c4;flex:none}
 .robot-room-dot.connected{background:#6fa185}.robot-room-dot.connecting,.robot-room-dot.reconnecting{background:#d1b06a}.robot-room-dot.error{background:#c98587}
 .robot-room-add{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.robot-room-add input{flex:1;min-width:200px;margin:0;padding:10px 11px;border:1px solid var(--line);border-radius:9px;font:inherit;font-size:12px;color:var(--text);background:var(--surface)}
+.robot-room-add input{flex:1;min-width:0;margin:0;padding:10px 11px;border:1px solid var(--line);border-radius:9px;font:inherit;font-size:12px;color:var(--text);background:var(--surface)}
 .robot-room-add .button{min-height:38px;padding:8px 16px;white-space:nowrap}
 .robot-room-tools{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:0!important;overflow-wrap:anywhere}
 .robot-room-tools:empty{display:none}
@@ -150,3 +153,33 @@
 body.dark .robot-status.on{background:#32493f;color:#9fceb5}
 @media(max-width:1080px){.robot-workspace{grid-template-columns:minmax(0,1fr) 300px}}
 @media(max-width:760px){.robot-workspace{grid-template-columns:1fr}.lottery-sidebar.robot-sidebar{display:flex}.robot-power{width:100%;justify-content:space-between}}
+
+/* 功能开关：机器人页最上面，每个功能一个开关，默认全关 */
+.robot-features{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:16px 18px;margin:0 0 18px;min-width:0}
+.robot-features-head{display:flex;align-items:baseline;justify-content:space-between;gap:6px 16px;flex-wrap:wrap;margin-bottom:12px}
+.robot-features-head h2{margin:0;font-size:15px;display:flex;align-items:center;gap:8px}
+.robot-features-head p{margin:0}
+#robot-features-count{font-size:11px;font-weight:500;color:var(--muted);background:var(--surface-soft);border-radius:20px;padding:3px 9px}
+#robot-features-count.on{color:#589376;background:#edf7f0}
+.robot-feature-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media(max-width:1100px){.robot-feature-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:900px){.robot-rooms-bar{grid-template-columns:1fr}}
+.robot-feature{display:flex;align-items:flex-start;gap:10px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--surface-soft);cursor:pointer;min-width:0;transition:border-color .15s,background .15s}
+.robot-feature:hover{border-color:#8db1d1}
+.robot-feature input{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
+.robot-feature>span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.robot-feature b{font-size:13px;font-weight:600;color:var(--text)}
+.robot-feature small{font-size:11px;line-height:1.45;color:var(--muted)}
+.robot-switch{flex:none;position:relative;width:34px;height:20px;border-radius:20px;background:#cfd8e1;margin-top:1px;transition:background .15s}
+.robot-switch:after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0003;transition:transform .15s}
+.robot-feature input:checked+.robot-switch{background:#6fa185}
+.robot-feature input:checked+.robot-switch:after{transform:translateX(14px)}
+.robot-feature:has(input:checked){background:var(--surface);border-color:#9cc5ae}
+.robot-feature input:focus-visible+.robot-switch{outline:2px solid #8db1d1;outline-offset:2px}
+.robot-feature input:disabled+.robot-switch{opacity:.6}
+.robot-feature.unavailable{cursor:not-allowed;opacity:.55}
+.robot-off-tag{font-size:10px;font-weight:500;color:#a7787a;background:#f8eded;border-radius:20px;padding:2px 8px;margin-left:6px;vertical-align:middle}
+body.dark #robot-features-count.on{background:#32493f;color:#9fceb5}
+body.dark .robot-switch{background:#4a5560}
+body.dark .robot-off-tag{background:#4a3436;color:#e0aeb0}
+@media(max-width:520px){.robot-feature-grid{grid-template-columns:1fr}}

@@ -121,7 +121,7 @@ test('OBS：虚拟摄像机重复启动幂等，启动失败不报告成功', as
 });
 
 test('OBS HTTP 入口：跨来源拒绝，输出不含密码，导入绑定控制台当前地址', async t => {
-  const f = await fixture(t); const runtime = await startServer({ dataDir: f.dir, seedDir: f.dir, obsOptions: { configPath: f.configPath, WebSocketImpl: f.FakeSocket } });
+  const f = await fixture(t); const runtime = await startServer({featuresOn:true, dataDir: f.dir, seedDir: f.dir, obsOptions: { configPath: f.configPath, WebSocketImpl: f.FakeSocket } });
   try {
     const denied = await fetch(runtime.url + '/api/obs/import', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://evil.com' }, body: '{}' }); assert.equal(denied.status, 403); assert.equal(f.scenes.size, 1);
     const response = await fetch(runtime.url + '/api/obs/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); assert.equal(response.status, 200);

@@ -123,7 +123,7 @@ test('招牌：兼容旧配置、空白可隐藏、限制长度与类型、拒�
 test('本机集成：B站礼物直接排队、游戏状态、配置持久保存、三层地址和安全边界', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'xiaoluobo-noodle-'));
   await fs.writeFile(path.join(dir, 'gifts.json'), JSON.stringify({ list: [{ id: 1, name: '小花花', icon: '', price: 0 }] }));
-  const runtime = await startServer({ dataDir: dir, seedDir: dir });
+  const runtime = await startServer({featuresOn:true, dataDir: dir, seedDir: dir });
   const post = input => fetch(runtime.url + '/api/noodle/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
   try {
     await post({ action: 'start' });

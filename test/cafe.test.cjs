@@ -98,13 +98,13 @@ test('咖啡厅模板素材可导出、按需安装，服务器重启保留原�
   assert.deepEqual(exported.assets,data.assets);
   const noMilk={...data,assets:{...data.assets}};delete noMilk.assets.milk;
   await assert.rejects(f.library.install(noMilk),/缺少/);
-  const dataDir=path.join(f.dir,'server');let app=await startServer({dataDir});t.after(()=>app.close());
+  const dataDir=path.join(f.dir,'server');let app=await startServer({featuresOn:true, dataDir});t.after(()=>app.close());
   assert.equal(app.noodle.presets.length,1);assert.equal(app.noodle.activePreset,'saozi');
   const imported=await fetch(app.url+'/api/templates/import',{method:'POST',headers:{'Content-Type':'application/json'},body:source});assert.equal(imported.status,200);await imported.json();
   const cafe=app.noodle.presets.find(p=>p.name==='茉莉咖啡厅');assert.equal(app.noodle.activePreset,cafe.id);
   const config=structuredClone(app.noodle.config);config.layout.props.milk.x=30;config.sign.title='我的咖啡厅';await app.noodle.save(config);
   const res=await fetch(app.url+'/api/templates/'+cafe.config.template_id+'/assets/coffee_machine.png');assert.equal(res.status,200);await res.arrayBuffer();
-  await app.close();app=await startServer({dataDir});assert.equal(app.noodle.presets.length,2);assert.equal(app.noodle.activePreset,cafe.id);assert.deepEqual(app.noodle.config,config);
+  await app.close();app=await startServer({featuresOn:true, dataDir});assert.equal(app.noodle.presets.length,2);assert.equal(app.noodle.activePreset,cafe.id);assert.deepEqual(app.noodle.config,config);
 });
 
 test('臭鸡蛋或臭生菜入杯变成邪恶咖啡，不能洗掉或继续加料，递餐后顾客拒绝',async t=>{
@@ -164,13 +164,13 @@ test('程序升级保留已安装旧咖啡厅，不自动安装或替换独立�
   const id=oldShop.activePreset,custom=structuredClone(oldShop.config);
   custom.cook_seconds=3;custom.gift_id=123;custom.gift_name='我的点单礼物';custom.sign.title='我的招牌';custom.layout.modules.counter.x=185;
   await oldShop.save(custom);
-  const app=await startServer({dataDir:f.dir});t.after(()=>app.close());
+  const app=await startServer({featuresOn:true, dataDir:f.dir});t.after(()=>app.close());
   assert.equal(app.noodle.activePreset,id);assert.equal(app.noodle.template().version,'1.0.0');assert.equal(app.noodle.config.cook_seconds,3);
   assert.equal(app.noodle.config.gift_id,123);assert.equal(app.noodle.config.sign.title,'我的招牌');assert.deepEqual(app.noodle.config.layout,custom.layout);
   assert.equal(app.noodle.config.template_id,legacy.id);
   for(const key of ['gift_id','gift_name','layout','sign','cook_seconds','people_per_gift','template_id'])assert.deepEqual(app.noodle.config[key],custom[key]);
   assert.ok(app.noodle.config.thief_gift?.gift_id);assert.equal(app.noodle.config.water_gift,null);
-  const count=app.noodle.presets.length;await app.close();const reload=await startServer({dataDir:f.dir});t.after(()=>reload.close());assert.equal(reload.noodle.presets.length,count);assert.equal(reload.noodle.activePreset,id);
+  const count=app.noodle.presets.length;await app.close();const reload=await startServer({featuresOn:true, dataDir:f.dir});t.after(()=>reload.close());assert.equal(reload.noodle.presets.length,count);assert.equal(reload.noodle.activePreset,id);
 });
 
 test('咖啡厅客户端只将咖啡、茉莉花和牛奶齐全的杯子标为成品',()=>{

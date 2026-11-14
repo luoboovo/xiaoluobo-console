@@ -4,7 +4,7 @@ import {probe} from './overtime-console.js';
 
 const form=$('#robot-settings'),testForm=$('#robot-test-form');
 // 表单字段与配置路径一一对应；数字字段提交时转成数字。
-const FIELDS=['names','max_length','interval_seconds','welcome.enabled','welcome.template','welcome.merge_seconds','welcome.user_cooldown_minutes','welcome.back_days','welcome.back_template','gift.enabled','gift.ai_all','gift.blind_template','gift.guard_template','gift.merge_seconds','gift.min_value','gift.big_value','follow.enabled','follow.template','blindbox.enabled','blindbox.keyword','blindbox.require_mention','blindbox.template','blindbox.empty_template','ai.enabled','ai.provider','ai.base_url','ai.model','ai.persona','ai.max_chars','ai.user_cooldown_seconds','cue.enabled','cue.interval_minutes','cue.silent_minutes','cue.active_minutes','cue.user_cooldown_minutes','cue.templates','cue.random_templates','cue.use_ai','scene_command.enabled','scene_command.who','scene_command.users','entrance.enabled','entrance.cooldown_minutes'];
+const FIELDS=['names','max_length','interval_seconds','welcome.template','welcome.merge_seconds','welcome.user_cooldown_minutes','welcome.back_days','welcome.back_template','gift.ai_all','gift.blind_template','gift.guard_template','gift.merge_seconds','gift.min_value','gift.big_value','follow.template','blindbox.keyword','blindbox.require_mention','blindbox.template','blindbox.empty_template','ai.provider','ai.base_url','ai.model','ai.persona','ai.max_chars','ai.user_cooldown_seconds','cue.interval_minutes','cue.silent_minutes','cue.active_minutes','cue.user_cooldown_minutes','cue.templates','cue.random_templates','cue.use_ai','scene_command.who','scene_command.users','entrance.cooldown_minutes'];
 const KINDS={welcome:'欢迎',gift:'谢礼',guard:'大航海',follow:'关注',query:'盲盒',ai:'AI',manual:'手动',cue:'点名',scene:'场景',like:'点赞',entrance:'进场'};
 const STATUS={queued:'待发送',sending:'发送中',sent:'已发送',failed:'失败',skipped:'已跳过',preview:'仅显示'};
 const time=new Intl.DateTimeFormat('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
@@ -59,7 +59,7 @@ function render(next){
   giftAiNote.hidden=!giftAiNote.textContent;
   $('#robot-like-note').textContent=robot.likes_today?`今天已经点了 ${robot.likes_today} 个赞（从这次打开控制台算起）。`:'今天还没点赞。';
   $('#robot-like-form button').disabled=pending;
-  renderBlind();renderImport();renderSlots();renderCue();renderScenes();renderRecent();note();
+  renderFeatures();renderBlind();renderImport();renderSlots();renderCue();renderScenes();renderRecent();note();
   if(robot.aiReady&&!modelsTried&&modelProvider===robot.config.ai.provider){modelsTried=true;loadModels(false);}
 }
 // —— AI 服务商：下拉里免费的排前面；切换后先存服务商，再读这家的模型 ——
@@ -102,6 +102,29 @@ async function loadModels(report=true){
   finally{button.disabled=false;}
 }
 // —— 直播场景：在页面上编辑草稿，点「保存场景」才生效；表情直接用已保存的那份 ——
+// —— 功能开关：在页面最上面，点一下马上存，不跟着下面的设置表单（表单保存时也不带这些开关）——
+const featureBox=$('#robot-features'),featureBusy=new Set();
+function renderFeatures(){
+  let on=0;
+  for(const input of featureBox.querySelectorAll('[data-feature]')){
+    const key=input.dataset.feature,busy=featureBusy.has(key),off=key==='entrance'&&robot.can_entrance===false;
+    if(!busy)input.checked=!!robot.config[key]?.enabled;
+    input.disabled=busy||off;
+    const item=input.closest('.robot-feature');item.classList.toggle('unavailable',off);item.title=off?'专属进场视频只在主直播间可用':'';
+    if(input.checked&&!off)on++;
+  }
+  $('#robot-features-count').textContent=on?`开了 ${on} 个`:'全部关着';
+  $('#robot-features-count').classList.toggle('on',on>0);
+  for(const tag of document.querySelectorAll('#robot-view [data-off]'))tag.hidden=!!robot.config[tag.dataset.off]?.enabled;
+}
+featureBox.addEventListener('change',async event=>{
+  const input=event.target.closest('[data-feature]');if(!input||!robot)return;
+  const key=input.dataset.feature,enabled=input.checked,name=input.closest('.robot-feature').querySelector('b').textContent;
+  featureBusy.add(key);input.disabled=true;
+  try{const result=await robotApi({action:'configure',config:{[key]:{enabled}}});if(result.state)render(result.state);toast(`${name}已${enabled?'打开':'关闭'}`);}
+  catch(error){input.checked=!enabled;toast(error.message,true);}
+  finally{featureBusy.delete(key);if(robot)renderFeatures();}
+});
 // —— 专属进场视频（名单草稿跟着设置表单一起保存；视频用加班机的素材上传）——
 let entranceDraft=[],recentStamp='';
 // 这段在 run 定义之前就要挂上事件，用自己的出错提示。

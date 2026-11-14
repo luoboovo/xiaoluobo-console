@@ -135,7 +135,7 @@ test('送礼人头像按UID复用，同名用户不串头像，新地址更新�
 test('头像图片并发请求共用下载，新地址独立缓存，拒绝不可信地址',async t=>{
   const {dir}=await fixture(t),requests=[];
   const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aW2QAAAAASUVORK5CYII=','base64');
-  const app=await startServer({dataDir:dir,seedDir:dir,requestImpl:async url=>{requests.push(url);return {body:url.endsWith('/broken.png')?Buffer.from('invalid'):png,headers:{}};}});t.after(()=>app.close());
+  const app=await startServer({featuresOn:true, dataDir:dir,seedDir:dir,requestImpl:async url=>{requests.push(url);return {body:url.endsWith('/broken.png')?Buffer.from('invalid'):png,headers:{}};}});t.after(()=>app.close());
   const url=face=>app.url+'/api/avatar?url='+encodeURIComponent(face);
   const faces=await Promise.all(Array.from({length:3},()=>fetch(url('http://i0.hdslb.com/a.png'))));
   for(const r of faces){assert.equal(r.status,200);assert.equal(r.headers.get('content-type'),'image/png');assert.equal(r.headers.get('cache-control'),'public, max-age=600');await r.arrayBuffer();}
@@ -236,7 +236,7 @@ test('旧预设补齐默认礼物并备份，已有绑定保留，之后取消�
 });
 
 test('评分牌布局兼容旧存档、属于顾客层，API保存缩放并支持好评试玩',async t=>{
-  const {dir}=await fixture(t),app=await startServer({dataDir:dir,seedDir:dir});t.after(()=>app.close());
+  const {dir}=await fixture(t),app=await startServer({featuresOn:true, dataDir:dir,seedDir:dir});t.after(()=>app.close());
   assert.equal(Layout.itemModule('rating'),'customers');
   const layout=structuredClone(Layout.defaults);layout.props.rating={x:250,y:80,scale:1.8};
   const post=async input=>{const r=await fetch(app.url+'/api/noodle/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)});assert.equal(r.status,200);return (await r.json()).state;};
@@ -280,9 +280,9 @@ test('重复满屏投掷不重写存档，重复头像消息不刷新，过期�
   assert.equal(shop.queue.length,2000);assert.equal(shop.objects.at(-1).kind,'coin');assert.equal(published,1);
 });
 test('场景只收游戏推送，控制台不收运动，原订阅保留兼容',async t=>{
-  const {dir}=await fixture(t),app=await startServer({dataDir:dir,seedDir:dir});
+  const {dir}=await fixture(t),app=await startServer({featuresOn:true, dataDir:dir,seedDir:dir});
   t.after(()=>app.close());
-  for(const [query,expected] of [['?scene=1',['noodle','noodle-motion']],['?console=1',['state','noodle','overtime','feeding','number-bomb','lottery','lottery','lottery','robot','robot-rooms']],['?overtime=1',['overtime']],['?feeding=1',['feeding']],['?bomb=1',['number-bomb']],['?lottery=1',['lottery']],['?lottery=1&game=duel',['lottery']],['?lottery=1&game=scratch',['lottery']],['',['state','noodle','overtime','feeding','number-bomb','lottery','lottery','lottery','robot','robot-rooms','noodle-motion']]]) {
+  for(const [query,expected] of [['?scene=1',['noodle','noodle-motion']],['?console=1',['state','noodle','features','overtime','feeding','number-bomb','lottery','lottery','lottery','robot','robot-rooms']],['?overtime=1',['overtime']],['?feeding=1',['feeding']],['?bomb=1',['number-bomb']],['?lottery=1',['lottery']],['?lottery=1&game=duel',['lottery']],['?lottery=1&game=scratch',['lottery']],['',['state','noodle','features','overtime','feeding','number-bomb','lottery','lottery','lottery','robot','robot-rooms','noodle-motion']]]) {
     const stop=new AbortController(),timer=setTimeout(()=>stop.abort(),3000);
     const response=await fetch(app.url+'/api/events'+query,{signal:stop.signal}),reader=response.body.getReader();
     try {
@@ -312,7 +312,7 @@ test('定期清理过期交易、头像和动画记录，正在排队与正在�
 });
 
 test('普通弹幕不进入礼物队列，礼物仍执行且不会覆盖较新的送礼人头像',async t=>{
-  const {dir}=await fixture(t),app=await startServer({dataDir:dir,seedDir:dir});t.after(()=>app.close());
+  const {dir}=await fixture(t),app=await startServer({featuresOn:true, dataDir:dir,seedDir:dir});t.after(()=>app.close());
   app.noodle.mode='running';app.noodle.config.thief_gift={gift_id:90009,gift_name:'小偷礼物'};
   let received=0;const receive=app.noodle.receive.bind(app.noodle);app.noodle.receive=(...args)=>{received++;return receive(...args);};
   app.services.addEvent('gift','用户','小偷礼物',{uid:1,face:'https://i0.hdslb.com/old.png',giftId:90009,count:1,transactionId:'cached-avatar'});
@@ -324,7 +324,7 @@ test('普通弹幕不进入礼物队列，礼物仍执行且不会覆盖较新�
 test('共享头像缓存限制图片总字节，淘汰后重新请求，已缓存图片仍复用',async t=>{
   const {dir}=await fixture(t),requests=[];
   const png=Buffer.alloc(1024*1024);Buffer.from([137,80,78,71,13,10,26,10]).copy(png);
-  const app=await startServer({dataDir:dir,seedDir:dir,requestImpl:async url=>{requests.push(url);return {body:png,headers:{}};}});t.after(()=>app.close());
+  const app=await startServer({featuresOn:true, dataDir:dir,seedDir:dir,requestImpl:async url=>{requests.push(url);return {body:png,headers:{}};}});t.after(()=>app.close());
   const url=i=>app.url+'/api/avatar?url='+encodeURIComponent(`https://i0.hdslb.com/${i}.png`);
   for(let i=0;i<17;i++){const r=await fetch(url(i));assert.equal(r.status,200);await r.arrayBuffer();}
   const cached=await fetch(url(16));await cached.arrayBuffer();assert.equal(requests.length,17);

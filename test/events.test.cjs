@@ -31,7 +31,7 @@ test('抖音弹幕经过服务端WebSocket后仍完整到达控制台，后续�
   const dir=await fs.promises.mkdtemp(path.join(os.tmpdir(),'luobo-events-'));
   let runtime,socket;
   t.after(async()=>{socket?.terminate();await runtime?.close();assert.ok(path.resolve(dir).startsWith(path.resolve(os.tmpdir())+path.sep+'luobo-events-'));await fs.promises.rm(dir,{recursive:true,force:true});});
-  runtime=await startServer({dataDir:dir});
+  runtime=await startServer({featuresOn:true, dataDir:dir});
   assert.equal((await fetch(runtime.url+'/api/platform',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform:'douyin'})})).status,200);
   const browser=browserEvents();
   await new Promise((resolve,reject)=>{

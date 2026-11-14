@@ -123,7 +123,7 @@ test('每种游戏的生成面板使用已保存规则，同礼物作用合并�
   while(saved.length<20)saved.push({...panel,id:String(saved.length)});await assert.rejects(generatePanel('feeding',games),/最多20个/);assert.equal(saved.length,20);
 });
 test('网页API、游戏面板、SSE同步及两平台隔离',async t=>{
-  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'luobo-feeding-api-'));let runtime; t.after(async()=>{await runtime?.close();await fs.rm(dir,{recursive:true,force:true});});runtime=await startServer({dataDir:dir});
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'luobo-feeding-api-'));let runtime; t.after(async()=>{await runtime?.close();await fs.rm(dir,{recursive:true,force:true});});runtime=await startServer({featuresOn:true, dataDir:dir});
   const post=async(url,body,platform='bilibili')=>{const res=await fetch(runtime.url+url,{method:'POST',headers:{'Content-Type':'application/json','X-Luobo-Platform':platform},body:JSON.stringify(body)});return {status:res.status,data:await res.json()};};
   for(const url of ['/feeding/','/feeding/game.js','/feeding/shared.js','/feeding-console.js','/game-panels.js','/feeding/assets/stars_jar/star.png'])assert.equal((await fetch(runtime.url+url)).status,200);
   const {data}=await post('/api/panels/generate',{game:'feeding'});assert.ok(runtime.overtime.state.config.gift_panels.some(p=>p.id===data.panel.id));assert.equal((await post('/api/panels/generate',{game:'noodle'})).status,200);
@@ -132,7 +132,7 @@ test('网页API、游戏面板、SSE同步及两平台隔离',async t=>{
   const invalid=await fetch(runtime.url+'/api/feeding/assets',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:'not an image'});assert.equal(invalid.status,400);
 });
 test('多个网页面板通过WebSocket推送且不阻塞控制操作，拒绝跨站订阅',async t=>{
-  const {WebSocket}=require('ws'),dir=await fs.mkdtemp(path.join(os.tmpdir(),'luobo-events-')),runtime=await startServer({dataDir:dir}),sockets=[];t.after(async()=>{for(const ws of sockets)ws.terminate();await runtime.close();await fs.rm(dir,{recursive:true,force:true});});
+  const {WebSocket}=require('ws'),dir=await fs.mkdtemp(path.join(os.tmpdir(),'luobo-events-')),runtime=await startServer({featuresOn:true, dataDir:dir}),sockets=[];t.after(async()=>{for(const ws of sockets)ws.terminate();await runtime.close();await fs.rm(dir,{recursive:true,force:true});});
   for(let i=0;i<10;i++)await new Promise((resolve,reject)=>{const ws=new WebSocket(runtime.url.replace('http:','ws:')+'/api/events/socket?feeding=1',{origin:runtime.url});sockets.push(ws);ws.once('message',body=>{assert.match(String(body),/^event: feeding/);resolve();});ws.once('error',reject);});
   const response=await fetch(runtime.url+'/api/feeding/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delta',delta:1})});assert.equal(response.status,200);assert.equal(runtime.feeding.state.count,11);
   await new Promise((resolve,reject)=>{const ws=new WebSocket(runtime.url.replace('http:','ws:')+'/api/events/socket?feeding=1',{origin:'http://untrusted.test'});ws.once('open',()=>reject(Error('不应允许跨站订阅')));ws.once('error',resolve);});

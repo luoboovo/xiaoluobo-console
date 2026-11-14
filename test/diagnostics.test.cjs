@@ -72,7 +72,7 @@ test('未正常退出的上次运行在下次启动时可查，正常关闭不�
 
 test('前端报错、接口异常、日志导出和端口占用都可诊断，导出只允许本机',async t=>{
   const {dir,diagnostics,cleanup}=await fixture(t);
-  const app=await startServer({dataDir:dir,seedDir:path.join(__dirname,'..','data'),diagnostics}); cleanup.push(()=>app.close());
+  const app=await startServer({featuresOn:true, dataDir:dir,seedDir:path.join(__dirname,'..','data'),diagnostics}); cleanup.push(()=>app.close());
   const post=(url,body,extra={})=>fetch(app.url+url,{method:'POST',headers:{'Content-Type':'application/json',...extra},body:JSON.stringify(body)});
   assert.equal((await post('/api/diagnostics/client',{entries:[{event:'runtime_error',message:'test-ui-error',stack:'test-ui-stack',page:'/'}]})).status,200);
   assert.equal((await post('/api/diagnostics/client',{entries:[{event:'runtime_error',message:'bad'}]},{Origin:'https://evil.com'})).status,403);
@@ -81,7 +81,7 @@ test('前端报错、接口异常、日志导出和端口占用都可诊断，�
   const exported=await fetch(app.url+'/api/diagnostics/export'); assert.equal(exported.status,200);
   const text=await exported.text(); assert.ok(text.includes('test-ui-error'));assert.ok(text.includes('http.error'));
   const occupied=http.createServer();await new Promise(resolve=>occupied.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>occupied.close(resolve)));
-  await assert.rejects(startServer({dataDir:dir,seedDir:path.join(__dirname,'..','data'),diagnostics,port:occupied.address().port}),error=>error.code==='EADDRINUSE'&&error.message.includes('端口'));
+  await assert.rejects(startServer({featuresOn:true, dataDir:dir,seedDir:path.join(__dirname,'..','data'),diagnostics,port:occupied.address().port}),error=>error.code==='EADDRINUSE'&&error.message.includes('端口'));
   assert.ok((await records(diagnostics)).some(row=>row.event==='server.bind_failed'));
 });
 

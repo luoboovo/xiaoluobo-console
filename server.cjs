@@ -20,6 +20,7 @@ const { WebSocketServer } = require('ws');
 const {MODES:LOTTERY_MODES}=require('./lib/lottery.cjs');
 const { LiveRobot, AI_PROVIDERS } = require('./lib/robot.cjs');
 const { RobotRooms } = require('./lib/robot-rooms.cjs');
+const { FeatureSwitches } = require('./lib/feature-switches.cjs');
 
 // Overlay pages subscribe to one channel; everything else is a console page.
 const CHANNELS = { bomb:new Set(['number-bomb']), lottery:new Set(['lottery']), feeding:new Set(['feeding','feeding-motion','feeding-physics']), overtime:new Set(['overtime','overtime-clock','overtime-media']), scene:new Set(['noodle','noodle-motion']) };
@@ -60,6 +61,8 @@ async function startServer(options = {}) {
   const robot=await new LiveRobot(services.dataDir,{services,diagnostics,keyStore,fetchImpl:options.robotFetch||globalThis.fetch}).init();
   // 机器人的其他直播间（主直播间就是上面这个 robot），各自一套设置，共用登录账号和 AI Key。
   const robotRooms=await new RobotRooms({services,dataDir:services.dataDir,main:robot,robotOptions:{diagnostics,keyStore,fetchImpl:options.robotFetch||globalThis.fetch},...(options.robotLink?{createLink:options.robotLink}:{})}).init();
+  // 各玩法的总开关（默认全关）：关着的玩法不接直播间的礼物和弹幕。
+  const features=await new FeatureSwitches(services.dataDir,{defaultOn:options.featuresOn}).init();
   const lotteryFor=mode=>{const key=mode??'wheel';if(!LOTTERY_MODES.includes(key))throw new Error('抽奖玩法无效');return lottery[key];};
   const mediaListeners=new Set();
   let actions = Promise.resolve(), giftBatch, pendingGifts=0, liveStamp='';
@@ -167,6 +170,7 @@ async function startServer(options = {}) {
   // 主直播间的专属进场视频：交给当前平台的加班机素材队列播（和礼物素材排队，加班机没开也播）。
   robot.on('entrance',cue=>overtime.playEntrance(cue.media).catch(error=>{cue.fail(error);diagnostics?.log('warn','robot.entrance_failed',{error});}));
   robotRooms.on('rooms',list=>broadcast('robot-rooms',list));
+  features.on('change',list=>broadcast('features',list));
   services.on('event', event => robot.receive(event));
   services.on('event', event => {
     if(event.type==='system')diagnostics?.log('warn','system.message',{message:event.text,platform:services.platform});
@@ -188,24 +192,24 @@ async function startServer(options = {}) {
         for(const {event,face} of batch.events){
           if(event.face)for(const target of faceTargets)await target.rememberFace(event).catch(error=>services.addEvent('system','',`游戏头像：${error.message}`));
           if(event.type!=='chat')continue;
-          await Promise.resolve().then(()=>batch.numberBomb.receiveChat({...event,face})).catch(error=>services.addEvent('system','',`数字炸弹：${error.message}`));
-          await Promise.resolve().then(async()=>{for(const target of batch.lotteries)await target.receiveChat({...event,face});}).catch(error=>services.addEvent('system','',`抽奖：${error.message}`));
+          if(features.isOn('number_bomb'))await Promise.resolve().then(()=>batch.numberBomb.receiveChat({...event,face})).catch(error=>services.addEvent('system','',`数字炸弹：${error.message}`));
+          if(features.isOn('lottery'))await Promise.resolve().then(async()=>{for(const target of batch.lotteries)await target.receiveChat({...event,face});}).catch(error=>services.addEvent('system','',`抽奖：${error.message}`));
         }
         const events = batch.events.filter(item=>item.event.type==='gift').map(({event:gift}) => ({...gift,face:batch.noodle.faces.get(gift.uid) || gift.face}));
         const overtimeError = error => services.addEvent('system', '', `加班机：${error.message}`);
-        if(events.length)await batch.overtime.receiveBatch(events,overtimeError).catch(overtimeError);
+        if(events.length&&features.isOn('overtime'))await batch.overtime.receiveBatch(events,overtimeError).catch(overtimeError);
         // Feeding counts both gifts and chat, so only a chat that changes feeding splits its gift run.
         const feedingError=error=>services.addEvent('system','',`吃吃吃：${error.message}`);
         let run=[],index=0;
-        for(const {event} of batch.events){
+        if(features.isOn('feeding'))for(const {event} of batch.events){
           if(event.type==='gift'){run.push(events[index++]);continue;}
           if(event.type!=='chat'||!batch.feeding.chatRules(event).length)continue;
           if(run.length){await batch.feeding.receiveBatch(run).catch(feedingError);run=[];}
           await Promise.resolve().then(()=>batch.feeding.receiveChat(event)).catch(feedingError);
         }
-        if(run.length)await batch.feeding.receiveBatch(run).catch(feedingError);
+        if(run.length&&features.isOn('feeding'))await batch.feeding.receiveBatch(run).catch(feedingError);
         // Re-read avatars here: newer ones may arrive while the earlier stages save.
-        for (const gift of events) await batch.noodle.receive({...gift,face:batch.noodle.faces.get(gift.uid) || gift.face},false).catch(error => services.addEvent('system','',error.message));
+        if(features.isOn('noodle'))for (const gift of events) await batch.noodle.receive({...gift,face:batch.noodle.faces.get(gift.uid) || gift.face},false).catch(error => services.addEvent('system','',error.message));
         await new Promise(resolve => setImmediate(resolve));
         } finally {
           pendingGifts-=batch.gifts;
@@ -247,7 +251,7 @@ async function startServer(options = {}) {
     const scene=client.channel==='scene';
     if(!scene)send(client,'state',services.state);
     sendNoodle(client,noodleFrames(noodle.snapshot()));
-    if(!scene){send(client,'overtime',overtime.snapshot());send(client,'feeding',feeding.snapshot());send(client,'number-bomb',numberBomb.snapshot());for(const target of Object.values(lottery))send(client,'lottery',target.snapshot());send(client,'robot',{...robot.snapshot(),room:'main'});for(const entry of robotRooms.extra.values())send(client,'robot',{...entry.robot.snapshot(),room:entry.id});send(client,'robot-rooms',robotRooms.list());}
+    if(!scene){send(client,'features',features.snapshot());send(client,'overtime',overtime.snapshot());send(client,'feeding',feeding.snapshot());send(client,'number-bomb',numberBomb.snapshot());for(const target of Object.values(lottery))send(client,'lottery',target.snapshot());send(client,'robot',{...robot.snapshot(),room:'main'});for(const entry of robotRooms.extra.values())send(client,'robot',{...entry.robot.snapshot(),room:entry.id});send(client,'robot-rooms',robotRooms.list());}
     if(!client.consoleOnly)send(client,'noodle-motion',noodle.motionSnapshot());
   };
   const download=(res,filename,data)=>{res.setHeader('Content-Disposition',`attachment; filename=${filename}`);return data;};
@@ -294,6 +298,7 @@ async function startServer(options = {}) {
     '/api/lottery/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>lotteryFor(input.game).action(input)))}),
     '/api/robot/action': async input => {const room=input.room||'main',result=await robotRooms.robotFor(room).action(input);return result.config?{ok:true,state:{...result,room}}:{ok:true,...result};},
     '/api/robot/rooms': async input => ({ok:true,...await robotRooms.action(input)}),
+    '/api/features': async input => ({ok:true,features:await features.set(input?.id,input?.enabled)}),
     '/api/number-bomb/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>numberBomb.action(input)))}),
     '/api/panels/generate': async (input,scoped) => ({ok:true,panel:await enqueue(scoped(()=>generatePanel(input.game,{noodle,overtime,feeding})))}),
     '/api/overtime/action': async (input,scoped) => {const state=await enqueue(scoped(()=>overtime.action(input)));schedulePrune();return {ok:true,state};},
@@ -319,6 +324,7 @@ async function startServer(options = {}) {
   };
   // GET handlers return a JSON body, or write the response themselves and return undefined.
   const getRoutes = {
+    '/api/features': () => features.snapshot(),
     '/api/diagnostics/info': () => diagnostics?{...diagnostics.info(),canOpen:!!options.openLogs}:{enabled:false},
     '/api/diagnostics/export': async res => {
       if(!diagnostics){res.statusCode=503;return {error:'诊断日志未启用'};}

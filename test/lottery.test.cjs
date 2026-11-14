@@ -189,7 +189,7 @@ test('手动撕开进度校验、不回退、半途重启保留选签和进度',
 });
 
 test('HTTP与WebSocket按玩法隔离，同时报名与刷新推送不会串源',async t=>{
-  const {dir}=await fixture(t),runtime=await startServer({dataDir:dir});t.after(()=>runtime.close());
+  const {dir}=await fixture(t),runtime=await startServer({featuresOn:true, dataDir:dir});t.after(()=>runtime.close());
   const post=async input=>{const response=await fetch(runtime.url+'/api/lottery/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)});return {status:response.status,data:await response.json()};};
   const sockets=[],messages={wheel:[],duel:[],scratch:[],console:[]};t.after(()=>sockets.forEach(socket=>socket.terminate()));
   for(const mode of [...MODES,'console']){
@@ -212,7 +212,7 @@ test('HTTP与WebSocket按玩法隔离，同时报名与刷新推送不会串源'
   assert.equal(runtime.lottery.wheel.state.round.status,'running');assert.equal(runtime.lottery.scratch.state.round.status,'choosing');assert.equal(runtime.lottery.duel.state.players.length,0);
 });
 test('服务器弹幕路由、WebSocket同步、平台隔离和独立直播页面',async t=>{
-  const {dir}=await fixture(t),runtime=await startServer({dataDir:dir});t.after(()=>runtime.close());
+  const {dir}=await fixture(t),runtime=await startServer({featuresOn:true, dataDir:dir});t.after(()=>runtime.close());
   const post=async(body,platform='bilibili',route='/api/lottery/action')=>{
     const response=await fetch(runtime.url+route,{method:'POST',headers:{'Content-Type':'application/json','X-Luobo-Platform':platform},body:JSON.stringify(body)});
     return {status:response.status,body:await response.json()};

@@ -4,7 +4,18 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { EventEmitter } = require('node:events');
-const { LiveRobot, normalizeConfig } = require('../lib/robot.cjs');
+const { LiveRobot: BaseRobot, normalizeConfig } = require('../lib/robot.cjs');
+// 下面的用例是按旧默认（欢迎、谢礼物、谢关注、盲盒查询、@切场景、进场视频都开着）写的。
+// 功能开关改成默认全关后，第一次建机器人时在这里把这几个打开；重启读回来的照存下的来。
+const OLD_DEFAULT_ON = ['welcome', 'gift', 'follow', 'blindbox', 'scene_command', 'entrance'];
+class LiveRobot extends BaseRobot {
+  async init() {
+    const fresh = await fs.access(this.file).then(() => false, () => true);
+    await super.init();
+    if (fresh) this.config = normalizeConfig(Object.fromEntries(OLD_DEFAULT_ON.map(key => [key, { enabled: true }])), this.config);
+    return this;
+  }
+}
 const { startServer } = require('../server.cjs');
 
 const tempDir = prefix => fs.mkdtemp(path.join(os.tmpdir(), prefix));
@@ -35,7 +46,7 @@ test('专属进场视频：按 UID 认人（改了昵称也认得），机器人
     await assert.rejects(bad(Array.from({ length: 51 }, (_, i) => ({ uid: i + 1, media: video }))), /最多设 50 个人/);
     await robot.action({ action: 'configure', config: { enabled: false, entrance: { cooldown_minutes: 60, list: [{ uid: ' 42 ', note: '大哥', media: video }] } } });
     assert.deepEqual(robot.snapshot().config.entrance.list, [{ uid: 42, note: '大哥', media: { ...video, kind: 'video' } }]);
-    assert.equal(normalizeConfig({}).entrance.enabled, true);
+    assert.equal(normalizeConfig({}).entrance.enabled, false, '默认关着，在最上面的功能开关里打开');
 
     robot.receive({ type: 'member', user: '改了名的大哥', uid: 42 });
     assert.equal(cues.length, 1, '机器人关着也播');
@@ -70,13 +81,13 @@ test('专属进场视频：按 UID 认人（改了昵称也认得），机器人
 
 test('专属进场视频接口：上传视频、存进名单，名单里的人进主直播间就进素材队列（加班机没开也播）', async () => {
   const dir = await tempDir('luobo-entrance-server-');
-  const runtime = await startServer({ dataDir: dir, seedDir: dir });
+  const runtime = await startServer({featuresOn:true, dataDir: dir, seedDir: dir });
   const post = async (url, body) => { const response = await fetch(runtime.url + url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const json = await response.json(); if (!response.ok) throw new Error(json.error || response.status); return json; };
   try {
     const bytes = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from('ftypisom'), Buffer.alloc(200)]);
     const uploaded = await (await fetch(runtime.url + '/api/overtime/media?name=' + encodeURIComponent('大哥进场.mp4'), { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: bytes })).json();
     assert.equal(uploaded.kind, 'video');
-    const saved = await post('/api/robot/action', { action: 'configure', config: { entrance: { list: [{ uid: '42', note: '大哥', media: { asset: uploaded.asset, name: uploaded.name, kind: 'video', duration: 6, green_screen: false } }] } } });
+    const saved = await post('/api/robot/action', { action: 'configure', config: { entrance: { enabled: true, list: [{ uid: '42', note: '大哥', media: { asset: uploaded.asset, name: uploaded.name, kind: 'video', duration: 6, green_screen: false } }] } } });
     assert.equal(saved.state.can_entrance, true);
     assert.equal(runtime.overtime.snapshot().mode, 'idle', '加班机没开');
 

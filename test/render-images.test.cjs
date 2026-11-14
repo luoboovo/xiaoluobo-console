@@ -34,7 +34,7 @@ test('关闭与并发缩图交叠时释放线程，读取方仍收到完整原�
 });
 
 test('模板显示图与缩略图减小像素，背景、旧素材接口与导出完整保留',async t=>{
-  const dir=await fixture(t),runtime=await startServer({dataDir:dir});t.after(()=>runtime.close());
+  const dir=await fixture(t),runtime=await startServer({featuresOn:true, dataDir:dir});t.after(()=>runtime.close());
   const original=png(900,600),background=png(1600,900),input={format:'xiaoluobo-template',schema:1,name:'缩图测试',version:'1.0.0',workflow:'mix',dish_name:'面',assets:{pot:original.toString('base64'),sauce:original.toString('base64'),bowl:original.toString('base64'),background:background.toString('base64')}};
   const template=await runtime.noodle.templates.install(input),fetchBytes=async url=>{const response=await fetch(runtime.url+url);assert.equal(response.status,200);return Buffer.from(await response.arrayBuffer());};
   assert.equal(PNG.sync.read(await fetchBytes(template.assets.bowl)).width,512);

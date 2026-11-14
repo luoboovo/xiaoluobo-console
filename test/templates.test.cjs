@@ -43,7 +43,7 @@ test('模板安装、导出与重启：去重素材，面馆独立持久化，�
 });
 test('导入入口：接收完整模板并创建新面馆，无效导入不覆盖当前配置',async t=>{
   const {dir,data}=await fixture(t);
-  const app=await startServer({dataDir:dir});t.after(()=>app.close());
+  const app=await startServer({featuresOn:true, dataDir:dir});t.after(()=>app.close());
   const post=body=>fetch(app.url+'/api/templates/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const count=app.noodle.presets.length;
   const response=await post(data);assert.equal(response.status,200);
@@ -56,7 +56,7 @@ test('导入入口：接收完整模板并创建新面馆，无效导入不覆�
 
 test('新安装只有基础模板，外部模板按需导入，重启保留已有面馆和布局',async t=>{
   const {dir}=await fixture(t),dataDir=path.join(dir,'fresh');
-  let app=await startServer({dataDir,seedDir:dir});t.after(()=>app.close());
+  let app=await startServer({featuresOn:true, dataDir,seedDir:dir});t.after(()=>app.close());
   assert.deepEqual(app.noodle.templates.list().map(t=>t.id),['saozi']);assert.equal(app.noodle.presets.length,1);
   const data=templatePackage('刀削面馆-v1.0.1.luobo');
   const response=await fetch(app.url+'/api/templates/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});assert.equal(response.status,200);await response.json();
@@ -65,13 +65,13 @@ test('新安装只有基础模板，外部模板按需导入，重启保留已�
   assert.equal(app.noodle.templates.get(knife.template_id).workflow,'knife-noodles');
   await app.noodle.action({action:'preset_use',id:knife.id});
   const config=structuredClone(app.noodle.config);config.layout.props.rating.x=180;config.sign.title='我的刀削面馆';
-  await app.noodle.save(config);await app.close();app=await startServer({dataDir,seedDir:dir});
+  await app.noodle.save(config);await app.close();app=await startServer({featuresOn:true, dataDir,seedDir:dir});
   assert.equal(app.noodle.activePreset,knife.id);assert.deepEqual(app.noodle.config,config);
   assert.equal(app.noodle.presets.length,2);assert.equal(app.noodle.templates.list().length,2);
 });
 
 test('删除模板移除关联店铺与素材，保存备份，重启不补回并可重新安装',async t=>{
-  const {dir,data,template}=await fixture(t);let app=await startServer({dataDir:dir});t.after(()=>app.close());
+  const {dir,data,template}=await fixture(t);let app=await startServer({featuresOn:true, dataDir:dir});t.after(()=>app.close());
   const post=(route,body)=>fetch(app.url+route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   await app.noodle.action({action:'preset_create',name:'第二家刀削面馆',template_id:template.id});
   const active=app.noodle.activePreset;app.noodle.queue=[{id:1}];app.noodle.cooking=[{id:2}];
@@ -83,12 +83,12 @@ test('删除模板移除关联店铺与素材，保存备份，重启不补回�
   const backup=JSON.parse(await fs.readFile(app.noodle.file+'.before-template-delete-'+template.id+'.json'));assert.equal(backup.active_preset,active);assert.equal(backup.presets.length,3);
   const invalid=await post('/api/templates/delete',{id:'../../outside'});assert.equal(invalid.status,400);
   const base=await post('/api/templates/delete',{id:'saozi'});assert.equal(base.status,400);assert.equal(app.noodle.presets.length,1);
-  await app.close();app=await startServer({dataDir:dir});assert.equal(app.noodle.templates.list().length,1);assert.equal(app.noodle.presets.length,1);
+  await app.close();app=await startServer({featuresOn:true, dataDir:dir});assert.equal(app.noodle.templates.list().length,1);assert.equal(app.noodle.presets.length,1);
   const imported=await post('/api/templates/import',exported);assert.equal(imported.status,200);const reinstalled=await imported.json();assert.equal(reinstalled.template.id,template.id);assert.equal(reinstalled.state.presets.length,2);
 });
 
 test('删除非当前模板保留当前店铺、配置和物品；卸载失败保留原模板与店铺',async t=>{
-  const {dir,template}=await fixture(t);const app=await startServer({dataDir:dir});t.after(()=>app.close());
+  const {dir,template}=await fixture(t);const app=await startServer({featuresOn:true, dataDir:dir});t.after(()=>app.close());
   await app.noodle.action({action:'preset_use',id:'saozi'});const config=structuredClone(app.noodle.config);
   const objects=[{id:1,kind:'bowl',x:550,y:475,noodles:0,sauce:0}];app.noodle.objects=objects;
   const remove=app.noodle.templates.remove.bind(app.noodle.templates),presets=structuredClone(app.noodle.presets);
@@ -101,7 +101,7 @@ test('删除非当前模板保留当前店铺、配置和物品；卸载失败�
 });
 
 test('当前模板删除失败时恢复原店铺配置和游戏进度',async t=>{
-  const {dir,template}=await fixture(t);const app=await startServer({dataDir:dir});t.after(()=>app.close());
+  const {dir,template}=await fixture(t);const app=await startServer({featuresOn:true, dataDir:dir});t.after(()=>app.close());
   await app.noodle.action({action:'start'});
   const config=structuredClone(app.noodle.config),active=app.noodle.activePreset;
   app.noodle.queue=[{id:1}];app.noodle.objects=[{id:2,kind:'bowl'}];app.noodle.cooking=[{id:3}];app.noodle.served=4;

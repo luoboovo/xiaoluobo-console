@@ -108,7 +108,7 @@ test('两个平台的默认玩法礼物全部存在且各自唯一，加班规�
 test('集成：平台切换暂停旧玩法，礼物和统计隔离，旧平台页面不能写入新平台',async t=>{
   const dir=await temporary(t);let sample;
   const diagnostics={log(){},context(){},sample(provider){sample=provider;}};
-  let app=await startServer({dataDir:dir,diagnostics});t.after(()=>app.close());
+  let app=await startServer({featuresOn:true, dataDir:dir,diagnostics});t.after(()=>app.close());
   const post=(route,body,platform)=>fetch(app.url+route,{method:'POST',headers:{'Content-Type':'application/json',...(platform?{'X-Luobo-Platform':platform}:{})},body:JSON.stringify(body)});
   const biliGift=app.noodle.config.gift_id;
   assert.ok(app.noodle.config.thief_gift);assert.notEqual(app.noodle.config.gift_id,app.noodle.config.water_gift.gift_id);
@@ -130,7 +130,7 @@ test('集成：平台切换暂停旧玩法，礼物和统计隔离，旧平台�
   assert.equal((await post('/api/platform',{platform:'bilibili'})).status,200);assert.equal(app.noodle.config.gift_id,biliGift);assert.equal(app.noodle.queue.length,0);assert.equal(app.overtime.state.people.length,0);
   assert.equal(sample().douyin,undefined);
   await app.noodle.save({...app.noodle.config,thief_gift:null});
-  await app.close();app=await startServer({dataDir:dir});assert.equal(app.noodle.config.thief_gift,null);
+  await app.close();app=await startServer({featuresOn:true, dataDir:dir});assert.equal(app.noodle.config.thief_gift,null);
   await post('/api/platform',{platform:'douyin'});assert.equal(app.overtime.state.people.length,1);
 });
 test('抖音传输：本机生成连接、心跳、解码、ACK和取消隔离，不导出凭证',async t=>{
@@ -149,7 +149,7 @@ test('臊子面、刀削面、咖啡厅、香锅的两平台绑定均填齐，�
   const dir=await temporary(t),{TemplateLibrary}=require('../lib/templates.cjs'),{NoodleShop}=require('../lib/noodle.cjs');
   const templates=await new TemplateLibrary(dir).init(),source=await new NoodleShop(dir,templates).init();
   for(const name of ['刀削面馆-v1.0.1.luobo','咖啡厅模板-v1.0.2.luobo','麻辣香锅-v1.0.4.luobo'])await source.installTemplate(require('./fixtures/templates.cjs').templatePackage(name));
-  const app=await startServer({dataDir:dir});t.after(()=>app.close());
+  const app=await startServer({featuresOn:true, dataDir:dir});t.after(()=>app.close());
   for(const platform of ['bilibili','douyin']){
     if(platform!==app.services.platform)await fetch(app.url+'/api/platform',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform})});
     assert.equal(app.noodle.presets.length,4);

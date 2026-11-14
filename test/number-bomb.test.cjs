@@ -74,7 +74,7 @@ test('暂停、重启恢复、平台停用与写入失败回滚',async t=>{
 });
 test('本地API、真实消息入口、独立网页事件与平台隔离',async t=>{
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'luobo-bomb-http-'));
-  const runtime=await startServer({dataDir:dir,seedDir:path.join(__dirname,'../data')});
+  const runtime=await startServer({featuresOn:true, dataDir:dir,seedDir:path.join(__dirname,'../data')});
   t.after(async()=>{await runtime.close();await removeDir(dir);});
   const get=route=>fetch(runtime.url+route),post=(route,body,platform)=>fetch(runtime.url+route,{method:'POST',headers:{'Content-Type':'application/json',...(platform?{'X-Luobo-Platform':platform}:{})},body:JSON.stringify(body)});
   for(const route of ['/number-bomb/','/number-bomb/game.js','/number-bomb/game.css','/number-bomb-console.js','/number-bomb-console.css'])assert.equal((await get(route)).status,200,route);

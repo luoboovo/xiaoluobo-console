@@ -67,7 +67,7 @@ test('整批保存失败保留原状态、去重和统计，重试可完整结�
 
 test('直播突发送礼分批结算并完整保存，单批数量有界，画面不逐礼物发布', async t => {
   const {dir} = await fixture(t);
-  const app = await startServer({dataDir:dir,seedDir:path.join(dir,'seed')});
+  const app = await startServer({featuresOn:true, dataDir:dir,seedDir:path.join(dir,'seed')});
   t.after(() => app.close());
   app.overtime.clock = () => 0;
   await app.overtime.action({action:'start'});
@@ -91,7 +91,7 @@ test('直播突发送礼分批结算并完整保存，单批数量有界，画�
 
 test('带头像的礼物与弹幕、进场交错到达时仍合并成批，抽奖头像按到达顺序更新', async t => {
   const {dir} = await fixture(t);
-  const app = await startServer({dataDir:dir,seedDir:path.join(dir,'seed')});
+  const app = await startServer({featuresOn:true, dataDir:dir,seedDir:path.join(dir,'seed')});
   t.after(() => app.close());
   app.overtime.clock = () => 0;
   await app.overtime.action({action:'start'});
@@ -166,7 +166,7 @@ test('同一批多位观众重复送礼累计正确，保存失败不改动原�
 
 test('加班机浮窗不接收观众列表，控制台观众列表每秒最多一次且最终一致', async t => {
   const {dir} = await fixture(t);
-  const app = await startServer({dataDir:dir,seedDir:path.join(dir,'seed')});
+  const app = await startServer({featuresOn:true, dataDir:dir,seedDir:path.join(dir,'seed')});
   const {WebSocket} = require('ws'), sockets = [];
   t.after(async () => { for (const ws of sockets) ws.terminate(); await app.close(); });
   app.overtime.clock = () => 0;
@@ -212,7 +212,7 @@ test('去重保留有效交易、清除过期交易并限制记录数量，未�
 
 test('保存礼物时收到更新头像，入店仍采用最新头像，失败礼物不阻塞后续', async t => {
   const {dir} = await fixture(t);
-  const app = await startServer({dataDir:dir,seedDir:path.join(dir,'seed')});
+  const app = await startServer({featuresOn:true, dataDir:dir,seedDir:path.join(dir,'seed')});
   t.after(() => app.close());
   app.noodle.mode = 'running'; app.noodle.config.gift_id = 90001; app.noodle.config.water_gift = null;
   app.noodle.config.tip_gift = {gift_id:90002,gift_name:'打赏'};

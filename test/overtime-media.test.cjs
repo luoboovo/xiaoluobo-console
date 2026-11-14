@@ -89,7 +89,7 @@ test('素材音量：旧配置默认100%、范围校验、播放中更新不重�
   await machine.action({action:'volume',volume:100});assert.equal(machine.state.config.media_volume,100);
 });
 test('素材HTTP：本机上传、视频字节范围、内容类型、无效范围、跨来源保护及礼物推送',async t=>{
-  const dir=await directory(t),runtime=await startServer({dataDir:dir});
+  const dir=await directory(t),runtime=await startServer({featuresOn:true, dataDir:dir});
   try {
     const url=runtime.url,upload=await fetch(url+'/api/overtime/media?name=photo.png',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:png});
     assert.equal(upload.status,200);const media=await upload.json(),asset=url+'/api/overtime/media/'+media.asset;
@@ -116,7 +116,7 @@ test('素材HTTP：本机上传、视频字节范围、内容类型、无效范�
 });
 
 test('程序退出：保存加班状态后断开未完成的素材连接，不等待播放器释放连接',async t=>{
-  const dir=await directory(t),runtime=await startServer({dataDir:dir});
+  const dir=await directory(t),runtime=await startServer({featuresOn:true, dataDir:dir});
   await runtime.overtime.action({action:'start'});await runtime.overtime.action({action:'pause'});
   const request=http.request(runtime.url+'/api/overtime/media?name=partial.webm',{method:'POST',headers:{'Content-Type':'application/octet-stream','Content-Length':'1000'}});
   request.on('error',()=>{});request.write(Buffer.from([26,69,223,163]));

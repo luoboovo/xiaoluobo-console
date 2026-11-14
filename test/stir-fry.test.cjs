@@ -87,7 +87,7 @@ test('生食添加重新计时，暂停、清理和店铺切换均保留原规�
 
 test('独立模板导入导出完整，香锅直接加载原版场景',async t=>{
   const {dir,library,template}=await fixture(t);assert.deepEqual((await library.export(template.id)).assets,data.assets);
-  const app=await startServer({dataDir:path.join(dir,'server')});t.after(()=>app.close());
+  const app=await startServer({featuresOn:true, dataDir:path.join(dir,'server')});t.after(()=>app.close());
   const res=await fetch(app.url+'/api/templates/import',{method:'POST',headers:{'Content-Type':'application/json'},body:source});assert.equal(res.status,200);await res.json();
   const html=await(await fetch(app.url+'/noodle/')).text();assert.match(html,/game\.js/);assert.match(html,/game-customers/);assert.match(html,/stir-fry-food/);
 });
