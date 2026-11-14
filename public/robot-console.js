@@ -156,14 +156,45 @@ $('#robot-entrance-list').addEventListener('change',guard(async event=>{
   }finally{renderEntrance();}
 }));
 $('#robot-entrance-add').onclick=()=>{entranceDraft.push({uid:'',note:'',media:null});dirty=true;note();renderEntrance();};
+function addEntrance(uid,name){
+  if(!uid)throw new Error('先选一位观众');
+  if(entranceDraft.some(x=>Number(x.uid)===uid))throw new Error(`「${name}」已经在名单里了`);
+  if(entranceDraft.length>=50)throw new Error('名单最多 50 个人');
+  entranceDraft.push({uid:String(uid),note:name,media:null});dirty=true;note();renderEntrance();
+  toast(`已加入「${name}」（UID ${uid}），再给他选个视频`);
+}
 $('#robot-entrance-pick').onclick=guard(async()=>{
   const uid=Number($('#robot-entrance-recent').value),member=(robot.recent_members||[]).find(m=>m.uid===uid);
   if(!member)throw new Error('先在下拉里选一位观众');
-  if(entranceDraft.some(x=>Number(x.uid)===uid))throw new Error('这位已经在名单里了');
-  if(entranceDraft.length>=50)throw new Error('名单最多 50 个人');
-  entranceDraft.push({uid:String(uid),note:member.name,media:null});dirty=true;note();renderEntrance();
-  toast(`已加入「${member.name}」，再给他选个视频`);
+  addEntrance(uid,member.name);
 });
+// —— 按昵称找 UID ——
+const ago=time=>{const m=Math.max(0,Math.round((Date.now()-time)/60000));return m<1?'刚刚':m<60?`${m}分钟前`:m<1440?`${Math.round(m/60)}小时前`:`${Math.round(m/1440)}天前`;};
+const fansText=n=>n>=10000?`${Math.round(n/1000)/10}万粉丝`:`${n}粉丝`;
+function resultRow(user,detail){
+  const listed=entranceDraft.some(x=>Number(x.uid)===user.uid);
+  return `<li>${user.face?`<img src="${escapeHtml(user.face)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:'<i class="robot-result-face"></i>'}<div><strong>${escapeHtml(user.name)}</strong><span>UID ${user.uid} · ${escapeHtml(detail)}</span></div><button type="button" class="text-button" data-add-uid="${user.uid}" data-add-name="${escapeHtml(user.name)}" ${listed?'disabled':''}>${listed?'已在名单':'加入名单'}</button></li>`;
+}
+async function findUser(){
+  const keyword=$('#robot-entrance-q').value.trim(),box=$('#robot-entrance-results'),button=$('#robot-entrance-find');
+  if(!keyword)throw new Error('请填要找的昵称');
+  button.disabled=true;box.hidden=false;box.innerHTML='<p class="lottery-help">正在找…</p>';
+  try{
+    const {users}=await robotApi({action:'find_user',keyword});
+    const local=users.local.length?`<h3>来过你直播间的</h3><ul>${users.local.map(u=>resultRow(u,`上次来 ${ago(u.last_seen)}`)).join('')}</ul>`:'<p class="lottery-help">没来过你直播间的观众叫这个名字（只记从 v3.2 起进场、说话或送礼的人）。</p>';
+    const online=users.error?`<p class="lottery-help robot-error">B站搜索失败：${escapeHtml(users.error)}</p>`:users.online.length?`<h3>B站搜索</h3><ul>${users.online.map(u=>resultRow(u,`Lv${u.level} · ${fansText(u.fans)}${u.sign?` · ${u.sign}`:''}`)).join('')}</ul>`:'<p class="lottery-help">B站也没搜到这个昵称。</p>';
+    box.innerHTML=local+online;
+  }catch(error){box.innerHTML=`<p class="lottery-help robot-error">${escapeHtml(error.message)}</p>`;throw error;}
+  finally{button.disabled=false;}
+}
+$('#robot-entrance-find').onclick=guard(findUser);
+// 搜索框在设置表单里：回车是搜索，不是保存设置。
+$('#robot-entrance-q').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();guard(findUser)();}});
+$('#robot-entrance-results').addEventListener('click',guard(async event=>{
+  const button=event.target.closest('[data-add-uid]');if(!button)return;
+  addEntrance(Number(button.dataset.addUid),button.dataset.addName);
+  button.disabled=true;button.textContent='已在名单';
+}));
 // —— 感谢礼物分档（草稿跟着设置表单一起保存）——
 let tiersDraft=[];
 const yuanText=value=>String(Math.round(Number(value)*100)/100);

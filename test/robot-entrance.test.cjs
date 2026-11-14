@@ -93,3 +93,56 @@ test('专属进场视频接口：上传视频、存进名单，名单里的人�
     assert.match(failed.error, /找不到素材/, '视频文件丢了，发言记录里标出来');
   } finally { await runtime.close(); await remove(dir); }
 });
+
+test('按昵称在B站搜用户：带 WBI 签名和 buvid，去掉搜索高亮，头像补成 https，最多 10 个', async () => {
+  const { ConsoleServices } = require('../lib/services.cjs');
+  const dir = await tempDir('luobo-search-');
+  const calls = [];
+  const requestImpl = async (url, cookie) => {
+    calls.push({ url, cookie });
+    const endpoint = new URL(url).pathname;
+    const data = endpoint.endsWith('/spi') ? { b_3: 'test-buvid' } : endpoint.endsWith('/nav') ? { isLogin: false, wbi_img: { img_url: 'https://i0.hdslb.com/' + 'a'.repeat(32) + '.png', sub_url: 'https://i0.hdslb.com/' + 'b'.repeat(32) + '.png' } }
+      : { result: [{ mid: 42, uname: '<em class="keyword">萝卜</em>大哥', upic: '//i1.hdslb.com/bfs/face/x.jpg', fans: 12345, level: 6, usign: '<em>签名</em>' }, { mid: 0, uname: '坏数据' }, ...Array.from({ length: 12 }, (_, i) => ({ mid: 100 + i, uname: `萝卜${i}`, upic: 'https://evil.com/x.jpg' }))] };
+    return { body: Buffer.from(JSON.stringify({ code: endpoint.endsWith('/nav') ? -101 : 0, data })), headers: {} };
+  };
+  const services = await new ConsoleServices({ dataDir: dir, seedDir: dir, requestImpl }).init();
+  try {
+    await assert.rejects(services.searchUsers('  '), /请填昵称/);
+    const users = await services.searchUsers('萝卜');
+    assert.equal(users.length, 10, '最多 10 个，坏数据去掉');
+    assert.deepEqual(users[0], { uid: 42, name: '萝卜大哥', face: 'https://i1.hdslb.com/bfs/face/x.jpg', fans: 12345, level: 6, sign: '签名' });
+    assert.equal(users[1].face, '', '不是B站的头像地址不要');
+    const search = calls.find(c => c.url.includes('/search/type'));
+    const query = new URL(search.url).searchParams;
+    assert.equal(query.get('keyword'), '萝卜'); assert.equal(query.get('search_type'), 'bili_user'); assert.match(query.get('w_rid'), /^[0-9a-f]{32}$/);
+    assert.match(search.cookie, /buvid3=test-buvid/);
+  } finally { services.close(); await remove(dir); }
+});
+
+test('按昵称找 UID：先列来过直播间的观众（同名排前面、最近来的在前），再列B站搜索；搜索失败也给出本地结果', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: new Date('2026-11-14T20:00:00').getTime() });
+  const dir = await tempDir('luobo-find-user-');
+  const s = services();
+  let fail = false;
+  s.searchUsers = async keyword => { if (fail) throw new Error('B站：请求被拦截'); return [{ uid: 900, name: keyword + '本尊', face: '', fans: 1, level: 3, sign: '' }]; };
+  const robot = await new LiveRobot(dir, { services: s, random: () => 0 }).init();
+  try {
+    robot.receive({ type: 'member', user: '萝卜大哥', uid: 42 });
+    t.mock.timers.tick(60000);
+    robot.receive({ type: 'chat', user: '小萝卜', uid: 43, text: '晚上好' });
+    t.mock.timers.tick(60000);
+    robot.receive({ type: 'member', user: '路人', uid: 44 });
+    await assert.rejects(robot.action({ action: 'find_user', keyword: ' ' }), /请填要找的昵称/);
+    let { users } = await robot.action({ action: 'find_user', keyword: '萝卜' });
+    assert.deepEqual(users.local.map(u => u.uid), [43, 42], '最近来的在前');
+    assert.deepEqual(users.online.map(u => u.uid), [900]);
+    ({ users } = await robot.action({ action: 'find_user', keyword: '萝卜大哥' }));
+    assert.deepEqual(users.local.map(u => [u.uid, u.name]), [[42, '萝卜大哥']]);
+    robot.receive({ type: 'member', user: '萝卜大哥呀', uid: 45 });
+    ({ users } = await robot.action({ action: 'find_user', keyword: '萝卜大哥' }));
+    assert.deepEqual(users.local.map(u => u.uid), [42, 45], '名字完全一样的排最前');
+    fail = true;
+    ({ users } = await robot.action({ action: 'find_user', keyword: '路人' }));
+    assert.deepEqual(users.local.map(u => u.uid), [44]); assert.equal(users.error, 'B站：请求被拦截');
+  } finally { await robot.close(); await remove(dir); }
+});

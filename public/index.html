@@ -119,8 +119,10 @@
                 <label>同一个人多久内不重复播 / 分<input name="entrance.cooldown_minutes" type="number" min="0" max="1440" step="1" required></label>
                 <div class="robot-tiers-head"><span>名单（按 UID 认人）</span><button type="button" class="text-button" id="robot-entrance-add">加一个人 ＋</button></div>
                 <div id="robot-entrance-list" class="robot-tiers"></div>
+                <div class="robot-entrance-search"><input id="robot-entrance-q" maxlength="40" autocomplete="off" placeholder="不知道 UID？按昵称找" aria-label="按昵称找 UID"><button type="button" class="button dark-button" id="robot-entrance-find">找</button></div>
+                <div id="robot-entrance-results" class="robot-entrance-results" hidden></div>
                 <div class="robot-entrance-recent"><select id="robot-entrance-recent" aria-label="最近进场的观众"></select><button type="button" class="text-button" id="robot-entrance-pick">加入名单</button></div>
-                <p class="lottery-help">按 UID 认人，改昵称、戴装扮都能认出来。UID 是对方 B站个人空间网址里的那串数字，也可以从上面「最近进场的观众」里直接选。视频和礼物素材在同一个地方播（桌面版的素材小窗，或 OBS 浏览器源 <code>http://127.0.0.1:3181/overtime/?media=1</code>），会排队不叠在一起，加班机没开也播；音量跟着加班机的素材音量。对方用「神秘人」进场时 B站不给 UID，这时认不出来。</p>
+                <p class="lottery-help">按 UID 认人，改昵称、戴装扮都能认出来。UID 是对方 B站个人空间网址里的那串数字；不知道的话用上面的「按昵称找」：先列出来过你直播间的观众，再列 B站搜索结果，同名的看头像、等级和粉丝数分辨。也可以从「最近进场的观众」里直接选。视频和礼物素材在同一个地方播（桌面版的素材小窗，或 OBS 浏览器源 <code>http://127.0.0.1:3181/overtime/?media=1</code>），会排队不叠在一起，加班机没开也播；音量跟着加班机的素材音量。对方用「神秘人」进场时 B站不给 UID，这时认不出来。</p>
               </div>
             </article>
             <article class="lottery-card"><div class="lottery-card-title"><h2>感谢礼物</h2><span class="lottery-step">03</span></div>
