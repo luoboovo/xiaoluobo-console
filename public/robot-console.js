@@ -5,7 +5,7 @@ import {probe} from './overtime-console.js';
 const form=$('#robot-settings'),testForm=$('#robot-test-form');
 // 表单字段与配置路径一一对应；数字字段提交时转成数字。
 const FIELDS=['names','max_length','interval_seconds','welcome.template','welcome.merge_seconds','welcome.user_cooldown_minutes','welcome.back_days','welcome.back_template','gift.ai_all','gift.blind_template','gift.guard_template','gift.merge_seconds','gift.min_value','gift.big_value','follow.template','blindbox.keyword','blindbox.require_mention','blindbox.template','blindbox.empty_template','ai.provider','ai.base_url','ai.model','ai.persona','ai.max_chars','ai.user_cooldown_seconds','cue.interval_minutes','cue.silent_minutes','cue.active_minutes','cue.user_cooldown_minutes','cue.templates','cue.random_templates','cue.use_ai','scene_command.who','scene_command.users','entrance.cooldown_minutes'];
-const KINDS={welcome:'欢迎',gift:'谢礼',guard:'大航海',follow:'关注',query:'盲盒',ai:'AI',manual:'手动',cue:'点名',scene:'场景',like:'点赞',entrance:'进场'};
+const KINDS={welcome:'欢迎',gift:'谢礼',guard:'大航海',follow:'关注',query:'盲盒',ai:'AI',manual:'手动',cue:'点名',scene:'场景',like:'点赞',entrance:'进场',pk:'PK'};
 const STATUS={queued:'待发送',sending:'发送中',sent:'已发送',failed:'失败',skipped:'已跳过',preview:'仅显示'};
 const time=new Intl.DateTimeFormat('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 let robot,pending=false,dirty=false,configStamp='',logStamp='',blindStamp='';
@@ -59,7 +59,7 @@ function render(next){
   giftAiNote.hidden=!giftAiNote.textContent;
   $('#robot-like-note').textContent=robot.likes_today?`今天已经点了 ${robot.likes_today} 个赞（从这次打开控制台算起）。`:'今天还没点赞。';
   $('#robot-like-form button').disabled=pending;
-  renderFeatures();renderBlind();renderImport();renderSlots();renderCue();renderScenes();renderRecent();note();
+  renderFeatures();renderPk();renderBlind();renderImport();renderSlots();renderCue();renderScenes();renderRecent();note();
   if(robot.aiReady&&!modelsTried&&modelProvider===robot.config.ai.provider){modelsTried=true;loadModels(false);}
 }
 // —— AI 服务商：下拉里免费的排前面；切换后先存服务商，再读这家的模型 ——
@@ -104,6 +104,27 @@ async function loadModels(report=true){
 // —— 直播场景：在页面上编辑草稿，点「保存场景」才生效；表情直接用已保存的那份 ——
 // —— 功能开关：在页面最上面，点一下马上存，不跟着下面的设置表单（表单保存时也不带这些开关）——
 const featureBox=$('#robot-features'),featureBusy=new Set();
+// —— PK 查对手：功能面板里的勾选项和话术，改了马上保存 ——
+let pkStamp='',pkBusy=false;
+function renderPk(){
+  const p=robot.config.pk,stamp=JSON.stringify([p,robot.pk_fields,pkBusy,currentRoom]);
+  $('#robot-pk-state').textContent=robot.platform!=='bilibili'?'只支持 B站':!p.enabled?'没打开（在上面打开「PK 查对手」）':!robot.config.enabled?'机器人没开':'开着：连上 PK 就查';
+  $('#robot-pk-panel').classList.toggle('on',p.enabled);
+  if(stamp===pkStamp)return;pkStamp=stamp;
+  $('#robot-pk-fields').innerHTML=(robot.pk_fields||[]).map(f=>`<label class="robot-pk-field"><input type="checkbox" value="${escapeHtml(f.id)}" ${p.fields.includes(f.id)?'checked':''} ${pkBusy?'disabled':''}><span>${escapeHtml(f.name)}</span></label>`).join('');
+  for(const [id,value] of [['#robot-pk-template',p.template],['#robot-pk-keyword',p.keyword]])if(document.activeElement!==$(id))$(id).value=value;
+  $('#robot-pk-ask').checked=p.ask;$('#robot-pk-keyword').disabled=!p.ask;
+}
+async function savePk(change,done){
+  if(pkBusy||!robot)return;
+  pkBusy=true;renderPk();
+  try{const result=await robotApi({action:'configure',config:{pk:change}});if(result.state)render(result.state);if(done)toast(done);}
+  catch(error){toast(error.message,true);}
+  finally{pkBusy=false;pkStamp='';if(robot)renderPk();}
+}
+$('#robot-pk-fields').addEventListener('change',()=>savePk({fields:[...$('#robot-pk-fields').querySelectorAll('input:checked')].map(input=>input.value)}));
+$('#robot-pk-ask').addEventListener('change',event=>savePk({ask:event.target.checked},event.target.checked?'观众发口令也能查了':'已关掉口令查询'));
+for(const [id,key] of [['#robot-pk-template','template'],['#robot-pk-keyword','keyword']])$(id).addEventListener('change',event=>savePk({[key]:event.target.value.trim()},'已保存'));
 function renderFeatures(){
   let on=0;
   for(const input of featureBox.querySelectorAll('[data-feature]')){
@@ -476,7 +497,7 @@ $('#robot-like-form').addEventListener('submit',run(async event=>{
 testForm.addEventListener('submit',run(async()=>{
   const mode=testForm.elements.mode.value,user=testForm.elements.user.value.trim()||'测试观众',text=testForm.elements.text.value.trim();
   const output=$('#robot-test-result'),button=testForm.querySelector('button');
-  if(mode!=='blindbox'&&!text)throw new Error('请填写内容');
+  if(!['blindbox','pk'].includes(mode)&&!text)throw new Error('请填写内容');
   button.disabled=true;output.hidden=false;output.textContent=mode==='ai'?'DeepSeek 思考中…':'处理中…';
   try{
     if(mode==='say'){await action({action:'say',text});output.textContent='已加入发言队列，结果见发言记录。';}
@@ -484,11 +505,11 @@ testForm.addEventListener('submit',run(async()=>{
       const value=Number(text);if(!Number.isFinite(value)||value<0)throw new Error('请填礼物金额（元），比如 52');
       const result=await action({action:'test_gift',user,value});output.textContent=result.reply;
     }
-    else{const result=await action({action:mode==='ai'?'test':'test_blindbox',user,text});output.textContent=result.reply;}
+    else{const result=await action({action:mode==='ai'?'test':mode==='pk'?'test_pk':'test_blindbox',user,text});output.textContent=result.reply;}
   }catch(error){output.textContent=error.message;throw error;}
   finally{button.disabled=false;}
 }));
-testForm.elements.mode.addEventListener('change',()=>{const mode=testForm.elements.mode.value;testForm.elements.text.placeholder=mode==='gift'?'礼物总金额（元），比如 52；按已保存的分档':mode==='blindbox'?'填上面的观众昵称即可，这里可不填':mode==='say'?'要发到直播间的弹幕':'比如：主播今天吃什么？';});
+testForm.elements.mode.addEventListener('change',()=>{const mode=testForm.elements.mode.value;testForm.elements.text.placeholder=mode==='gift'?'礼物总金额（元），比如 52；按已保存的分档':mode==='blindbox'?'填上面的观众昵称即可，这里可不填':mode==='pk'?'不填就查现在 PK 的对面；也可以填一个房间号试试':mode==='say'?'要发到直播间的弹幕':'比如：主播今天吃什么？';});
 addEventListener('robot-state',event=>render(event.detail));
 addEventListener('console-state',note);
 async function load(){const room=currentRoom,state=await api(`/api/robot/state?room=${encodeURIComponent(room)}`);if(room===currentRoom)render({...state,room});}

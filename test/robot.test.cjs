@@ -1123,7 +1123,7 @@ test('礼物库里没有的礼物：发感谢前去查价格，查到按真实�
 
 test('功能开关：默认全关，开哪个只开哪个、重启后记得；旧版配置（功能默认开着）升级后先全部关掉，再开不会被关回去', async () => {
   const { FEATURES } = require('../lib/robot.cjs');
-  assert.deepEqual(FEATURES, ['welcome', 'entrance', 'gift', 'follow', 'blindbox', 'ai', 'cue', 'scene_command']);
+  assert.deepEqual(FEATURES, ['welcome', 'entrance', 'gift', 'follow', 'blindbox', 'pk', 'ai', 'cue', 'scene_command']);
   const fresh = normalizeConfig({});
   for (const key of FEATURES) assert.equal(fresh[key].enabled, false, key + ' 默认关着');
   const dir = await tempDir('luobo-switches-');
