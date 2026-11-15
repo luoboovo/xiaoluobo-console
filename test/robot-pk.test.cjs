@@ -33,13 +33,13 @@ function fakeServices({ status = 'connected' } = {}) {
       }
       if (endpoint.endsWith('/getInfoByRoom')) {
         const room = Number(q.get('room_id'));
-        if (room === 7734200) return ok({ universal_interact_info_v2: s.link ? { members: [{ uid: 100, uname: '我', room_id: 7734200 }, ...s.link.map(r => ({ uid: ROOMS[r].uid, uname: ROOMS[r].name, room_id: r }))] } : null, pk_info_v2: null, battle_info: s.fight || null });
+        if (room === 7734200) return ok({ universal_interact_info_v2: s.link ? { members: [{ uid: 100, uname: '我', room_id: 7734200, ...(s.scores ? { biz_extra_data: { multi_conn: { price: s.scores[7734200] * 100, price_text: String(s.scores[7734200]) } } } : {}) }, ...s.link.map(r => ({ uid: ROOMS[r].uid, uname: ROOMS[r].name, room_id: r, ...(s.scores ? { biz_extra_data: { multi_conn: { price: s.scores[r] * 100, price_text: String(s.scores[r]) } } } : {}) }))] } : null, pk_info_v2: null, battle_info: s.fight || null });
         const r = ROOMS[room];
         return ok({ room_info: { title: '对面的直播', area_name: '聊天电台', live_status: 1, live_start_time: Math.floor(Date.now() / 1000) - 3900 }, anchor_info: { base_info: { uname: r.name }, relation_info: { attention: 123456 }, medal_info: { fansclub: 3210 }, live_info: { level: 27 } }, guard_info: { count: r.guards }, watched_show: { switch: true, num: 45678 } });
       }
       if (endpoint.endsWith('/getOnlineGoldRank')) {
         const r = ROOMS[Number(q.get('roomId'))];
-        return ok(q.get('pageSize') === '50' ? { onlineNum: 1234, OnlineRankItem: q.get('page') === '1' ? r.online.map(uid => ({ uid })) : [] } : { onlineNum: 1234 });
+        return ok(q.get('pageSize') === '50' ? { onlineNum: 1234, OnlineRankItem: q.get('page') === '1' ? r.online.map((uid, i) => ({ uid, score: 10 * (i + 1) })) : [] } : { onlineNum: 1234 });
       }
       if (endpoint.endsWith('/topListNew')) { const r = ROOMS[Number(q.get('roomid'))]; return ok({ info: { num: r.guardList.length, page: 1 }, top3: r.guardList.map(uid => ({ uinfo: { uid } })), list: [] }); }
       throw new Error('没想到的请求 ' + endpoint);
@@ -229,4 +229,16 @@ test('机器人连麦查对手：巅峰赛这类对战（直播间信息里的�
   services.emit('pk', 'PK_BATTLE_START_NEW');
   await until(() => services.sent.length === 1);
   assert.equal(services.sent[0].text, '连麦的是第二家，舰长5，比分30:70');
+});
+
+test('机器人连麦查对手：连线时也有比分和对方票数（每家头上的票数）；在线榜总贡献把对方榜单加起来', async t => {
+  const { robot, services } = await makeRobot(t);
+  await robot.action({ action: 'configure', config: { pk: { fields: ['votes', 'theirVotes', 'rankScore'] } } });
+  services.scores = { 7734200: 162, 999001: 61, 999002: 12000 };
+  services.link = [999001, 999002];
+  services.emit('pk', 'PK_BATTLE_START_NEW');
+  await until(() => services.sent.length === 2);
+  assert.deepEqual(services.sent.map(s => s.text), ['连麦的是对面主播，比分162:61，票数61，在线榜贡献30', '连麦的是第二家，比分162:1.2万，票数1.2万，在线榜贡献10']);
+  // 单独查一个房间号：没有比分和票数，只剩榜单贡献。
+  assert.equal((await robot.action({ action: 'test_pk', text: '88' })).reply, '连麦的是对面主播，在线榜贡献30');
 });
