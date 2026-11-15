@@ -21,6 +21,7 @@ const {MODES:LOTTERY_MODES}=require('./lib/lottery.cjs');
 const { LiveRobot, AI_PROVIDERS } = require('./lib/robot.cjs');
 const { RobotRooms } = require('./lib/robot-rooms.cjs');
 const { FeatureSwitches } = require('./lib/feature-switches.cjs');
+const { LiveMemory } = require('./lib/live-memory.cjs');
 
 // Overlay pages subscribe to one channel; everything else is a console page.
 const CHANNELS = { bomb:new Set(['number-bomb']), lottery:new Set(['lottery']), feeding:new Set(['feeding','feeding-motion','feeding-physics']), overtime:new Set(['overtime','overtime-clock','overtime-media']), scene:new Set(['noodle','noodle-motion']) };
@@ -63,6 +64,8 @@ async function startServer(options = {}) {
   const robotRooms=await new RobotRooms({services,dataDir:services.dataDir,main:robot,robotOptions:{diagnostics,keyStore,fetchImpl:options.robotFetch||globalThis.fetch},...(options.robotLink?{createLink:options.robotLink}:{})}).init();
   // 各玩法的总开关（默认全关）：关着的玩法不接直播间的礼物和弹幕。
   const features=await new FeatureSwitches(services.dataDir,{defaultOn:options.featuresOn}).init();
+  // 主直播间连上就记住，下次打开自动连回去；只有手动点「断开」才不再自动连。
+  const liveMemory=await new LiveMemory(services,{diagnostics,...options.liveMemory}).init();
   const lotteryFor=mode=>{const key=mode??'wheel';if(!LOTTERY_MODES.includes(key))throw new Error('抽奖玩法无效');return lottery[key];};
   const mediaListeners=new Set();
   let actions = Promise.resolve(), giftBatch, pendingGifts=0, liveStamp='';
@@ -288,6 +291,7 @@ async function startServer(options = {}) {
         for(const target of Object.values(lottery))broadcast('lottery',target.snapshot());
         robot.reset();
       });
+      liveMemory.resume();
       return {ok:true};
     },
     '/api/login/douyin': async () => { await services.loginDouyin(); return {ok:true}; },
@@ -316,8 +320,8 @@ async function startServer(options = {}) {
     '/api/hime/import': async input => ({ok:true,...await hime.run(input)}),
     '/api/obs/import': async input => ({ok:true,...await obs.run(input)}),
     '/api/obs/virtual-camera': async input => ({ok:true,...await obs.run(input,true)}),
-    '/api/live/connect': async input => { await services.connectLive(input.room); return {ok:true}; },
-    '/api/live/disconnect': () => { services.disconnectLive(); return {ok:true}; },
+    '/api/live/connect': async input => { liveMemory.stop(); await services.connectLive(input.room); await liveMemory.remember(true); return {ok:true}; },
+    '/api/live/disconnect': async () => { services.disconnectLive(); await liveMemory.remember(false); return {ok:true}; },
     '/api/gifts/sync': input => services.syncGifts(input.room || ''),
     '/api/config/import': async input => { await services.importConfig(input); return {ok:true}; },
     '/api/events/clear': () => { services.events = []; return {ok:true}; }
@@ -450,6 +454,7 @@ async function startServer(options = {}) {
   obs = new ObsIntegration(origin, options.obsOptions);
   hime = new HimeIntegration(origin, options.himeOptions);
   diagnostics?.log('info','server.listening',{origin});
+  liveMemory.resume();
   diagnostics?.sample(()=>({platform:services.platform,liveStatus:services.state.live.status,douyin:services.platform==='douyin'?services.douyinStats:undefined,pendingGifts,clients:clients.size,customers:noodle.queue.length,objects:noodle.objects.length,people:overtime.state.people.length,mediaBatches:overtime.mediaQueue.length}));
   const keepAlive = setInterval(() => { for (const client of clients) write(client,': heartbeat\n\n'); }, 15000);
   let lotteryPending=false;
@@ -486,7 +491,7 @@ async function startServer(options = {}) {
   }, 15000);
   const close = async () => {
     for (const timer of [lotteryTimer, physicsTimer, keepAlive, sealTimer, cleanupTimer, overtimeTimer, checkpointTimer]) clearInterval(timer);
-    clearTimeout(pruneTimer); services.close(); await robot.close(); await robotRooms.close(); await actions; await pruning;
+    clearTimeout(pruneTimer); liveMemory.close(); services.close(); await robot.close(); await robotRooms.close(); await actions; await pruning;
     for(const game of Object.values(games)){game.overtime.close();await game.overtime.checkpoint();await game.feeding.close();await game.numberBomb.close();for(const target of Object.values(game.lottery))await target.close();}
     await services.flush();
     mediaListeners.clear();clearTimeout(broadcastTimer);clearTimeout(peopleTimer); pendingStates.clear(); pendingMessages.length = 0; avatars.clear();

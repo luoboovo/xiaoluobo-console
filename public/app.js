@@ -186,7 +186,11 @@ document.addEventListener('click', event => {
 });
 $('#live-form').addEventListener('submit', async event => {
   event.preventDefault();
-  try { await api(`/api/live/${['connected', 'connecting', 'reconnecting'].includes(state.live.status) ? 'disconnect' : 'connect'}`, { room: $('#room-input').value.trim() }); }
+  const leaving = ['connected', 'connecting', 'reconnecting'].includes(state.live.status);
+  try {
+    await api(`/api/live/${leaving ? 'disconnect' : 'connect'}`, { room: $('#room-input').value.trim() });
+    toast(leaving ? '已断开，下次打开控制台不会自动连接' : '已连接，下次打开控制台会自动连上，点「断开」才会断开');
+  }
   catch (error) { toast(error.message, true); }
 });
 $('#sync-button').addEventListener('click', syncGifts); $('#library-sync').addEventListener('click', syncGifts);
