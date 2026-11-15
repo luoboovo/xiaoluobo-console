@@ -16,7 +16,7 @@ function fakeServices({ status = 'connected' } = {}) {
   const s = new EventEmitter();
   const ok = data => ({ data });
   Object.assign(s, {
-    platform: 'bilibili', selfUid: 1, battle: null, link: null, lookups: 0, sent: [],
+    platform: 'bilibili', selfUid: 1, battle: null, link: null, lookups: 0, lookupAt: {}, sent: [], sentAt: [],
     state: { account: { loggedIn: true, name: '萝卜机器人' }, live: { status, roomId: 7734200, anchorUid: 100 } },
     secretData: {}, buvid: 'test-buvid', wbi: { key: 'a'.repeat(32) }, ensureWbi: async () => {},
     request: async url => {
@@ -26,13 +26,14 @@ function fakeServices({ status = 'connected' } = {}) {
     api: async url => {
       const u = new URL(url), endpoint = u.pathname, q = u.searchParams;
       if (endpoint.endsWith('/room_init')) {
-        s.lookups++;
+        s.lookups++; s.lookupAt[q.get('id')] = Date.now();
         const id = Number(q.get('id')), room = id === 88 ? 999001 : id;
         if (!ROOMS[room]) throw new Error('B站：直播间不存在');
         return ok({ room_id: room, uid: ROOMS[room].uid, short_id: ROOMS[room].short, live_status: 1 });
       }
       if (endpoint.endsWith('/getInfoByRoom')) {
         const room = Number(q.get('room_id'));
+        if (room === 7734200 && s.infoFails > 0) { s.infoFails--; throw new Error('B站：-352'); }
         if (room === 7734200) return ok({ universal_interact_info_v2: s.link ? { members: [{ uid: 100, uname: '我', room_id: 7734200, ...(s.scores ? { biz_extra_data: { multi_conn: { price: s.scores[7734200] * 100, price_text: String(s.scores[7734200]) } } } : {}) }, ...s.link.map(r => ({ uid: ROOMS[r].uid, uname: ROOMS[r].name, room_id: r, ...(s.scores ? { biz_extra_data: { multi_conn: { price: s.scores[r] * 100, price_text: String(s.scores[r]) } } } : {}) }))] } : null, pk_info_v2: null, battle_info: s.fight || null });
         const r = ROOMS[room];
         return ok({ room_info: { title: '对面的直播', area_name: '聊天电台', live_status: 1, live_start_time: Math.floor(Date.now() / 1000) - 3900 }, anchor_info: { base_info: { uname: r.name }, relation_info: { attention: 123456 }, medal_info: { fansclub: 3210 }, live_info: { level: 27 } }, guard_info: { count: r.guards }, watched_show: { switch: true, num: 45678 } });
@@ -44,7 +45,7 @@ function fakeServices({ status = 'connected' } = {}) {
       if (endpoint.endsWith('/topListNew')) { const r = ROOMS[Number(q.get('roomid'))]; return ok({ info: { num: r.guardList.length, page: 1 }, top3: r.guardList.map(uid => ({ uinfo: { uid } })), list: [] }); }
       throw new Error('没想到的请求 ' + endpoint);
     },
-    sendChat: async (text, options) => { s.sent.push({ text, ...options }); },
+    sendChat: async (text, options) => { if (s.sendDelay) await new Promise(r => setTimeout(r, s.sendDelay)); s.sent.push({ text, ...options }); s.sentAt.push(Date.now()); },
   });
   return s;
 }
@@ -78,7 +79,7 @@ test('机器人连麦查对手：普通连麦（不用 PK）也查；每个连�
   assert.equal(services.sent[1].text, '连麦的是第二家，舰长5，在线1234，粉丝12.3万，粉丝团3210', '多人连线：新来的那家单独报');
 
   services.link = null;
-  await wait(1900);
+  await wait(4000); // 连续两次确认不在了才算断开
   services.link = [999001];
   await until(() => services.sent.length === 3);
   assert.equal(services.sent[2].text, `连麦的是对面主播，${INFO}`, '断开后再连上会再报');
@@ -241,4 +242,43 @@ test('机器人连麦查对手：连线时也有比分和对方票数（每家�
   assert.deepEqual(services.sent.map(s => s.text), ['连麦的是对面主播，比分162:61，票数61，在线榜贡献30', '连麦的是第二家，比分162:1.2万，票数1.2万，在线榜贡献10']);
   // 单独查一个房间号：没有比分和票数，只剩榜单贡献。
   assert.equal((await robot.action({ action: 'test_pk', text: '88' })).reply, '连麦的是对面主播，在线榜贡献30');
+});
+
+test('机器人连麦查对手：断线重连、B站偶尔没返回连线信息都不会重报；断开要连续两次确认', async t => {
+  const { robot, services } = await makeRobot(t, {}, { pkPollMs: 100 });
+  services.link = [999001];
+  await until(() => services.sent.length === 1);
+
+  // 断线重连：不算断开连麦。
+  services.state.live.status = 'reconnecting'; services.emit('state', services.state);
+  await wait(300);
+  services.state.live.status = 'connected'; services.emit('state', services.state);
+  await wait(2200);
+  assert.equal(services.sent.length, 1, '重连后不重报');
+
+  // B站这次没给直播间信息（风控 / 超时），只拿到「没在 PK」：不算断开。
+  services.infoFails = 3;
+  await until(() => services.infoFails === 0);
+  await wait(2200);
+  assert.equal(services.sent.length, 1, '连线信息不全时不重报');
+
+  // 换了直播间才从头算。
+  services.state.live.roomId = 7734201; services.state.live.status = 'reconnecting'; services.emit('state', services.state);
+  services.state.live.status = 'connected'; services.emit('state', services.state);
+  await wait(100);
+  services.state.live.roomId = 7734200; services.emit('state', services.state);
+  await until(() => services.sent.length === 2);
+  assert.equal(robot.log.filter(e => e.kind === 'pk').length, 2);
+});
+
+test('机器人连麦查对手：多人连麦一家一家发，上一条发出去了才查、才发下一家', async t => {
+  const { robot, services } = await makeRobot(t, {}, { pkPollMs: 100 });
+  services.sendDelay = 400;
+  services.link = [999001, 999002];
+  await until(() => services.sent.length === 2);
+  assert.deepEqual(services.sent.map(s => s.text.split('，')[0]), ['连麦的是对面主播', '连麦的是第二家']);
+  assert.ok(services.lookupAt['999002'] >= services.sentAt[0], '第一家发出去之后才查第二家');
+  await wait(1500);
+  assert.equal(services.sent.length, 2, '不会重复发');
+  assert.equal(robot.log.filter(e => e.kind === 'pk').length, 2);
 });
