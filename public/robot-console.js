@@ -5,7 +5,7 @@ import {probe} from './overtime-console.js';
 const form=$('#robot-settings'),testForm=$('#robot-test-form');
 // 表单字段与配置路径一一对应；数字字段提交时转成数字。
 const FIELDS=['names','max_length','interval_seconds','welcome.template','welcome.merge_seconds','welcome.user_cooldown_minutes','welcome.back_days','welcome.back_template','gift.ai_all','gift.blind_template','gift.guard_template','gift.merge_seconds','gift.min_value','gift.big_value','follow.template','blindbox.keyword','blindbox.require_mention','blindbox.template','blindbox.empty_template','ai.provider','ai.base_url','ai.model','ai.persona','ai.max_chars','ai.user_cooldown_seconds','cue.interval_minutes','cue.silent_minutes','cue.active_minutes','cue.user_cooldown_minutes','cue.templates','cue.random_templates','cue.use_ai','scene_command.who','scene_command.users','entrance.cooldown_minutes'];
-const KINDS={welcome:'欢迎',gift:'谢礼',guard:'大航海',follow:'关注',query:'盲盒',ai:'AI',manual:'手动',cue:'点名',scene:'场景',like:'点赞',entrance:'进场',pk:'PK'};
+const KINDS={welcome:'欢迎',gift:'谢礼',guard:'大航海',follow:'关注',query:'盲盒',ai:'AI',manual:'手动',cue:'点名',scene:'场景',like:'点赞',entrance:'进场',pk:'PK',visit:'串门'};
 const STATUS={queued:'待发送',sending:'发送中',sent:'已发送',failed:'失败',skipped:'已跳过',preview:'仅显示'};
 const time=new Intl.DateTimeFormat('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 let robot,pending=false,dirty=false,configStamp='',logStamp='',blindStamp='';
@@ -107,13 +107,14 @@ const featureBox=$('#robot-features'),featureBusy=new Set();
 // —— PK 查对手：功能面板里的勾选项和话术，改了马上保存 ——
 let pkStamp='',pkBusy=false;
 function renderPk(){
-  const p=robot.config.pk,stamp=JSON.stringify([p,robot.pk_fields,pkBusy,currentRoom]);
-  $('#robot-pk-state').textContent=robot.platform!=='bilibili'?'只支持 B站':!p.enabled?'没打开（在上面打开「PK 查对手」）':!robot.config.enabled?'机器人没开':'开着：连上 PK 就查';
+  const p=robot.config.pk,stamp=JSON.stringify([p,robot.pk_fields,pkBusy,currentRoom]),g=robot.pk_guests;
+  $('#robot-pk-state').textContent=robot.platform!=='bilibili'?'只支持 B站':!p.enabled?'没打开（在上面打开「PK 查对手」）':!robot.config.enabled?'机器人没开':g?`PK 中：对面名单 ${g.count} 人，已欢迎串门 ${g.greeted} 人`:'开着：连上 PK 就查';
   $('#robot-pk-panel').classList.toggle('on',p.enabled);
   if(stamp===pkStamp)return;pkStamp=stamp;
   $('#robot-pk-fields').innerHTML=(robot.pk_fields||[]).map(f=>`<label class="robot-pk-field"><input type="checkbox" value="${escapeHtml(f.id)}" ${p.fields.includes(f.id)?'checked':''} ${pkBusy?'disabled':''}><span>${escapeHtml(f.name)}</span></label>`).join('');
-  for(const [id,value] of [['#robot-pk-template',p.template],['#robot-pk-keyword',p.keyword]])if(document.activeElement!==$(id))$(id).value=value;
+  for(const [id,value] of [['#robot-pk-template',p.template],['#robot-pk-keyword',p.keyword],['#robot-pk-visit-template',p.visit_template]])if(document.activeElement!==$(id))$(id).value=value;
   $('#robot-pk-ask').checked=p.ask;$('#robot-pk-keyword').disabled=!p.ask;
+  $('#robot-pk-visit').checked=p.visit;$('#robot-pk-visit-template').disabled=!p.visit;
 }
 async function savePk(change,done){
   if(pkBusy||!robot)return;
@@ -123,8 +124,9 @@ async function savePk(change,done){
   finally{pkBusy=false;pkStamp='';if(robot)renderPk();}
 }
 $('#robot-pk-fields').addEventListener('change',()=>savePk({fields:[...$('#robot-pk-fields').querySelectorAll('input:checked')].map(input=>input.value)}));
+$('#robot-pk-visit').addEventListener('change',event=>savePk({visit:event.target.checked},event.target.checked?'对面观众来了会说来串门':'已关掉串门欢迎'));
 $('#robot-pk-ask').addEventListener('change',event=>savePk({ask:event.target.checked},event.target.checked?'观众发口令也能查了':'已关掉口令查询'));
-for(const [id,key] of [['#robot-pk-template','template'],['#robot-pk-keyword','keyword']])$(id).addEventListener('change',event=>savePk({[key]:event.target.value.trim()},'已保存'));
+for(const [id,key] of [['#robot-pk-template','template'],['#robot-pk-keyword','keyword'],['#robot-pk-visit-template','visit_template']])$(id).addEventListener('change',event=>savePk({[key]:event.target.value.trim()},'已保存'));
 function renderFeatures(){
   let on=0;
   for(const input of featureBox.querySelectorAll('[data-feature]')){

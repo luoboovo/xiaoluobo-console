@@ -207,7 +207,9 @@ body.dark .robot-off-tag{background:#4a3436;color:#e0aeb0}
 .robot-pk-more input:not([type=checkbox]){display:block;width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:9px;font:inherit;font-size:12px;color:var(--text);background:var(--surface);margin-top:5px}
 .robot-pk-more input:disabled{opacity:.55}
 .robot-pk-more .robot-pk-ask{display:flex;align-items:center;gap:6px;padding-bottom:9px;color:var(--text);white-space:nowrap}
+.robot-pk-more.robot-pk-visit{grid-template-columns:auto minmax(0,1fr)}
 .robot-pk-ask input{margin:0;width:15px;height:15px;flex:0 0 15px;accent-color:#6fa185}
 body.dark .robot-pk-field:has(input:checked){background:#2d4038;border-color:#47645a}
 @media(max-width:1100px){.robot-pk-fields{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:700px){.robot-pk-fields{grid-template-columns:1fr 1fr}.robot-pk-more{grid-template-columns:1fr}}
+@media(max-width:700px){.robot-pk-more.robot-pk-visit{grid-template-columns:1fr}}

@@ -88,6 +88,11 @@
             <label class="robot-pk-ask"><input type="checkbox" id="robot-pk-ask">观众发口令也能查</label>
             <label>口令<input id="robot-pk-keyword" maxlength="20" autocomplete="off"></label>
           </div>
+          <div class="robot-pk-more robot-pk-visit">
+            <label class="robot-pk-ask"><input type="checkbox" id="robot-pk-visit">对面的观众来了说「来串门」</label>
+            <label>串门欢迎语<input id="robot-pk-visit-template" maxlength="60" autocomplete="off"></label>
+          </div>
+          <p class="lottery-help" id="robot-pk-visit-note">PK 时每分钟拉一次对面的在线榜和大航海名单，名单里的人、或戴着对面粉丝牌的人进来就说这句（藏了粉丝牌也认得出）；每场 PK 每人一次，3 秒内来的合成一句。{user} 观众，{rival} 对面主播。需要控制台登录 B站，没登录拿不到进场观众的 UID。</p>
           <p class="lottery-help">{name} 对面主播，{info} 勾上的几项；也能单独用 {guards} 舰长、{online} 在线、{followers} 粉丝、{fansClub} 粉丝团、{watched} 看过、{level} 等级、{liveTime} 开播时长、{area} 分区、{title} 标题、{ours}:{theirs} 比分、{room} 房间号。太长会自动分几条发。</p>
         </div>
       </section>
