@@ -22,6 +22,7 @@ const { LiveRobot, AI_PROVIDERS } = require('./lib/robot.cjs');
 const { RobotRooms } = require('./lib/robot-rooms.cjs');
 const { FeatureSwitches } = require('./lib/feature-switches.cjs');
 const { LiveMemory } = require('./lib/live-memory.cjs');
+const { roomId } = require('./lib/protocol.cjs');
 
 // Overlay pages subscribe to one channel; everything else is a console page.
 const CHANNELS = { bomb:new Set(['number-bomb']), lottery:new Set(['lottery']), feeding:new Set(['feeding','feeding-motion','feeding-physics']), overtime:new Set(['overtime','overtime-clock','overtime-media']), scene:new Set(['noodle','noodle-motion']) };
@@ -455,6 +456,27 @@ async function startServer(options = {}) {
   hime = new HimeIntegration(origin, options.himeOptions);
   diagnostics?.log('info','server.listening',{origin});
   liveMemory.resume();
+  // 每次打开控制台自动刷新一次礼物库，看看有没有新礼物（B站按上次连的直播间查）；有新的就在实时消息里说一声。
+  // B站礼物列表有 1～2 MB，网慢时会超时：失败了隔一会儿再试，最多再试 2 次；都不行就提示手动点刷新。
+  let closed=false,autoSyncTimer;
+  if(options.autoSyncGifts){
+    const retryMs=options.autoSyncRetryMs??60000;
+    const attempt=left=>{
+      if(closed)return;
+      let room='';
+      try{if(services.platform==='bilibili'&&services.state.config.room){roomId(services.state.config.room);room=services.state.config.room;}}catch{}
+      services.syncGifts(room).then(result=>{
+        const added=result?.added||[];
+        diagnostics?.log('info','gifts.auto_sync',{platform:services.platform,count:result?.count,added:added.length});
+        if(added.length)services.addEvent('gift-library','',`礼物库自动更新：新增 ${added.length} 种礼物（${added.slice(0,8).join('、')}${added.length>8?'等':''}）`);
+      }).catch(error=>{
+        diagnostics?.log('warn','gifts.auto_sync_failed',{platform:services.platform,left,error});
+        if(left>0&&!closed){autoSyncTimer=setTimeout(()=>attempt(left-1),retryMs);autoSyncTimer.unref?.();}
+        else{services.state.gifts.error='打开时自动刷新礼物库没成功（网络慢），可以点刷新再试';services.publish();}
+      });
+    };
+    attempt(2);
+  }
   diagnostics?.sample(()=>({platform:services.platform,liveStatus:services.state.live.status,douyin:services.platform==='douyin'?services.douyinStats:undefined,pendingGifts,clients:clients.size,customers:noodle.queue.length,objects:noodle.objects.length,people:overtime.state.people.length,mediaBatches:overtime.mediaQueue.length}));
   const keepAlive = setInterval(() => { for (const client of clients) write(client,': heartbeat\n\n'); }, 15000);
   let lotteryPending=false;
@@ -490,6 +512,7 @@ async function startServer(options = {}) {
     enqueue(() => overtime.checkpoint()).catch(error => services.addEvent('system', '', `加班机保存失败：${error.message}`)).finally(() => { checkpointPending = false; });
   }, 15000);
   const close = async () => {
+    closed=true;clearTimeout(autoSyncTimer);
     for (const timer of [lotteryTimer, physicsTimer, keepAlive, sealTimer, cleanupTimer, overtimeTimer, checkpointTimer]) clearInterval(timer);
     clearTimeout(pruneTimer); liveMemory.close(); services.close(); await robot.close(); await robotRooms.close(); await actions; await pruning;
     for(const game of Object.values(games)){game.overtime.close();await game.overtime.checkpoint();await game.feeding.close();await game.numberBomb.close();for(const target of Object.values(game.lottery))await target.close();}
@@ -504,7 +527,7 @@ async function startServer(options = {}) {
 
 if (require.main === module) {
   const diagnostics=require('./lib/diagnostics.cjs').createDiagnostics(path.join(__dirname,'.local-data'));
-  startServer({port:3180,diagnostics}).then(runtime=>{
+  startServer({port:3180,diagnostics,autoSyncGifts:true}).then(runtime=>{
     console.log(`小萝卜游戏控制台 ${runtime.url}`);
     let stopping=false;
     const stop=async()=>{if(stopping)return;stopping=true;await runtime.close();await diagnostics.close();process.exit(0);};

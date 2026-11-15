@@ -41,7 +41,8 @@ function renderState(next) {
   $('.live-indicator').classList.toggle('on', state.live.status === 'connected');
   $('#gift-total').textContent = state.gifts.count.toLocaleString(); $('#library-total').textContent = state.gifts.count.toLocaleString();
   const date = state.gifts.updatedAt ? new Date(state.gifts.updatedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
-  $('#gift-note').textContent = state.gifts.syncing ? '正在同步礼物与图片…' : state.gifts.error || (date ? `已同步 ${date} · ${state.gifts.cached} 张图片` : '点击刷新，同步礼物');
+  const added = state.gifts.added?.count ? ` · 新增 ${state.gifts.added.count} 种` : '';
+  $('#gift-note').textContent = state.gifts.syncing ? '正在同步礼物与图片…' : state.gifts.error || (date ? `已同步 ${date} · ${state.gifts.cached} 张图片${added}` : '点击刷新，同步礼物');
   $('#gift-note').classList.toggle('warning', Boolean(state.gifts.error));
   $('#library-date').textContent = douyin?`抖音礼物 · 价格单位为抖币${date?' · 最近同步 '+date:''}`:date ? `最近同步 ${date} · 仅付费礼物，同名同价已合并` : '仅保留付费礼物，同名同价已合并。';
   $('#sync-button').disabled = $('#library-sync').disabled = state.gifts.syncing;

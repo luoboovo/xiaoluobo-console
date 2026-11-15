@@ -5,7 +5,7 @@ import {probe} from './overtime-console.js';
 const form=$('#robot-settings'),testForm=$('#robot-test-form');
 // 表单字段与配置路径一一对应；数字字段提交时转成数字。
 const FIELDS=['names','max_length','interval_seconds','welcome.template','welcome.merge_seconds','welcome.user_cooldown_minutes','welcome.back_days','welcome.back_template','gift.ai_all','gift.blind_template','gift.guard_template','gift.merge_seconds','gift.min_value','gift.big_value','follow.template','blindbox.keyword','blindbox.require_mention','blindbox.template','blindbox.empty_template','ai.provider','ai.base_url','ai.model','ai.persona','ai.max_chars','ai.user_cooldown_seconds','cue.interval_minutes','cue.silent_minutes','cue.active_minutes','cue.user_cooldown_minutes','cue.templates','cue.random_templates','cue.use_ai','scene_command.who','scene_command.users','entrance.cooldown_minutes'];
-const KINDS={welcome:'欢迎',gift:'谢礼',guard:'大航海',follow:'关注',query:'盲盒',ai:'AI',manual:'手动',cue:'点名',scene:'场景',like:'点赞',entrance:'进场',pk:'PK',visit:'串门'};
+const KINDS={welcome:'欢迎',gift:'谢礼',guard:'大航海',follow:'关注',query:'盲盒',ai:'AI',manual:'手动',cue:'点名',scene:'场景',like:'点赞',entrance:'进场',pk:'连麦',visit:'串门'};
 const STATUS={queued:'待发送',sending:'发送中',sent:'已发送',failed:'失败',skipped:'已跳过',preview:'仅显示'};
 const time=new Intl.DateTimeFormat('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 let robot,pending=false,dirty=false,configStamp='',logStamp='',blindStamp='';
@@ -104,11 +104,11 @@ async function loadModels(report=true){
 // —— 直播场景：在页面上编辑草稿，点「保存场景」才生效；表情直接用已保存的那份 ——
 // —— 功能开关：在页面最上面，点一下马上存，不跟着下面的设置表单（表单保存时也不带这些开关）——
 const featureBox=$('#robot-features'),featureBusy=new Set();
-// —— PK 查对手：功能面板里的勾选项和话术，改了马上保存 ——
+// —— 连麦查对手：功能面板里的勾选项和话术，改了马上保存 ——
 let pkStamp='',pkBusy=false;
 function renderPk(){
   const p=robot.config.pk,stamp=JSON.stringify([p,robot.pk_fields,pkBusy,currentRoom]),g=robot.pk_guests;
-  $('#robot-pk-state').textContent=robot.platform!=='bilibili'?'只支持 B站':!p.enabled?'没打开（在上面打开「PK 查对手」）':!robot.config.enabled?'机器人没开':g?`PK 中：对面名单 ${g.count} 人，已欢迎串门 ${g.greeted} 人`:'开着：连上 PK 就查';
+  $('#robot-pk-state').textContent=robot.platform!=='bilibili'?'只支持 B站':!p.enabled?'没打开（在上面打开「连麦查对手」）':!robot.config.enabled?'机器人没开':g?`连麦中（${g.rivals.filter(Boolean).join('、')||'对面'}）：名单 ${g.count} 人，已欢迎串门 ${g.greeted} 人`:'开着：一连麦就查';
   $('#robot-pk-panel').classList.toggle('on',p.enabled);
   if(stamp===pkStamp)return;pkStamp=stamp;
   $('#robot-pk-fields').innerHTML=(robot.pk_fields||[]).map(f=>`<label class="robot-pk-field"><input type="checkbox" value="${escapeHtml(f.id)}" ${p.fields.includes(f.id)?'checked':''} ${pkBusy?'disabled':''}><span>${escapeHtml(f.name)}</span></label>`).join('');
@@ -511,7 +511,7 @@ testForm.addEventListener('submit',run(async()=>{
   }catch(error){output.textContent=error.message;throw error;}
   finally{button.disabled=false;}
 }));
-testForm.elements.mode.addEventListener('change',()=>{const mode=testForm.elements.mode.value;testForm.elements.text.placeholder=mode==='gift'?'礼物总金额（元），比如 52；按已保存的分档':mode==='blindbox'?'填上面的观众昵称即可，这里可不填':mode==='pk'?'不填就查现在 PK 的对面；也可以填一个房间号试试':mode==='say'?'要发到直播间的弹幕':'比如：主播今天吃什么？';});
+testForm.elements.mode.addEventListener('change',()=>{const mode=testForm.elements.mode.value;testForm.elements.text.placeholder=mode==='gift'?'礼物总金额（元），比如 52；按已保存的分档':mode==='blindbox'?'填上面的观众昵称即可，这里可不填':mode==='pk'?'不填就查现在连麦的对象；也可以填一个房间号试试':mode==='say'?'要发到直播间的弹幕':'比如：主播今天吃什么？';});
 addEventListener('robot-state',event=>render(event.detail));
 addEventListener('console-state',note);
 async function load(){const room=currentRoom,state=await api(`/api/robot/state?room=${encodeURIComponent(room)}`);if(room===currentRoom)render({...state,room});}

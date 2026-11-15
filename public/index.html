@@ -74,15 +74,15 @@
           <label class="robot-feature"><input type="checkbox" data-feature="gift"><i class="robot-switch" aria-hidden="true"></i><span><b>感谢礼物</b><small>礼物、盲盒、大航海和醒目留言</small></span></label>
           <label class="robot-feature"><input type="checkbox" data-feature="follow"><i class="robot-switch" aria-hidden="true"></i><span><b>感谢关注</b><small>有人关注时道谢</small></span></label>
           <label class="robot-feature"><input type="checkbox" data-feature="blindbox"><i class="robot-switch" aria-hidden="true"></i><span><b>盲盒查询</b><small>观众发口令查自己的盲盒记录</small></span></label>
-          <label class="robot-feature"><input type="checkbox" data-feature="pk"><i class="robot-switch" aria-hidden="true"></i><span><b>PK 查对手</b><small>连上 PK 就查对面舰长、在线、粉丝，发到弹幕</small></span></label>
+          <label class="robot-feature"><input type="checkbox" data-feature="pk"><i class="robot-switch" aria-hidden="true"></i><span><b>连麦查对手</b><small>一连麦就查对面舰长、在线、粉丝，发到弹幕</small></span></label>
           <label class="robot-feature"><input type="checkbox" data-feature="ai"><i class="robot-switch" aria-hidden="true"></i><span><b>AI 聊天</b><small>有人 @ 机器人时用 AI 回复</small></span></label>
           <label class="robot-feature"><input type="checkbox" data-feature="cue"><i class="robot-switch" aria-hidden="true"></i><span><b>点名冒泡</b><small>定时 @ 进场后一直没说话的观众</small></span></label>
           <label class="robot-feature"><input type="checkbox" data-feature="scene_command"><i class="robot-switch" aria-hidden="true"></i><span><b>@ 切换场景</b><small>观众 @ 机器人开关直播场景</small></span></label>
         </div>
         <div class="robot-pk-panel" id="robot-pk-panel">
-          <div class="robot-pk-head"><b>PK 查对手 · 查哪些</b><span id="robot-pk-state">没打开</span></div>
-          <p class="lottery-help">连上 PK 就自动查对面直播间，把勾上的几项发到弹幕，每场 PK 一次。只支持 B站。点一下马上生效。</p>
-          <div id="robot-pk-fields" class="robot-pk-fields" aria-label="PK 查对手要查的数据"></div>
+          <div class="robot-pk-head"><b>连麦查对手 · 查哪些</b><span id="robot-pk-state">没打开</span></div>
+          <p class="lottery-help">一连麦就自动查连麦对象的直播间（普通连麦、多人连线、PK 都算，多人连线每家各发一条），把勾上的几项发到弹幕；每个人连上时报一次，断开后再连上会再报。PK 比分只在 PK 时有。只支持 B站。点一下马上生效。</p>
+          <div id="robot-pk-fields" class="robot-pk-fields" aria-label="连麦查对手要查的数据"></div>
           <div class="robot-pk-more">
             <label>发的话<input id="robot-pk-template" maxlength="80" autocomplete="off"></label>
             <label class="robot-pk-ask"><input type="checkbox" id="robot-pk-ask">观众发口令也能查</label>
@@ -92,7 +92,7 @@
             <label class="robot-pk-ask"><input type="checkbox" id="robot-pk-visit">对面的观众来了说「来串门」</label>
             <label>串门欢迎语<input id="robot-pk-visit-template" maxlength="60" autocomplete="off"></label>
           </div>
-          <p class="lottery-help" id="robot-pk-visit-note">PK 时每分钟拉一次对面的在线榜和大航海名单，名单里的人、或戴着对面粉丝牌的人进来就说这句（藏了粉丝牌也认得出）；每场 PK 每人一次，3 秒内来的合成一句。{user} 观众，{rival} 对面主播。需要控制台登录 B站，没登录拿不到进场观众的 UID。</p>
+          <p class="lottery-help" id="robot-pk-visit-note">连麦时每分钟拉一次连麦对象的在线榜和大航海名单，名单里的人、或戴着那边粉丝牌的人进来就说这句（藏了粉丝牌也认得出）；每次连麦每人一次，3 秒内同一家来的合成一句。{user} 观众，{rival} 对面主播。需要控制台登录 B站，没登录拿不到进场观众的 UID。</p>
           <p class="lottery-help">{name} 对面主播，{info} 勾上的几项；也能单独用 {guards} 舰长、{online} 在线、{followers} 粉丝、{fansClub} 粉丝团、{watched} 看过、{level} 等级、{liveTime} 开播时长、{area} 分区、{title} 标题、{ours}:{theirs} 比分、{room} 房间号。太长会自动分几条发。</p>
         </div>
       </section>
@@ -105,7 +105,7 @@
           </article>
           <article class="lottery-card"><div class="lottery-card-title"><h2>发言记录 <span id="robot-outbox">0 条待发</span></h2><button class="text-button" id="robot-clear-log" type="button">清空记录</button></div><p id="robot-note" class="lottery-help robot-note" role="status"></p><ol id="robot-log" class="robot-log"><li class="lottery-empty">还没有发言。启动后，欢迎、感谢和回复都会记在这里。</li></ol></article>
           <article class="lottery-card"><div class="lottery-card-title"><h2>试一试</h2><span class="lottery-step">TEST</span></div>
-            <form id="robot-test-form"><div class="lottery-field-pair"><label>观众昵称<input name="user" maxlength="40" value="测试观众" autocomplete="off"></label><label>测试内容<select name="mode"><option value="ai">AI 回复（不发到直播间）</option><option value="blindbox">盲盒查询（不发到直播间）</option><option value="pk">PK 查对手（不发到直播间）</option><option value="gift">礼物感谢（不发到直播间）</option><option value="say">让机器人发一条弹幕</option></select></label></div><label>内容<input name="text" maxlength="300" placeholder="比如：主播今天吃什么？" autocomplete="off"></label><button class="button white-button" type="submit">试一下</button></form>
+            <form id="robot-test-form"><div class="lottery-field-pair"><label>观众昵称<input name="user" maxlength="40" value="测试观众" autocomplete="off"></label><label>测试内容<select name="mode"><option value="ai">AI 回复（不发到直播间）</option><option value="blindbox">盲盒查询（不发到直播间）</option><option value="pk">连麦查对手（不发到直播间）</option><option value="gift">礼物感谢（不发到直播间）</option><option value="say">让机器人发一条弹幕</option></select></label></div><label>内容<input name="text" maxlength="300" placeholder="比如：主播今天吃什么？" autocomplete="off"></label><button class="button white-button" type="submit">试一下</button></form>
             <p id="robot-test-result" class="robot-test-result" role="status" hidden></p>
           </article>
           <article class="lottery-card"><div class="lottery-card-title"><h2>给直播间点赞</h2><span class="lottery-step">LIKE</span></div>

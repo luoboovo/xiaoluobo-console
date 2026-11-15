@@ -47,7 +47,7 @@ else {
     };
     const douyin=require('./lib/douyin-desktop.cjs').createDouyinDesktop({BrowserWindow,session});
     app.on('before-quit',()=>douyin.close());
-    runtime = await startServer({ dataDir, secrets, douyin, diagnostics, openLogs:async logDir=>{const error=await shell.openPath(logDir);if(error)throw new Error(error);}, port: 3181, overtimeLegacyFiles:[path.join(app.getPath('appData'), '小萝卜巨无霸加班机', 'config.json')],feedingLegacyFiles:[path.join(app.getPath('documents'),'ChatGPT','B站弹幕小游戏','config.json')] });
+    runtime = await startServer({ dataDir, secrets, douyin, diagnostics, autoSyncGifts: true, openLogs:async logDir=>{const error=await shell.openPath(logDir);if(error)throw new Error(error);}, port: 3181, overtimeLegacyFiles:[path.join(app.getPath('appData'), '小萝卜巨无霸加班机', 'config.json')],feedingLegacyFiles:[path.join(app.getPath('documents'),'ChatGPT','B站弹幕小游戏','config.json')] });
     const boundsPath = path.join(dataDir, 'overtime-window.json');
     const loadBounds = async file => {
       const bounds = await fs.readFile(file,'utf8').then(JSON.parse).catch(() => ({}));
