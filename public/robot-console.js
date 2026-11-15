@@ -116,6 +116,7 @@ function renderFeatures(){
   $('#robot-features-count').textContent=on?`开了 ${on} 个`:'全部关着';
   $('#robot-features-count').classList.toggle('on',on>0);
   for(const tag of document.querySelectorAll('#robot-view [data-off]'))tag.hidden=!!robot.config[tag.dataset.off]?.enabled;
+  renderPersona();
 }
 featureBox.addEventListener('change',async event=>{
   const input=event.target.closest('[data-feature]');if(!input||!robot)return;
@@ -332,6 +333,13 @@ async function action(input){
 }
 const run=work=>async event=>{event?.preventDefault();try{await work(event);}catch(error){toast(error.message,true);}};
 form.addEventListener('input',()=>{dirty=true;note();});
+// 人设卡片在页面左上方（不在右边的设置表单里），用 form 属性归到同一张表单，改动一样算「还没保存」。
+for(const el of document.querySelectorAll('[form="robot-settings"]'))el.addEventListener('input',()=>{dirty=true;note();renderPersona();});
+function renderPersona(){
+  const persona=form.elements['ai.persona'],ai=robot?.config?.ai;
+  $('#robot-persona-count').textContent=`${persona.value.length} / 2000`;
+  $('#robot-persona-note').textContent=!ai?'':!ai.enabled?'「AI 聊天」还没打开：开了以后机器人才会按这个人设现编回复。':robot.aiReady?'AI 已就绪，机器人会按这个人设说话。':`还没填 ${robot.providers?.find(p=>p.id===ai.provider)?.name||'AI 服务商'} 的 API Key，到右边「AI 聊天」里填。`;
+}
 form.addEventListener('submit',run(async()=>{
   const key=form.elements.ai_key.value.trim(),provider=$('#robot-provider').value;
   if(key){await action({action:'set_key',provider,key});form.elements.ai_key.value='';}

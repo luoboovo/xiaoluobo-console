@@ -81,6 +81,11 @@
       </section>
       <div class="lottery-workspace robot-workspace">
         <div class="lottery-main">
+          <article class="lottery-card robot-persona-card" id="robot-persona"><div class="lottery-card-title"><h2>人设 <span id="robot-persona-count">0 / 2000</span></h2><button class="button dark-button" type="submit" form="robot-settings">保存人设</button></div>
+            <p class="lottery-help">机器人是谁、用什么语气说话。AI 聊天、AI 谢礼物、AI 点名和 AI 现编打call 都按这里说话；每个直播间分开设。</p>
+            <textarea name="ai.persona" form="robot-settings" rows="6" maxlength="2000" required aria-label="人设" placeholder="比如：你是主播的小助手「小萝卜」，说话软萌、爱用语气词，不聊政治，不骂人。"></textarea>
+            <p class="lottery-help robot-note" id="robot-persona-note" role="status"></p>
+          </article>
           <article class="lottery-card"><div class="lottery-card-title"><h2>发言记录 <span id="robot-outbox">0 条待发</span></h2><button class="text-button" id="robot-clear-log" type="button">清空记录</button></div><p id="robot-note" class="lottery-help robot-note" role="status"></p><ol id="robot-log" class="robot-log"><li class="lottery-empty">还没有发言。启动后，欢迎、感谢和回复都会记在这里。</li></ol></article>
           <article class="lottery-card"><div class="lottery-card-title"><h2>试一试</h2><span class="lottery-step">TEST</span></div>
             <form id="robot-test-form"><div class="lottery-field-pair"><label>观众昵称<input name="user" maxlength="40" value="测试观众" autocomplete="off"></label><label>测试内容<select name="mode"><option value="ai">AI 回复（不发到直播间）</option><option value="blindbox">盲盒查询（不发到直播间）</option><option value="gift">礼物感谢（不发到直播间）</option><option value="say">让机器人发一条弹幕</option></select></label></div><label>内容<input name="text" maxlength="300" placeholder="比如：主播今天吃什么？" autocomplete="off"></label><button class="button white-button" type="submit">试一下</button></form>
@@ -164,7 +169,7 @@
               <p class="lottery-help robot-key"><span id="robot-key-status">未填写</span><button class="text-button" id="robot-key-clear" type="button" hidden>清除 Key</button></p></div>
               <label class="robot-model-label"><span>模型<button class="text-button" id="robot-models-refresh" type="button">刷新模型列表</button></span><select name="ai.model" required><option value="deepseek-chat">deepseek-chat</option><option value="deepseek-reasoner">deepseek-reasoner</option></select></label>
               <p class="lottery-help robot-models-note" id="robot-models-note">保存后会自动读取这家服务商能用的全部模型，免费的排在前面。</p>
-              <label>人设<textarea name="ai.persona" rows="6" maxlength="2000" required></textarea></label>
+              <p class="lottery-help robot-persona-link">人设在机器人页左边最上面的「人设」卡片里改。</p>
               <div class="lottery-field-pair"><label>AI 回复最多几个字<input name="ai.max_chars" type="number" min="10" max="200" step="1" required></label><label>每人间隔 / 秒<input name="ai.user_cooldown_seconds" type="number" min="0" max="600" step="1" required></label></div>
               <p class="lottery-help">谁 @ 机器人就回复谁。「AI 回复最多几个字」比「一条弹幕最多几个字」大时，按后者算。每家服务商的 Key 分开加密保存在本机；免费模型的名单和次数限制由服务商决定，可能随时调整。</p>
             </article>

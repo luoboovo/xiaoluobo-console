@@ -183,3 +183,8 @@ body.dark #robot-features-count.on{background:#32493f;color:#9fceb5}
 body.dark .robot-switch{background:#4a5560}
 body.dark .robot-off-tag{background:#4a3436;color:#e0aeb0}
 @media(max-width:520px){.robot-feature-grid{grid-template-columns:1fr}}
+/* 人设卡片：机器人页左边最上面，写字的地方宽一些 */
+.robot-persona-card .lottery-card-title .button{width:auto;padding:8px 14px;font-size:12px}
+.robot-persona-card textarea{min-height:130px;margin:10px 0 8px}
+.robot-persona-card #robot-persona-count{font-variant-numeric:tabular-nums}
+.robot-persona-link{margin:0 0 13px!important}
