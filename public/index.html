@@ -81,11 +81,11 @@
         </div>
         <div class="robot-pk-panel" id="robot-pk-panel">
           <div class="robot-pk-head"><b>连麦查对手 · 查哪些</b><span id="robot-pk-state">没打开</span></div>
-          <p class="lottery-help">一连麦就自动查连麦对象的直播间（普通连麦、多人连线、PK 都算，多人连线每家各发一条），把勾上的几项发到弹幕；每个人连上时报一次，断开后再连上会再报。比分和对方票数在连线、PK、巅峰赛时才有（连线时是每家头上的票数）。只支持 B站。点一下马上生效。</p>
+          <p class="lottery-help">一连麦就自动查连麦对象的直播间（普通连麦、多人连线、PK 都算，多人连线每家各发一条），把勾上的几项发到弹幕；每个人只报第一次连上（断开再连也不报，换直播间或重启控制台才从头算）。口令查询只有主播和房管能用。比分和对方票数在连线、PK、巅峰赛时才有（连线时是每家头上的票数）。只支持 B站。点一下马上生效。</p>
           <div id="robot-pk-fields" class="robot-pk-fields" aria-label="连麦查对手要查的数据"></div>
           <div class="robot-pk-more">
             <label>发的话<input id="robot-pk-template" maxlength="80" autocomplete="off"></label>
-            <label class="robot-pk-ask"><input type="checkbox" id="robot-pk-ask">观众发口令也能查</label>
+            <label class="robot-pk-ask"><input type="checkbox" id="robot-pk-ask">主播和房管发口令也能查</label>
             <label>口令<input id="robot-pk-keyword" maxlength="20" autocomplete="off"></label>
           </div>
           <div class="robot-pk-more robot-pk-visit">

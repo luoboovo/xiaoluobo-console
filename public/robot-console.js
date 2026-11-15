@@ -125,7 +125,7 @@ async function savePk(change,done){
 }
 $('#robot-pk-fields').addEventListener('change',()=>savePk({fields:[...$('#robot-pk-fields').querySelectorAll('input:checked')].map(input=>input.value)}));
 $('#robot-pk-visit').addEventListener('change',event=>savePk({visit:event.target.checked},event.target.checked?'对面观众来了会说来串门':'已关掉串门欢迎'));
-$('#robot-pk-ask').addEventListener('change',event=>savePk({ask:event.target.checked},event.target.checked?'观众发口令也能查了':'已关掉口令查询'));
+$('#robot-pk-ask').addEventListener('change',event=>savePk({ask:event.target.checked},event.target.checked?'主播和房管发口令就能查了':'已关掉口令查询'));
 for(const [id,key] of [['#robot-pk-template','template'],['#robot-pk-keyword','keyword'],['#robot-pk-visit-template','visit_template']])$(id).addEventListener('change',event=>savePk({[key]:event.target.value.trim()},'已保存'));
 function renderFeatures(){
   let on=0;

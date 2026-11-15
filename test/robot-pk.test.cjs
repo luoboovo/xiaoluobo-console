@@ -62,7 +62,7 @@ async function makeRobot(t, options, robotOptions = {}) {
   return { robot, services };
 }
 
-test('机器人连麦查对手：普通连麦（不用 PK）也查；每个连麦对象报一次，断开再连再报；多人连线每家一条', async t => {
+test('机器人连麦查对手：普通连麦（不用 PK）也查；每个连麦对象只报第一次，断开再连也不报；多人连线每家一条', async t => {
   const { robot, services } = await makeRobot(t, {}, { pkPollMs: 100 });
   await wait(1700);
   assert.equal(services.sent.length, 0, '没在连麦，不发');
@@ -79,10 +79,10 @@ test('机器人连麦查对手：普通连麦（不用 PK）也查；每个连�
   assert.equal(services.sent[1].text, '连麦的是第二家，舰长5，在线1234，粉丝12.3万，粉丝团3210', '多人连线：新来的那家单独报');
 
   services.link = null;
-  await wait(4000); // 连续两次确认不在了才算断开
+  await wait(4000);
   services.link = [999001];
-  await until(() => services.sent.length === 3);
-  assert.equal(services.sent[2].text, `连麦的是对面主播，${INFO}`, '断开后再连上会再报');
+  await wait(3500);
+  assert.equal(services.sent.length, 2, '只报第一次：断开再连也不报');
 });
 
 test('机器人连麦查对手：PK 也算连麦，带比分；观众口令默认关着，打开后回复全部连麦对象', async t => {
@@ -92,36 +92,39 @@ test('机器人连麦查对手：PK 也算连麦，带比分；观众口令默�
   await until(() => services.sent.length === 1);
   assert.equal(services.sent[0].text, `连麦的是对面主播，${INFO}`);
 
-  robot.receive({ type: 'chat', user: '观众甲', uid: 5, text: '查对手' });
+  robot.receive({ type: 'chat', user: '观众甲', uid: 5, admin: true, text: '查对手' });
   await wait(300);
   assert.equal(services.sent.length, 1, '口令查询默认关着');
 
   await robot.action({ action: 'configure', config: { pk: { ask: true, fields: ['votes', 'level', 'bogus', 'guards'] } } });
   assert.deepEqual(robot.config.pk.fields, ['guards', 'votes', 'level'], '按固定顺序存，不认识的丢掉');
   services.battle = battle('pk-1', 600, 1400);
-  robot.receive({ type: 'chat', user: '观众甲', uid: 5, text: '查对手' });
+  robot.receive({ type: 'chat', user: '普通观众', uid: 9, text: '查对手' });
+  await wait(1800);
+  assert.equal(services.sent.length, 1, '口令查询只给主播和房管');
+  robot.receive({ type: 'chat', user: '观众甲', uid: 5, admin: true, text: '查对手' });
   await until(() => services.sent.length === 2);
   assert.deepEqual(services.sent[1], { text: '连麦的是对面主播，舰长88，比分600:1400，主播27级', replyMid: 5 });
   assert.equal(services.lookups, 1, '同一个直播间 1 分钟内不重复查');
 
   services.battle = null; services.link = [999001, 999002];
-  robot.receive({ type: 'chat', user: '观众乙', uid: 6, text: '帮我查对手' });
+  robot.receive({ type: 'chat', user: '观众乙', uid: 6, admin: true, text: '帮我查对手' });
   await until(() => services.sent.length === 4);
   assert.deepEqual(services.sent.slice(2), [{ text: '连麦的是对面主播，舰长88，主播27级', replyMid: 6 }, { text: '连麦的是第二家，舰长5，主播27级', replyMid: 0 }], '没在 PK 就没有比分');
 
   services.link = null;
-  robot.receive({ type: 'chat', user: '观众丙', uid: 7, text: '查对手' });
+  robot.receive({ type: 'chat', user: '观众丙', uid: 7, admin: true, text: '查对手' });
   await until(() => services.sent.length === 5);
   assert.deepEqual(services.sent[4], { text: '现在没在连麦哦~', replyMid: 7 });
 
-  robot.receive({ type: 'chat', user: '观众丙', uid: 7, text: '查对手' });
+  robot.receive({ type: 'chat', user: '观众丙', uid: 7, admin: true, text: '查对手' });
   await wait(1300);
   assert.equal(services.sent.length, 5, '同一个人 10 秒内只回一次');
 
   await robot.action({ action: 'configure', config: { pk: { enabled: false } } });
   services.link = [999002];
   services.emit('pk', 'PK_BATTLE_START_NEW');
-  robot.receive({ type: 'chat', user: '观众丁', uid: 8, text: '查对手' });
+  robot.receive({ type: 'chat', user: '观众丁', uid: 8, admin: true, text: '查对手' });
   await wait(1800);
   assert.equal(services.sent.length, 5, '功能关着什么都不做');
 });
@@ -171,10 +174,10 @@ test('机器人串门：连麦对象家名单里的人、戴那边粉丝牌的�
 
   await robot.action({ action: 'configure', config: { pk: { visit: false } } });
   services.link = [999001];
-  await until(() => services.sent.length === 6);
+  await wait(2000);
   robot.receive({ type: 'member', user: '戴对面牌子3', uid: 890, medal: { targetId: 200, roomId: 999001, name: '对面牌' } });
   await wait(3300);
-  assert.equal(services.sent.length, 6, '关了串门欢迎就不说');
+  assert.equal(services.sent.length, 5, '关了串门欢迎就不说（对面主播之前报过，也不再报）');
   assert.equal(robot.snapshot().pk_guests, null, '关着就不拉名单');
 });
 
@@ -281,4 +284,14 @@ test('机器人连麦查对手：多人连麦一家一家发，上一条发出�
   await wait(1500);
   assert.equal(services.sent.length, 2, '不会重复发');
   assert.equal(robot.log.filter(e => e.kind === 'pk').length, 2);
+});
+
+test('机器人连麦查对手：主播本人发口令也能查', async t => {
+  const { robot, services } = await makeRobot(t);
+  await robot.action({ action: 'configure', config: { pk: { ask: true } } });
+  services.link = [999001];
+  await until(() => services.sent.length === 1);
+  robot.receive({ type: 'chat', user: '主播', uid: 100, text: '查对手' });
+  await until(() => services.sent.length === 2);
+  assert.equal(services.sent[1].replyMid, 100);
 });
