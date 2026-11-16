@@ -334,9 +334,11 @@ function renderImport(){
   else if(s?.status==='failed')text=`补录失败：${s.error}。已有记录没有改动。`;
   else if(s?.status==='cancelled')text='已停止补录，已有记录没有改动。';
   else if(s?.status==='done')text=s.found?`补录完成：读了 ${s.days} 天共 ${s.rows} 条流水，补上 ${meta?.users||0} 位观众的 ${s.found} 个盲盒。${shortage(s.box_only)}`:s.box_only?`流水里的 ${s.box_only} 条盲盒只记了盲盒本身，看不到开出了什么，算不了盈亏，所以没有补录。`:`读了 ${s.days} 天共 ${s.rows} 条流水，没有找到盲盒。`;
+  else if(robot.blind_csv)text=`记录是 ${stamp(robot.blind_csv.at)} 从 CSV 导入的（${robot.blind_csv.users} 位观众），里面已经包含补录过的数，所以不能再补录（会重复算）。要重新补录，请先清空记录。`;
   else if(meta)text=`上次补录 ${stamp(meta.at)}：近 ${meta.days} 天，${meta.users} 位观众 ${meta.found} 个盲盒。${shortage(meta.box_only)}`;
   else text='用主播本人的 B 站账号读取后台「礼物流水」，补上机器人开始记账之前的盲盒（B站只保留近 180 天）。';
-  if(bili&&robot.live_since&&!running)text+=` 实时记账从 ${stamp(robot.live_since)} 开始，补录只取这之前的流水，不会重复。`;
+  if(robot.blind_csv&&!running)$('#robot-import').disabled=true;
+  if(bili&&robot.live_since&&!running&&!robot.blind_csv)text+=` 实时记账从 ${stamp(robot.live_since)} 开始，补录只取这之前的流水，不会重复。`;
   $('#robot-import-status').textContent=text;
 }
 function showProbe(probe){
@@ -348,6 +350,7 @@ function renderBlind(){
   const query=$('#robot-blind-search').value.trim(),list=robot.blindbox.filter(r=>!query||r.name.includes(query));
   const stamp=JSON.stringify([robot.blindbox,query]);if(stamp===blindStamp)return;blindStamp=stamp;
   $('#robot-blind-count').textContent=robot.blindbox.length;
+  $('#robot-blind-export').href=`/api/robot/blindbox/export?room=${encodeURIComponent(currentRoom)}`;
   $('#robot-blind').innerHTML=list.length?`<table><thead><tr><th>观众</th><th>盲盒</th><th>投入</th><th>开出</th><th>盈亏</th><th>今天</th></tr></thead><tbody>${list.map(r=>{const diff=r.value-r.cost,today=r.today;return `<tr title="${escapeHtml(r.recent.map(x=>`${x.box}→${x.gift}×${x.count}`).join('\n'))}"><td>${escapeHtml(r.name)}</td><td>${r.count}</td><td>¥${yuan(r.cost)}</td><td>¥${yuan(r.value)}</td><td class="${diff>0?'up':diff<0?'down':''}">${diff>0?'+':diff<0?'-':''}¥${yuan(Math.abs(diff))}</td><td>${today?`${today.count}个 ${today.value-today.cost>=0?'+':'-'}¥${yuan(Math.abs(today.value-today.cost))}`:'—'}</td></tr>`;}).join('')}</tbody></table>`:`<p class="lottery-empty">${query?'没有找到这位观众。':'还没有盲盒记录。'}</p>`;
 }
 async function action(input){
@@ -459,6 +462,22 @@ $('#robot-toggle').onclick=run(async()=>{
 $('#robot-clear-log').onclick=run(()=>action({action:'clear_log'}));
 $('#robot-clear-blind').onclick=run(async()=>{if(!confirm('清空当前平台的全部盲盒记录？此操作不能撤销。'))return;await action({action:'clear_blindbox'});toast('盲盒记录已清空');});
 $('#robot-blind-search').addEventListener('input',()=>robot&&renderBlind());
+// 导入 CSV：Excel「另存为 CSV」常是 GBK 编码，不是 UTF-8 就按 GBK 读。
+$('#robot-blind-import').onclick=()=>$('#robot-blind-file').click();
+$('#robot-blind-file').addEventListener('change',run(async event=>{
+  const file=event.target.files[0];event.target.value='';if(!file||!robot)return;
+  if(file.size>5*1024*1024)throw new Error('CSV 文件最大 5MB');
+  const bytes=await file.arrayBuffer();
+  let csv;try{csv=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{csv=new TextDecoder('gbk').decode(bytes);}
+  const lines=csv.split(/\r?\n/).filter(line=>line.trim()).length-1;
+  if(!confirm(`用「${file.name}」（约 ${Math.max(0,lines)} 行）覆盖${robot.platform==='douyin'?'抖音':'B站'}的全部盲盒记录？\n现在的记录会被替换，建议先点「导出 CSV」备份一份。`))return;
+  const button=$('#robot-blind-import');button.disabled=true;
+  try{
+    const result=await api('/api/robot/blindbox/import',{room:currentRoom,csv});
+    if(result.state)render(result.state);
+    toast(`已导入 ${result.users} 位观众的盲盒记录`);
+  }finally{button.disabled=false;}
+}));
 $('#robot-import').onclick=run(async()=>{
   if(robot.import?.status==='running'){await action({action:'cancel_import'});return;}
   const days=Number($('#robot-import-days').value);

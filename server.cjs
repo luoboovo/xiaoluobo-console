@@ -30,7 +30,7 @@ const MOTION = new Set(['noodle-motion','feeding-motion','feeding-physics']);
 // High-frequency frames bypass the 100ms state coalescing.
 const REALTIME = new Set([...MOTION,'overtime-clock','overtime-media']);
 const accepts = (client, type, data) => client.channel ? CHANNELS[client.channel].has(type)&&(type!=='lottery'||client.lotteryGame===data.game) : !(client.consoleOnly && MOTION.has(type));
-const BODY_LIMITS = { '/api/templates/import':MAX_PACKAGE_BYTES, '/api/diagnostics/client':32768, '/api/feeding/motion':300000 };
+const BODY_LIMITS = { '/api/robot/blindbox/import':5*1024*1024, '/api/templates/import':MAX_PACKAGE_BYTES, '/api/diagnostics/client':32768, '/api/feeding/motion':300000 };
 const CLIENT_EVENTS = ['runtime_error','promise_error','page_stall','resource_error','operation_error'];
 const CLIENT_PAGES = ['/','/noodle/','/overtime/','/feeding/','/lottery/','/number-bomb/'];
 
@@ -303,6 +303,7 @@ async function startServer(options = {}) {
     '/api/lottery/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>lotteryFor(input.game).action(input)))}),
     '/api/robot/action': async input => {const room=input.room||'main',result=await robotRooms.robotFor(room).action(input);return result.config?{ok:true,state:{...result,room}}:{ok:true,...result};},
     '/api/robot/rooms': async input => ({ok:true,...await robotRooms.action(input)}),
+    '/api/robot/blindbox/import': async input => {const robot=robotRooms.robotFor(input.room||'main');if(typeof input.csv!=='string')throw new Error('请选择 CSV 文件');const result=await robot.importBlindCsv(input.csv);return {ok:true,...result,state:{...robot.snapshot(),room:input.room||'main'}};},
     '/api/features': async input => ({ok:true,features:await features.set(input?.id,input?.enabled)}),
     '/api/number-bomb/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>numberBomb.action(input)))}),
     '/api/panels/generate': async (input,scoped) => ({ok:true,panel:await enqueue(scoped(()=>generatePanel(input.game,{noodle,overtime,feeding})))}),
@@ -343,6 +344,11 @@ async function startServer(options = {}) {
     '/api/feeding/state': () => feeding.snapshot(),
     '/api/number-bomb/state': () => numberBomb.snapshot(),
     '/api/robot/state': (_res,url) => {const room=url.searchParams.get('room')||'main';return {...robotRooms.robotFor(room).snapshot(),room};},
+    '/api/robot/blindbox/export': (res,url) => {
+      const robot=robotRooms.robotFor(url.searchParams.get('room')||'main'),d=new Date(),day=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+      res.writeHead(200,{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':`attachment; filename=xiaoluobo-blindbox-${robot.platform}-${day}.csv`,'Cache-Control':'no-store'});
+      res.end(robot.exportBlindCsv());
+    },
     '/api/lottery/state': (_res,url) => lotteryFor(url.searchParams.get('game')||'wheel').snapshot(),
     '/api/lottery/export': (res,url) => {const target=lotteryFor(url.searchParams.get('game')||'wheel');return download(res,`xiaoluobo-${target.mode}-results.json`,target.state.history);},
     '/api/feeding/export': res => download(res,'xiaoluobo-feeding.json',feeding.state.config),
