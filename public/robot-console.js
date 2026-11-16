@@ -258,7 +258,8 @@ function renderTiers(){
 }
 let scenesDraft=null,scenesDirty=false,scenesStamp='';
 function renderScenes(){
-  if(!scenesDirty&&JSON.stringify(robot.config.live_scenes.map(({emoticons,...s})=>s))!==JSON.stringify((scenesDraft||[]).map(({emoticons,...s})=>s)))scenesDraft=structuredClone(robot.config.live_scenes);
+  // 场景全删光时已保存的列表是空的，草稿也要变成 []（不能留着 null，不然渲染和保存都会报错）。
+  if(!scenesDraft||!scenesDirty&&JSON.stringify(robot.config.live_scenes.map(({emoticons,...s})=>s))!==JSON.stringify(scenesDraft.map(({emoticons,...s})=>s)))scenesDraft=structuredClone(robot.config.live_scenes||[]);
   const active=robot.active_scene,next=JSON.stringify([scenesDraft,robot.config.live_scenes.map(s=>[s.id,s.emoticons]),active,scenesDirty,pending]);
   if(next===scenesStamp)return;scenesStamp=next;
   const container=$('#robot-scenes'),focused=document.activeElement?.closest?.('[data-scene-field]'),focus=focused&&{id:focused.closest('[data-scene]').dataset.scene,field:focused.dataset.sceneField,start:focused.selectionStart,end:focused.selectionEnd};
@@ -439,7 +440,7 @@ $('#robot-scenes').addEventListener('click',event=>{if(event.target.closest('but
 $('#robot-scene-add').onclick=()=>{scenesDraft.push({id:'s-'+Date.now().toString(36),name:'新场景',lines:'',interval_seconds:40,emoticons:[]});scenesDirty=true;scenesStamp='';renderScenes();};
 $('#robot-scenes-save').onclick=run(async()=>{
   // 表情以已保存的为准，避免编辑草稿时覆盖刚配好的表情。
-  const scenes=scenesDraft.map(s=>({...s,emoticons:robot.config.live_scenes.find(x=>x.id===s.id)?.emoticons||[]}));
+  const scenes=(scenesDraft||[]).map(s=>({...s,emoticons:robot.config.live_scenes.find(x=>x.id===s.id)?.emoticons||[]}));
   await action({action:'save_scenes',scenes});scenesDirty=false;scenesDraft=null;scenesStamp='';render();toast('直播场景已保存');
 });
 $('#robot-cue-random').onclick=run(async()=>{
