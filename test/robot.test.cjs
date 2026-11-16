@@ -334,11 +334,13 @@ test('机器人表情：情景表情组跟在文字后面单独发，手动发�
     await robot.action({ action: 'say', emoticon: call });
     for (let i = 0; i < 2; i++) { t.mock.timers.tick(1000); await flush(); }
     assert.deepEqual(services.sent.at(-1), { text: 'room_1_2', emoticon: true });
-    services.sendChat = async (text, options) => { if (options.emoticon) throw new Error('B站：表情不可用'); services.sent.push({ text }); };
+    let emoTries = 0;
+    services.sendChat = async (text, options) => { if (options.emoticon) { emoTries++; throw new Error('B站：表情不可用'); } services.sent.push({ text }); };
     robot.receive({ type: 'member', user: '乙', uid: 3 });
-    for (let i = 0; i < 3; i++) { t.mock.timers.tick(1000); await flush(); }
+    for (let i = 0; i < 20; i++) { t.mock.timers.tick(1000); await flush(); }
     const entry = robot.snapshot().log[0];
-    assert.equal(entry.status, 'sent'); assert.match(entry.error, /表情没发出去/);
+    assert.equal(entry.status, 'sent'); assert.match(entry.error, /表情没发出去.*已重试 3 次/);
+    assert.equal(emoTries, 4, '表情失败也重试 3 次');
     await robot.action({ action: 'clear_emoticons', slot: 'welcome' });
     assert.deepEqual(robot.snapshot().config.emoticons.welcome, []);
     services.platform = 'douyin';
@@ -454,7 +456,7 @@ test('点名冒泡：开了 AI 时由 AI 按人设搭话，AI 失败就用话术
   const services = fakeServices();
   let fail = false, body;
   const fetchImpl = async (url, init) => { body = JSON.parse(init.body); if (fail) throw new Error('offline'); return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '嗨，今晚想听什么歌呀？' } }] }) }; };
-  const robot = await new LiveRobot(dir, { services, fetchImpl, random: () => 0, keyStore: { get: () => 'sk-x', set: async () => {} } }).init();
+  const robot = await new LiveRobot(dir, { services, fetchImpl, random: () => 0, aiRetryMs: 0, keyStore: { get: () => 'sk-x', set: async () => {} } }).init();
   try {
     await robot.action({ action: 'configure', config: { enabled: true, max_length: 100, interval_seconds: 1, welcome: { enabled: false }, ai: { enabled: true }, cue: { enabled: true, use_ai: true, interval_minutes: 1, templates: '冒个泡嘛' } } });
     robot.receive({ type: 'member', user: '甲', uid: 2 });
@@ -619,7 +621,7 @@ test('直播场景 AI 现编：模型现写应援并按语气挑场景表情，�
     if (next === 'fail') return { ok: false, status: 500, json: async () => ({}) };
     return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: next } }] }) };
   };
-  const robot = await new LiveRobot(dir, { services, fetchImpl, random: () => 0, keyStore: { get: () => key, set: async () => {} } }).init();
+  const robot = await new LiveRobot(dir, { services, fetchImpl, random: () => 0, aiRetryMs: 0, keyStore: { get: () => key, set: async () => {} } }).init();
   const call = { unique: 'room_1_call', name: '[打call]', url: 'https://i0.hdslb.com/bfs/live/call.png' };
   const clap = { unique: 'room_1_clap', name: '[鼓掌]', url: 'https://i0.hdslb.com/bfs/live/clap.png' };
   const flush3 = async () => { for (let i = 0; i < 3; i++) { t.mock.timers.tick(1000); await flush(); } };
@@ -638,14 +640,14 @@ test('直播场景 AI 现编：模型现写应援并按语气挑场景表情，�
     const prompt = bodies[0].messages.at(-1).content, system = bodies[0].messages[0].content;
     assert.match(prompt, /唱歌/); assert.match(prompt, /好听！/, '写好的话术当风格参考');
     assert.match(system, /打call、鼓掌/, '只让它从场景表情里挑'); assert.match(system, /不超过30个字/);
-    replies.push('fail');
+    replies.push('fail', 'fail', 'fail', 'fail');
     t.mock.timers.tick(30000); await flush3();
     assert.deepEqual(services.sent.slice(2).map(s => s.text), ['好听！', 'room_1_call'], 'AI 出错用写好的话术');
     replies.push('打call打call~【表情:不存在】');
     t.mock.timers.tick(30000); await flush3();
     assert.equal(services.sent[4].text, '打call打call');
     assert.ok(['room_1_call', 'room_1_clap'].includes(services.sent[5].text), '模型挑了不存在的表情时从场景表情里随机');
-    assert.match(bodies[2].messages.at(-1).content, /不要和这些刚发过的重复：主播唱得太好听啦！/);
+    assert.match(bodies[5].messages.at(-1).content, /不要和这些刚发过的重复：主播唱得太好听啦！/);
     assert.equal(robot.snapshot().active_scene.sent, 3);
     // 等 AI 时场景被停掉：回来的话术不发，也不再排下一轮。
     let resolve; replies.push(new Promise(r => { resolve = r; }));
@@ -654,11 +656,11 @@ test('直播场景 AI 现编：模型现写应援并按语气挑场景表情，�
     resolve({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '晚到的应援' } }] }) });
     await flush3(); t.mock.timers.tick(60000); await flush3();
     assert.equal(services.sent.length, 6, '停掉后不发');
-    assert.equal(bodies.length, 4);
+    assert.equal(bodies.length, 7, '出错那次问了 4 遍（重试 3 次）');
     replies.push('1. 好听！\n2. “太强了”\n- 打call打call\n好听！\n\n');
     const { lines } = await robot.action({ action: 'scene_lines', name: '唱歌' });
     assert.deepEqual(lines, ['好听！', '太强了', '打call打call'], '去掉编号、引号和重复');
-    assert.match(bodies[4].messages.at(-1).content, /唱歌/);
+    assert.match(bodies[7].messages.at(-1).content, /唱歌/);
     await assert.rejects(robot.action({ action: 'scene_lines', name: '' }), /场景名字/);
   } finally { await robot.close(); await remove(dir); }
 });
@@ -757,7 +759,7 @@ test('感谢礼物 AI 现写：按档位让模型写，带上金额和档位；�
     if (next === 'fail') return { ok: false, status: 500, json: async () => ({}) };
     return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: next } }] }) };
   };
-  const robot = await new LiveRobot(dir, { services, fetchImpl, random: () => 0, keyStore: { get: () => 'sk-test', set: async () => {} } }).init();
+  const robot = await new LiveRobot(dir, { services, fetchImpl, random: () => 0, aiRetryMs: 0, keyStore: { get: () => 'sk-test', set: async () => {} } }).init();
   const gift = (user, uid, giftId, giftName, count, tid) => robot.receive({ type: 'gift', user, uid, giftId, giftName, count, transactionId: tid });
   const settle = async () => { for (let i = 0; i < 6; i++) { t.mock.timers.tick(1000); await flush(); } };
   try {
@@ -771,18 +773,18 @@ test('感谢礼物 AI 现写：按档位让模型写，带上金额和档位；�
     assert.match(prompt, /观众「乙」送了大鸡腿×1，价值20元（200电池）/);
     assert.match(prompt, /感谢乙的大鸡腿！/, '写好的话术填好变量当风格参考');
     assert.match(bodies[0].messages[0].content, /不超过40个字/);
-    replies.push('fail');
+    replies.push('fail', 'fail', 'fail', 'fail');
     gift('丙', 4, 12, '大鸡腿', 1, 'c');
     await settle();
     assert.equal(services.sent.at(-1).text, '感谢丙的大鸡腿！', 'AI 出错用这一档的话术');
-    replies.push('fail');
+    replies.push('fail', 'fail', 'fail', 'fail');
     gift('丁', 5, 12, '大鸡腿', 5, 'd');
     await settle();
     assert.equal(services.sent.at(-1).text, '感谢丁的大鸡腿！', '只开 AI 的档出错时往下找有话术的档');
     gift('戊', 6, 10, '小花花', 1, 'e');
     await settle();
     assert.equal(services.sent.at(-1).text, '谢谢戊', '没开 AI 的档不调用模型');
-    assert.equal(bodies.length, 3);
+    assert.equal(bodies.length, 9, '出错的两份各问了 4 遍（重试 3 次）');
 
     replies.push('戊老板太大气了！');
     assert.equal((await robot.action({ action: 'test_gift', user: '戊', value: 52 })).reply, '[10～100元这一档 · AI] 戊老板太大气了！');
@@ -909,7 +911,7 @@ test('AI 写的话跟着「一条弹幕最多几个字」：礼物感谢、打ca
   const services = fakeServices();
   const bodies = [];
   const fetchImpl = async (url, init) => { bodies.push(JSON.parse(init.body)); return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '谢谢{user}老板送的{gift}，老板大气，爱你哟，比心比心比心！' } }] }) }; };
-  const robot = await new LiveRobot(dir, { services, fetchImpl, random: () => 0, keyStore: { get: () => 'sk-test', set: async () => {} } }).init();
+  const robot = await new LiveRobot(dir, { services, fetchImpl, random: () => 0, aiRetryMs: 0, keyStore: { get: () => 'sk-test', set: async () => {} } }).init();
   try {
     await robot.action({ action: 'configure', config: { max_length: 15, gift: { tiers: [{ min: 0, max: null, lines: '', use_ai: true }] } } });
     const { reply } = await robot.action({ action: 'test_gift', user: '甲', value: 20 });
@@ -938,7 +940,7 @@ test('每个礼物都用 AI 谢：不在档位里的、大航海、盲盒都交�
     await new Promise(resolve => waiting.push(resolve));
     return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '本喵收到啦谢谢老板喵' } }] }) };
   };
-  const robot = await new LiveRobot(dir, { services, fetchImpl, random: () => 0, keyStore: { get: () => 'sk-test', set: async () => {} } }).init();
+  const robot = await new LiveRobot(dir, { services, fetchImpl, random: () => 0, aiRetryMs: 0, keyStore: { get: () => 'sk-test', set: async () => {} } }).init();
   const run = async n => { for (let i = 0; i < n; i++) { t.mock.timers.tick(1000); await flush(); } };
   try {
     assert.equal(normalizeConfig({}).gift.ai_all, false, '默认不打开');
@@ -966,7 +968,7 @@ test('每个礼物都用 AI 谢：不在档位里的、大航海、盲盒都交�
     await run(4);
     assert.equal(services.sent.filter(s => !s.emoticon).at(-1).text, '谢谢辛送的小花花×1', 'AI 出错时用默认一句');
     const failed = robot.snapshot().log.find(e => e.status === 'failed');
-    assert.match(failed.error, /AI 没写出来（.*服务器开小差），改用写好的话术/);
+    assert.match(failed.error, /AI 没写出来（.*服务器开小差（已重试 3 次）），改用写好的话术/);
   } catch (error) { waiting.splice(0).forEach(resolve => resolve()); throw error; }
   finally { await robot.close(); await remove(dir); }
 });
@@ -1095,7 +1097,7 @@ test('礼物库里没有的礼物：发感谢前去查价格，查到按真实�
   const services = fakeServices({ giftPriceOf: async id => { asked.push(id); return price; } });
   const bodies = [];
   const fetchImpl = async (url, init) => { bodies.push(JSON.parse(init.body)); return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '谢谢老板的乐园星球' } }] }) }; };
-  const robot = await new LiveRobot(dir, { services, fetchImpl, random: () => 0, keyStore: { get: () => 'sk-test', set: async () => {} } }).init();
+  const robot = await new LiveRobot(dir, { services, fetchImpl, random: () => 0, aiRetryMs: 0, keyStore: { get: () => 'sk-test', set: async () => {} } }).init();
   const run = async () => { for (let i = 0; i < 4; i++) { t.mock.timers.tick(1000); await flush(); } };
   const ask = () => bodies.at(-1).messages.at(-1).content;
   try {
