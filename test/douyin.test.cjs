@@ -182,3 +182,63 @@ test('抖音礼物图片只清理礼物库外的旧图，直播中首次出现�
   const restarted=await new ConsoleServices({dataDir:dir,seedDir:seed}).init();
   assert.ok(restarted.dyGifts.some(g=>g.id===463));restarted.close();
 });
+
+test('抖音发言：隐藏网页静音、不拉直播流，用评论框发送并读接口结果，空闲或断开后关闭',async()=>{
+  const {createDouyinDesktop}=require('../lib/douyin-desktop.cjs');
+  const hooks={},windows=[];let loggedIn=true,nextId=10;
+  const browserSession={cookies:{get:async()=>loggedIn?[{name:'sessionid',value:'x'}]:[]},setPermissionRequestHandler(){},setUserAgent(){},webRequest:{onBeforeSendHeaders(){},onBeforeRequest(filter,listener){hooks.request=listener;}}};
+  class FakeWindow extends EventEmitter{
+    constructor(options){
+      super();windows.push(this);this.options=options;this.typed=[];this.keys=[];
+      const win=this,dbg=new EventEmitter();
+      Object.assign(dbg,{attach(){},async sendCommand(method){if(method==='Network.getResponseBody')return {body:JSON.stringify(win.reply)};return {};}});
+      this.webContents=new EventEmitter();
+      Object.assign(this.webContents,{id:nextId++,debugger:dbg,getUserAgent:()=>'',setUserAgent(){},setWindowOpenHandler(){},setAudioMuted(v){win.muted=v;},
+        executeJavaScript:async code=>code.includes("state:'ready'")?{state:win.state||'ready'}:{left:0},
+        async insertText(text){win.typed.push(text);},
+        sendInputEvent(event){win.keys.push(event.type);if(event.type==='keyUp'&&win.reply){dbg.emit('message',{},'Network.responseReceived',{requestId:'r',response:{url:'https://live.douyin.com/webcast/room/chat/?a=1'}});dbg.emit('message',{},'Network.loadingFinished',{requestId:'r'});}}});
+    }
+    loadURL(url){this.url=url;return Promise.resolve();}
+    isDestroyed(){return !!this.destroyed;}
+    destroy(){if(this.destroyed)return;this.destroyed=true;this.emit('closed');}
+  }
+  const desktop=createDouyinDesktop({BrowserWindow:FakeWindow,session:{fromPartition:()=>browserSession},sleep:async()=>{},sendTimeoutMs:50});
+  try{
+    // 登录窗口也静音。
+    const login=desktop.login();assert.equal(windows[0].muted,true);windows[0].destroy();await login;
+
+    const ok=desktop.send('123456','谢谢大家');
+    await new Promise(r=>setImmediate(r));
+    const win=windows[1];win.reply={status_code:0};
+    await ok;
+    assert.equal(win.muted,true);assert.equal(win.options.show,false);assert.equal(win.url,'https://live.douyin.com/123456');
+    assert.deepEqual(win.typed,['谢谢大家']);assert.deepEqual(win.keys,['keyDown','char','keyUp']);
+    assert.equal(desktop.sending,true);
+    const cancel=details=>new Promise(resolve=>hooks.request(details,result=>resolve(result.cancel)));
+    assert.equal(await cancel({webContentsId:win.webContents.id,resourceType:'xhr',url:'https://pull-flv-l1.douyincdn.com/stage/stream.flv?x=1'}),true,'直播流不拉');
+    assert.equal(await cancel({webContentsId:win.webContents.id,resourceType:'media',url:'https://x.douyin.com/a'}),true);
+    assert.equal(await cancel({webContentsId:win.webContents.id,resourceType:'webSocket',url:'wss://webcast5-ws-web-lq.douyin.com/webcast/im/push/v2/'}),true,'发言网页不开消息长连接');
+    assert.equal(await cancel({webContentsId:win.webContents.id,resourceType:'xhr',url:'https://live.douyin.com/webcast/room/chat/'}),false);
+    assert.equal(await cancel({webContentsId:999,resourceType:'media',url:'https://pull-flv.douyincdn.com/a.flv'}),false,'不影响登录窗口等其他网页');
+
+    // 抖音拒绝：带上原因。
+    win.reply={status_code:4001,data:{prompts:'发送太频繁'}};
+    await assert.rejects(desktop.send('123456','再来一句'),err=>err.code==='RATE'&&/发送太频繁/.test(err.message));
+    assert.equal(windows.length,2,'同一直播间复用发言网页');
+    assert.rejects(desktop.send('123456','x'.repeat(51)),/50 个字/);
+
+    // 断开直播间：发言网页关掉，不在后台运行。
+    desktop.cancel();assert.equal(win.destroyed,true);assert.equal(desktop.sending,false);
+    await assert.rejects(desktop.send('123456',''),/为空/);
+
+    loggedIn=false;
+    await assert.rejects(desktop.send('123456','你好'),err=>err.code==='LOGIN');
+    assert.equal(windows.length,2,'没登录不开网页');
+
+    // 弹出验证：报错并关掉网页。
+    loggedIn=true;
+    const verify=desktop.send('123456','你好');await new Promise(r=>setImmediate(r));
+    windows[2].state='verify';
+    await assert.rejects(verify,err=>err.code==='VERIFY');assert.equal(windows[2].destroyed,true);
+  }finally{desktop.close();}
+});

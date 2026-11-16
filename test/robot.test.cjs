@@ -201,6 +201,48 @@ test('机器人：抖音不发言只显示，拿不到 uid 时用文字 @', asyn
   } finally { await robot.close(); await remove(dir); }
 });
 
+test('机器人：抖音用登录账号发评论，从回显认出自己的 UID，被 @ 时回复', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: new Date('2026-11-10T12:00:00').getTime() });
+  const dir = await tempDir('luobo-dy-send-');
+  const services = fakeServices({ platform: 'douyin', selfUid: 0, canSendDouyin: true, state: { account: { loggedIn: true, name: '抖音登录态已保存' }, live: { status: 'connected' } } });
+  const robot = await new LiveRobot(dir, { services }).init();
+  try {
+    await robot.action({ action: 'configure', config: { enabled: true, interval_seconds: 1, max_length: 100, blindbox: { require_mention: false } } });
+    assert.equal(robot.snapshot().canSend, true);
+    assert.ok(!robot.names().includes('抖音登录态已保存'), '抖音登录占位名不能当触发昵称');
+    robot.receive({ type: 'chat', user: '甲', uid: '9007199254740993', text: '查询盲盒记录' });
+    t.mock.timers.tick(2000); await flush();
+    assert.deepEqual(services.sent.map(s => s.text), ['@甲 甲还没有盲盒记录哦']);
+    assert.equal(services.sent[0].emoticon, undefined, '抖音不发表情包');
+    assert.equal(robot.snapshot().log[0].status, 'sent');
+    // 机器人自己的评论回到直播间：记下 UID 和昵称，不再当观众处理。
+    robot.receive({ type: 'chat', user: '萝卜号', uid: '9007199254740995', text: '@甲 甲还没有盲盒记录哦' });
+    assert.equal(robot.selfId(), '9007199254740995');
+    assert.ok(robot.names().includes('萝卜号'));
+    assert.equal(robot.mentioned({ type: 'chat', text: 'hi', mention: { name: '别名', uid: '9007199254740995' } }), true, '64 位 UID 不丢精度');
+    assert.equal(robot.mentioned({ type: 'chat', text: 'hi', mention: { name: '别人', uid: '9007199254740994' } }), false);
+    assert.equal(robot.isSelf({ type: 'chat', uid: '9007199254740995', text: '随便说' }), true);
+    // 单条最长 50 字（抖音评论上限）。
+    robot.enqueue('ai', '萝'.repeat(80));
+    t.mock.timers.tick(5000); await flush();
+    assert.ok(services.sent.slice(1).every(s => [...s.text].length <= 50));
+  } finally { await robot.close(); await remove(dir); }
+});
+
+test('机器人：抖音没登录或要验证时不重发', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: new Date('2026-11-10T12:00:00').getTime() });
+  const dir = await tempDir('luobo-dy-login-');
+  let calls = 0;
+  const services = fakeServices({ platform: 'douyin', selfUid: 0, canSendDouyin: true, sendChat: async () => { calls++; throw Object.assign(new Error('请先在控制台点「登录抖音」登录'), { code: 'LOGIN' }); } });
+  const robot = await new LiveRobot(dir, { services }).init();
+  try {
+    await robot.action({ action: 'configure', config: { enabled: true, interval_seconds: 1 } });
+    robot.enqueue('ai', '你好');
+    t.mock.timers.tick(20000); await flush();
+    assert.equal(calls, 1); assert.equal(robot.snapshot().log[0].status, 'failed'); assert.match(robot.snapshot().log[0].error, /登录抖音/);
+  } finally { await robot.close(); await remove(dir); }
+});
+
 const { parseStreamItem, streamTime } = require('../lib/robot.cjs');
 
 test('礼物流水：识别盲盒开出的礼物、只有盲盒本身、普通礼物', () => {

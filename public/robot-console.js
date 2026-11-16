@@ -28,8 +28,8 @@ const yuan=milli=>{const value=Math.round(milli/10)/100;return Number.isInteger(
 function note(){
   if(!robot)return;
   const live=robot.live?.status==='connected',douyin=robot.platform==='douyin',account=consoleState?.account,main=currentRoom==='main';
-  $('#robot-note').textContent=dirty?'设置还没保存':douyin?'抖音暂不支持机器人发言：回复只显示在这里，可以由主播念出来。':main&&!account?.loggedIn?'请先在控制台扫码登录 B 站账号，机器人会用这个账号发弹幕。':!live?(main?'连接直播间后才会发言。':'这个直播间还没连上，点上面的「连接」。'):robot.config.enabled?'机器人正在值班。':'机器人已关闭。';
-  $('#robot-names').textContent=robot.names.length?`当前触发昵称：${robot.names.join('、')}`:'登录 B 站后，默认用登录账号的昵称触发。';
+  $('#robot-note').textContent=dirty?'设置还没保存':douyin&&!robot.canSend?'抖音发言需要桌面客户端：回复只显示在这里，可以由主播念出来。':douyin&&main&&!account?.loggedIn?'请先在控制台点「登录抖音」，机器人会用这个账号发评论（不支持表情包）。':!douyin&&main&&!account?.loggedIn?'请先在控制台扫码登录 B 站账号，机器人会用这个账号发弹幕。':!live?(main?'连接直播间后才会发言。':'这个直播间还没连上，点上面的「连接」。'):robot.config.enabled?'机器人正在值班。':'机器人已关闭。';
+  $('#robot-names').textContent=robot.names.length?`当前触发昵称：${robot.names.join('、')}`:(robot.platform==='douyin'?'抖音读不到登录账号的昵称：请在「其他触发昵称」里填上机器人抖音号的昵称，观众 @ 它才会回复。':'登录 B 站后，默认用登录账号的昵称触发。');
 }
 function render(next){
   if(next){if((next.room||'main')!==currentRoom)return;robot=next;}
