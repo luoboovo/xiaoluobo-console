@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/number-bomb-console.css"><script src="/number-bomb-console.js" type="module"></script>
   <link rel="stylesheet" href="/mower-console.css"><script src="/mower-console.js" type="module"></script>
   <link rel="stylesheet" href="/robot-console.css"><script src="/robot-console.js" type="module"></script>
+  <link rel="stylesheet" href="/danmaku-console.css"><script src="/danmaku/skins.js" defer></script><script src="/danmaku-console.js" type="module"></script>
 </head>
 <body>
 <datalist id="panel-fonts"><option value="Microsoft YaHei">微软雅黑</option><option value="SimHei">黑体</option><option value="SimSun">宋体</option><option value="KaiTi">楷体</option><option value="FangSong">仿宋</option><option value="YouYuan">幼圆</option><option value="Arial"></option><option value="Segoe UI"></option></datalist>
@@ -36,7 +37,7 @@
 <div class="shell">
   <header class="topbar">
     <a class="brand" href="/"><img loading="lazy" src="/app-icon.png?v=cat-1" alt=""><span>小萝卜<span class="brand-sub">游戏控制台</span></span></a>
-    <nav class="nav" aria-label="主导航"><button class="nav-item active" data-view="console"><svg><use href="#i-grid"/></svg>控制台</button><button class="nav-item" data-view="robot"><svg><use href="#i-robot"/></svg>直播机器人</button><button class="nav-item" data-view="noodle"><svg><use href="#i-bowl"/></svg>弹幕面馆</button><button class="nav-item" data-view="feeding"><svg><use href="#i-bowl"/></svg>小萝卜吃吃吃</button><button class="nav-item" data-view="lottery"><svg><use href="#i-trophy"/></svg>抽奖工具</button><button class="nav-item" data-view="number-bomb"><svg><use href="#i-bomb"/></svg>数字炸弹</button><button class="nav-item" data-view="mower"><svg><use href="#i-blade"/></svg>萝卜割草</button><button class="nav-item" data-view="presets"><svg><use href="#i-copy"/></svg>店铺模板</button><button class="nav-item" data-view="overtime"><svg><use href="#i-clock"/></svg>加班机</button><button class="nav-item" data-view="gift-rules"><svg><use href="#i-gift"/></svg>礼物面板</button><button class="nav-item" data-view="gifts"><svg><use href="#i-gift"/></svg>礼物库</button><details id="nav-more" class="nav-more" hidden><summary aria-label="更多入口" title="更多入口"><span aria-hidden="true">···</span></summary><div id="nav-overflow" class="nav-overflow" aria-label="更多导航入口"></div></details></nav>
+    <nav class="nav" aria-label="主导航"><button class="nav-item active" data-view="console"><svg><use href="#i-grid"/></svg>控制台</button><button class="nav-item" data-view="robot"><svg><use href="#i-robot"/></svg>直播机器人</button><button class="nav-item" data-view="danmaku"><svg><use href="#i-chat"/></svg>弹幕姬</button><button class="nav-item" data-view="noodle"><svg><use href="#i-bowl"/></svg>弹幕面馆</button><button class="nav-item" data-view="feeding"><svg><use href="#i-bowl"/></svg>小萝卜吃吃吃</button><button class="nav-item" data-view="lottery"><svg><use href="#i-trophy"/></svg>抽奖工具</button><button class="nav-item" data-view="number-bomb"><svg><use href="#i-bomb"/></svg>数字炸弹</button><button class="nav-item" data-view="mower"><svg><use href="#i-blade"/></svg>萝卜割草</button><button class="nav-item" data-view="presets"><svg><use href="#i-copy"/></svg>店铺模板</button><button class="nav-item" data-view="overtime"><svg><use href="#i-clock"/></svg>加班机</button><button class="nav-item" data-view="gift-rules"><svg><use href="#i-gift"/></svg>礼物面板</button><button class="nav-item" data-view="gifts"><svg><use href="#i-gift"/></svg>礼物库</button><details id="nav-more" class="nav-more" hidden><summary aria-label="更多入口" title="更多入口"><span aria-hidden="true">···</span></summary><div id="nav-overflow" class="nav-overflow" aria-label="更多导航入口"></div></details></nav>
     <div class="top-actions"><span class="platform-pill"><span class="pink-dot"></span><span id="platform-pill-label">B 站直播</span></span><button id="theme-button" class="icon-button" aria-label="切换深浅色" title="切换深浅色"><svg><use href="#i-sun"/></svg></button><button id="settings-button" class="icon-button" aria-label="配置" title="配置"><svg><use href="#i-settings"/></svg></button></div>
   </header>
   <main>
@@ -322,6 +323,32 @@
       <div class="template-section-title"><h2>我的模板</h2><span>按需安装，不想玩时可删除模板</span></div>
       <div class="preset-grid" id="template-list"></div>
       <p class="preset-editing-note" id="preset-editing-note" hidden>请先保存或取消场景搭建。<button class="text-button" data-view="noodle">返回面馆 ↗</button></p>
+    </section>
+    <section id="danmaku-view" hidden>
+      <div class="lottery-heading"><div><div class="eyebrow"><span></span>EVERY MESSAGE, A LITTLE CHAT</div><h1>弹幕姬<span>。</span></h1><p>弹幕排成聊天记录，礼物是红包，大礼物是转账。</p></div><div class="lottery-output"><button class="button white-button" id="danmaku-open">打开画面 ↗</button><button class="button white-button" id="danmaku-copy">复制地址</button></div></div>
+      <div class="danmaku-workspace">
+        <article class="danmaku-preview"><div class="danmaku-preview-top"><span>预览 · 直播软件建议 420 × 720</span><div><button class="text-button" id="danmaku-demo">发几条试试</button><button class="text-button" id="danmaku-clear">清空预览</button></div></div><div class="danmaku-stage"><iframe id="danmaku-frame" data-src="/danmaku/?preview=1" title="弹幕姬预览：微信聊天样式的弹幕和礼物"></iframe></div></article>
+        <aside class="danmaku-sidebar">
+          <article class="lottery-card"><div class="lottery-card-title"><h2>画面设置</h2></div><form id="danmaku-settings">
+            <label>气泡主题<select name="theme"></select></label>
+            <label class="danmaku-check"><input type="checkbox" name="bg" checked>显示聊天背景（关掉就是透明，叠在直播画面上）</label>
+            <div class="lottery-field-pair"><label>字号<input name="size" type="number" min="10" max="32" step="1" value="15"></label><label>最多显示<input name="max" type="number" min="5" max="200" step="1" value="40"></label></div>
+            <div class="lottery-field-pair"><label>几秒后淡出<input name="fade" type="number" min="0" max="600" step="1" value="0"></label><label>转账起点 / 元<input name="big" type="number" min="1" max="100000" step="1" value="50"></label></div>
+            <p class="lottery-help">淡出填 0 就一直留着。礼物总价到「转账起点」显示成转账，低于它是红包；上舰固定是转账。</p>
+            <label class="danmaku-check"><input type="checkbox" name="enter">显示进场提示</label>
+            <label class="danmaku-check"><input type="checkbox" name="social" checked>显示关注、分享</label>
+            <label class="danmaku-check"><input type="checkbox" name="like">显示点赞</label>
+          </form></article>
+          <article class="lottery-card"><div class="lottery-card-title"><h2>气泡身份</h2></div><ul class="danmaku-legend">
+            <li><i class="dot normal"></i><span><b>普通观众</b>白色气泡</span></li>
+            <li><i class="dot fans"></i><span><b>粉丝牌</b>B站戴本房间粉丝牌，绿色气泡</span></li>
+            <li><i class="dot star"></i><span><b>星守护</b>抖音粉丝团成员，粉紫星星气泡</span></li>
+            <li><i class="dot guard3"></i><span><b>舰长</b>蓝色气泡、蓝框头像</span></li>
+            <li><i class="dot guard2"></i><span><b>提督</b>紫色气泡</span></li>
+            <li><i class="dot guard1"></i><span><b>总督</b>金色流光气泡</span></li>
+          </ul></article>
+        </aside>
+      </div>
     </section>
     <section id="bomb-view" hidden>
       <div class="lottery-heading"><h1>数字炸弹</h1><div class="lottery-output"><button class="button white-button" id="bomb-open">打开画面 ↗</button><button class="button white-button" id="bomb-copy">复制地址</button></div></div>

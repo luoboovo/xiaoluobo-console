@@ -1,0 +1,149 @@
+/* 小萝卜弹幕姬 —— 微信聊天风格。
+   身份气泡：.tier-normal / fans / star / guard3 / guard2 / guard1，写在 skins.js 的 TIERS 里。
+   主题：[data-theme="wechat" | "candy" | "night"]，想加新主题就照着最下面加一段。 */
+:root {
+  --font-size: 15px;
+  --bg: #ededed;
+  --name: #888;
+  --bubble: #fff;
+  --bubble-text: #191919;
+  --tip: rgba(0, 0, 0, .22);
+  --tip-text: #fff;
+  --packet: #fa9d3b;
+  --packet-deep: #f48a1f;
+  --packet-foot: #fbb565;
+  --transfer: #f0a146;
+  --radius: 6px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  font: var(--font-size)/1.45 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  color: var(--bubble-text);
+  overflow: hidden;
+}
+body.transparent { background: transparent; }
+.chat {
+  height: 100%; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  gap: calc(var(--font-size) * .8);
+  padding: 14px 14px 18px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 60px);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 60px);
+}
+.connection {
+  position: fixed; left: 50%; top: 12px; transform: translateX(-50%);
+  background: rgba(0, 0, 0, .55); color: #fff; font-size: 12px; padding: 4px 12px; border-radius: 99px;
+}
+
+/* —— 一条消息 —— */
+.msg { display: flex; align-items: flex-start; gap: 9px; flex: none; animation: pop .32s cubic-bezier(.2, 1.4, .4, 1) both; }
+.msg.still, .tip.still { animation: none; }
+.msg.bump .card { animation: bump .45s ease; }
+.leaving { transition: opacity .6s, transform .6s; opacity: 0; transform: translateX(-20px); }
+@keyframes pop { from { opacity: 0; transform: translateY(14px) scale(.96); } }
+@keyframes bump { 40% { transform: scale(1.06); } }
+
+.avatar { position: relative; flex: none; width: calc(var(--font-size) * 2.6); height: calc(var(--font-size) * 2.6); border-radius: 5px; overflow: hidden; }
+.avatar img, .avatar-letter { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.avatar-letter { display: grid; place-items: center; color: #fff; font-weight: 600; font-size: calc(var(--font-size) * 1.05); }
+.c0 { background: #f4a261; } .c1 { background: #7fb7be; } .c2 { background: #b392ac; } .c3 { background: #90be6d; }
+.c4 { background: #e5989b; } .c5 { background: #6d9dc5; } .c6 { background: #c9a227; } .c7 { background: #80a1d4; }
+
+.content { min-width: 0; max-width: calc(100% - var(--font-size) * 4); display: flex; flex-direction: column; align-items: flex-start; }
+.name-line { display: flex; align-items: center; gap: 5px; margin: 0 0 3px 2px; font-size: calc(var(--font-size) * .8); color: var(--name); max-width: 100%; }
+.name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge { flex: none; font-size: calc(var(--font-size) * .68); line-height: 1; padding: 3px 5px; border-radius: 4px; color: #fff; font-weight: 600; white-space: nowrap; }
+.badge-admin { background: #f0b03d; }
+.badge-fans { background: #6cbf8d; }
+.badge-star { background: linear-gradient(90deg, #ff7eb3, #b36bff); }
+.badge-guard3 { background: linear-gradient(90deg, #5aa7ff, #3b6dfb); }
+.badge-guard2 { background: linear-gradient(90deg, #c27cff, #8a4cf0); }
+.badge-guard1 { background: linear-gradient(90deg, #ffc94a, #f08a24); }
+
+/* —— 文字气泡（带微信小尖角） —— */
+.bubble {
+  position: relative; padding: calc(var(--font-size) * .55) calc(var(--font-size) * .75);
+  background: var(--bubble); border-radius: var(--radius);
+  word-break: break-word; overflow-wrap: anywhere; white-space: pre-wrap;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .04);
+}
+.bubble::before {
+  content: ""; position: absolute; left: -5px; top: calc(var(--font-size) * .85);
+  border: 5px solid transparent; border-left: 0; border-right-color: var(--tail, var(--bubble));
+  margin-top: -5px;
+}
+.mention { color: #576b95; }
+
+/* 粉丝牌：微信「自己发的」那种绿色 */
+.tier-fans .bubble { --bubble: #95ec69; }
+/* 星守护：粉紫渐变 + 星星 */
+.tier-star .bubble { background: linear-gradient(135deg, #ffe1f0, #ead9ff); --tail: #ffe1f0; border: 1px solid #f6c4e3; }
+.tier-star .bubble::after { content: "✦"; position: absolute; right: -6px; top: -8px; color: #d07cff; font-size: calc(var(--font-size) * .85); text-shadow: 0 0 6px #fff; }
+/* 舰长：蓝色描边 */
+.tier-guard3 .bubble { background: linear-gradient(135deg, #e6f1ff, #d6e6ff); --tail: #e6f1ff; border: 1px solid #a9c9ff; }
+.tier-guard3 .avatar { box-shadow: 0 0 0 2px #5aa7ff; }
+/* 提督：紫色 */
+.tier-guard2 .bubble { background: linear-gradient(135deg, #f1e4ff, #e2cfff); --tail: #f1e4ff; border: 1px solid #caa6ff; }
+.tier-guard2 .avatar { box-shadow: 0 0 0 2px #a865ff; }
+/* 总督：金色流光 */
+.tier-guard1 .bubble { background: linear-gradient(120deg, #fff3cf, #ffe08a 45%, #fff3cf 55%, #ffd36b); background-size: 250% 100%; --tail: #fff3cf; border: 1px solid #f2c45a; animation: shine 3.5s linear infinite; }
+.tier-guard1 .avatar { box-shadow: 0 0 0 2px #f5b83d; }
+@keyframes shine { to { background-position: -250% 0; } }
+
+/* —— 红包 / 转账卡片 —— */
+.card {
+  width: calc(var(--font-size) * 15); max-width: 100%;
+  border-radius: var(--radius); overflow: hidden; color: #fff;
+  background: var(--packet); position: relative;
+}
+.card::before { content: ""; position: absolute; left: -5px; top: calc(var(--font-size) * 1.1); border: 5px solid transparent; border-left: 0; border-right-color: var(--packet); }
+.card-body { display: flex; align-items: center; gap: calc(var(--font-size) * .65); padding: calc(var(--font-size) * .75) calc(var(--font-size) * .8); min-height: calc(var(--font-size) * 4.2); }
+.card-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.card-text strong { font-weight: 500; font-size: calc(var(--font-size) * 1.02); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+.card-text span { font-size: calc(var(--font-size) * .8); opacity: .9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-text .count { font-weight: 600; }
+.card-gift { flex: none; width: calc(var(--font-size) * 2.4); height: calc(var(--font-size) * 2.4); object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .2)); }
+.card-foot { font-size: calc(var(--font-size) * .7); padding: calc(var(--font-size) * .28) calc(var(--font-size) * .8); background: var(--packet-foot); color: rgba(255, 255, 255, .92); border-top: 1px solid rgba(255, 255, 255, .25); }
+.card-icon { flex: none; width: calc(var(--font-size) * 2.1); height: calc(var(--font-size) * 2.6); display: grid; place-items: center; }
+/* 红包图标：红色信封 + 金色圆扣 */
+.packet-icon { background: #f25542; border-radius: 4px; position: relative; overflow: hidden; }
+.packet-icon::before { content: ""; position: absolute; left: -20%; right: -20%; top: -50%; height: 85%; background: #e14a39; border-radius: 0 0 50% 50%; }
+.packet-icon i { position: relative; width: 42%; aspect-ratio: 1; border-radius: 50%; background: #fdd36b; margin-top: -8%; box-shadow: 0 0 0 1px #f0b64a; }
+/* 转账图标：白圈双箭头 */
+.transfer-icon { width: calc(var(--font-size) * 2.4); height: calc(var(--font-size) * 2.4); border: 2px solid #fff; border-radius: 50%; font-size: calc(var(--font-size) * 1.15); font-weight: 700; }
+.card.transfer { --packet: var(--transfer); --packet-foot: #f4b366; }
+.card.transfer .card-text strong { font-size: calc(var(--font-size) * 1.3); font-weight: 600; }
+/* 上舰：深色描金的转账 */
+.card.guard { --packet: #3d3a4f; --packet-foot: #2f2d3e; color: #ffe3a1; box-shadow: inset 0 0 0 1px #c9a45c; }
+.card.guard .transfer-icon { border-color: #ffe3a1; color: #ffe3a1; }
+.card.guard .card-foot { color: #d8bd7e; }
+/* 醒目留言：红包里放留言 */
+.card.sc .card-text strong { font-size: calc(var(--font-size) * .95); -webkit-line-clamp: 4; }
+
+/* —— 居中的灰色小提示（进场、关注、点赞） —— */
+.tip { flex: none; display: flex; justify-content: center; animation: pop .3s ease both; }
+.tip span { max-width: 85%; background: var(--tip); color: var(--tip-text); font-size: calc(var(--font-size) * .75); padding: 3px 9px; border-radius: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tip b { font-weight: 500; }
+body.transparent .tip span { background: rgba(0, 0, 0, .35); }
+body.transparent .name-line { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
+
+/* ========= 主题 ========= */
+/* 糖果气泡：圆滚滚，更活泼 */
+[data-theme="candy"] { --bg: linear-gradient(180deg, #fff3f8, #eef6ff); --radius: 18px; --bubble: #fff; --name: #b07a9a; }
+[data-theme="candy"] .avatar { border-radius: 50%; }
+[data-theme="candy"] .bubble { box-shadow: 0 3px 10px -4px rgba(208, 110, 160, .35); }
+[data-theme="candy"] .bubble::before, [data-theme="candy"] .card::before { display: none; }
+[data-theme="candy"] .msg > .content > .bubble { border-top-left-radius: 6px; }
+[data-theme="candy"] .tier-fans .bubble { --bubble: #c9f2d6; }
+[data-theme="candy"] .card { border-top-left-radius: 6px; }
+/* 夜间模式：微信深色 */
+[data-theme="night"] { --bg: #111; --name: #8a8a8a; --bubble: #2c2c2c; --bubble-text: #d5d5d5; --tip: rgba(255, 255, 255, .1); --tip-text: #9a9a9a; }
+[data-theme="night"] .tier-fans .bubble { --bubble: #3eb575; color: #0f2a1a; }
+[data-theme="night"] .tier-star .bubble { background: linear-gradient(135deg, #4a2a45, #3a2d55); --tail: #4a2a45; border-color: #6c4583; color: #f3dcff; }
+[data-theme="night"] .tier-guard3 .bubble { background: linear-gradient(135deg, #1f3556, #1b2c4a); --tail: #1f3556; border-color: #35609e; color: #d6e6ff; }
+[data-theme="night"] .tier-guard2 .bubble { background: linear-gradient(135deg, #3a2557, #2e1f48); --tail: #3a2557; border-color: #6a45a3; color: #ecdcff; }
+[data-theme="night"] .tier-guard1 .bubble { background: linear-gradient(120deg, #4d3b12, #7a5a14 45%, #4d3b12 55%, #6b4e12); background-size: 250% 100%; --tail: #4d3b12; border-color: #a5802c; color: #ffe8b0; }
+body:is([data-theme]) { background: var(--bg); }
+body.transparent:is([data-theme]) { background: transparent; }

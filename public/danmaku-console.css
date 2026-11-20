@@ -1,0 +1,18 @@
+.danmaku-workspace{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start}
+.danmaku-preview{background:var(--surface);border:1px solid var(--line);border-radius:20px;overflow:hidden}
+.danmaku-preview-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;font-size:11px;color:var(--muted)}
+.danmaku-preview-top>div{display:flex;gap:14px}
+.danmaku-stage{display:flex;justify-content:center;padding:0 20px 20px;background:repeating-conic-gradient(var(--surface-soft) 0 25%,var(--surface) 0 50%) 0 0/20px 20px}
+.danmaku-stage iframe{width:420px;max-width:100%;height:640px;border:0;border-radius:14px;display:block;box-shadow:var(--shadow)}
+.danmaku-sidebar{display:flex;flex-direction:column;gap:18px;min-width:0}
+.lottery-card .danmaku-check{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:12px;color:var(--text);line-height:1.5;cursor:pointer}
+.lottery-card .danmaku-check input{flex:none;width:auto;margin:0}
+#danmaku-settings .lottery-help{margin:-4px 0 14px}
+.danmaku-legend{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:11px}
+.danmaku-legend li{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--muted)}
+.danmaku-legend span{display:flex;flex-direction:column;gap:1px}
+.danmaku-legend b{font-size:12px;color:var(--text);font-weight:600}
+.danmaku-legend .dot{flex:none;width:26px;height:18px;border-radius:5px;border:1px solid var(--line)}
+.dot.normal{background:#fff}.dot.fans{background:#95ec69}.dot.star{background:linear-gradient(135deg,#ffe1f0,#ead9ff);border-color:#f6c4e3}
+.dot.guard3{background:linear-gradient(135deg,#e6f1ff,#d6e6ff);border-color:#a9c9ff}.dot.guard2{background:linear-gradient(135deg,#f1e4ff,#e2cfff);border-color:#caa6ff}.dot.guard1{background:linear-gradient(120deg,#fff3cf,#ffe08a);border-color:#f2c45a}
+@media(max-width:900px){.danmaku-workspace{grid-template-columns:1fr}}

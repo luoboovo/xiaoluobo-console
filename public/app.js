@@ -84,7 +84,7 @@ document.fonts.ready.then(layoutNavigation);
 document.addEventListener('click',event=>{if(!navMore.contains(event.target))navMore.open=false;});
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&navMore.open){navMore.open=false;navMore.querySelector('summary').focus();event.preventDefault();}});
 function syncPreviewFrames(view) {
-  for(const [id,target] of [['noodle-frame','noodle'],['feeding-frame','feeding'],['overtime-frame','overtime'],['overtime-media-frame','overtime'],['bomb-frame','number-bomb'],['mower-frame','mower'],['lottery-frame','lottery']]) {
+  for(const [id,target] of [['noodle-frame','noodle'],['feeding-frame','feeding'],['overtime-frame','overtime'],['overtime-media-frame','overtime'],['bomb-frame','number-bomb'],['mower-frame','mower'],['lottery-frame','lottery'],['danmaku-frame','danmaku']]) {
     const frame=$('#'+id);
     if(view===target){if(frame.getAttribute('src')!==frame.dataset.src)frame.src=frame.dataset.src;}
     else if(frame.hasAttribute('src'))frame.removeAttribute('src');
@@ -102,6 +102,7 @@ export function switchView(view) {
   $('#bomb-view').hidden = view !== 'number-bomb';
   $('#mower-view').hidden = view !== 'mower';
   $('#robot-view').hidden = view !== 'robot';
+  $('#danmaku-view').hidden = view !== 'danmaku';
   syncPreviewFrames(view);
   $('#lottery-frame').contentWindow.postMessage({type:'lottery-preview-visibility',visible:view==='lottery'},location.origin);
   $('#feeding-frame').contentWindow.postMessage({type:'feeding-preview-visibility',visible:view==='feeding'},location.origin);
@@ -240,7 +241,7 @@ document.addEventListener('error', event => {
 }, true);
 try { document.body.classList.toggle('dark', localStorage.getItem('theme') === 'dark'); } catch {}
 $('#theme-button').addEventListener('click', () => { const dark = document.body.classList.toggle('dark'); try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch {} });
-if (['noodle', 'presets', 'gifts', 'overtime', 'gift-rules','feeding','lottery','number-bomb','mower','robot'].includes(location.hash.slice(1))) switchView(location.hash.slice(1));
+if (['noodle', 'presets', 'gifts', 'overtime', 'gift-rules','feeding','lottery','number-bomb','mower','robot','danmaku'].includes(location.hash.slice(1))) switchView(location.hash.slice(1));
 else syncPreviewFrames('console');
 (async () => {
   try {

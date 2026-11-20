@@ -25,14 +25,14 @@ const { LiveMemory } = require('./lib/live-memory.cjs');
 const { roomId } = require('./lib/protocol.cjs');
 
 // Overlay pages subscribe to one channel; everything else is a console page.
-const CHANNELS = { bomb:new Set(['number-bomb']), mower:new Set(['mower']), lottery:new Set(['lottery']), feeding:new Set(['feeding','feeding-motion','feeding-physics']), overtime:new Set(['overtime','overtime-clock','overtime-media']), scene:new Set(['noodle','noodle-motion']) };
+const CHANNELS = { bomb:new Set(['number-bomb']), mower:new Set(['mower']), lottery:new Set(['lottery']), feeding:new Set(['feeding','feeding-motion','feeding-physics']), overtime:new Set(['overtime','overtime-clock','overtime-media']), scene:new Set(['noodle','noodle-motion']), danmaku:new Set(['message','danmaku-history']) };
 const MOTION = new Set(['noodle-motion','feeding-motion','feeding-physics']);
 // High-frequency frames bypass the 100ms state coalescing.
 const REALTIME = new Set([...MOTION,'overtime-clock','overtime-media']);
 const accepts = (client, type, data) => client.channel ? CHANNELS[client.channel].has(type)&&(type!=='lottery'||client.lotteryGame===data.game) : !(client.consoleOnly && MOTION.has(type));
 const BODY_LIMITS = { '/api/robot/blindbox/import':5*1024*1024, '/api/templates/import':MAX_PACKAGE_BYTES, '/api/diagnostics/client':32768, '/api/feeding/motion':300000 };
 const CLIENT_EVENTS = ['runtime_error','promise_error','page_stall','resource_error','operation_error'];
-const CLIENT_PAGES = ['/','/noodle/','/overtime/','/feeding/','/lottery/','/number-bomb/','/mower/'];
+const CLIENT_PAGES = ['/','/noodle/','/overtime/','/feeding/','/lottery/','/number-bomb/','/mower/','/danmaku/'];
 
 async function startServer(options = {}) {
   const diagnostics=options.diagnostics;
@@ -156,7 +156,7 @@ async function startServer(options = {}) {
       pendingStates.clear();
       if (pendingMessages.length) {
         const frame = pendingMessages.map(event => frameOf('message', event)).join('');
-        for (const client of clients) if (!client.channel) write(client, frame);
+        for (const client of clients) if (!client.channel || client.channel === 'danmaku') write(client, frame);
         pendingMessages.length = 0;
       }
     }, 100);
@@ -258,6 +258,8 @@ async function startServer(options = {}) {
       if(!mowerLeader||client.mowerPlay)pickMowerLeader();else send(client,'mower-role',{leader:false});
       return;
     }
+    // 弹幕姬：刚打开时补上最近 30 条，免得画面空着。
+    if(client.channel==='danmaku')return send(client,'danmaku-history',services.events.slice(0,30));
     if(client.channel==='feeding')return send(client,'feeding',feeding.snapshot());
     if(client.channel==='lottery'){
       const key=url.searchParams.get('game')||'wheel';
