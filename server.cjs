@@ -241,6 +241,10 @@ async function startServer(options = {}) {
     if (event.type === 'gift') giftBatch.gifts++;
     broadcast('message', event);
   });
+  // 推送更新只在桌面版里有（options.updater），用 node server.cjs 跑时显示「当前运行方式不支持自动更新」。
+  const updater=options.updater||null;
+  const updateState=()=>updater?updater.snapshot():{supported:false,current:services.state.version||""};
+  updater?.on("state",state=>broadcast("update",state));
   for(const [platform,game]of Object.entries(games)){
     const current=listener=>(...args)=>{if(services.platform===platform)listener(...args);};
     game.noodle.on('change',current(()=>broadcast('noodle')));
@@ -280,7 +284,7 @@ async function startServer(options = {}) {
     const scene=client.channel==='scene';
     if(!scene)send(client,'state',services.state);
     sendNoodle(client,noodleFrames(noodle.snapshot()));
-    if(!scene){send(client,'features',features.snapshot());send(client,'overtime',overtime.snapshot());send(client,'feeding',feeding.snapshot());send(client,'number-bomb',numberBomb.snapshot());send(client,'mower',mower.snapshot());send(client,'danmaku',danmakuState());for(const target of Object.values(lottery))send(client,'lottery',target.snapshot());send(client,'robot',{...robot.snapshot(),room:'main'});for(const entry of robotRooms.extra.values())send(client,'robot',{...entry.robot.snapshot(),room:entry.id});send(client,'robot-rooms',robotRooms.list());}
+    if(!scene){send(client,'features',features.snapshot());send(client,'overtime',overtime.snapshot());send(client,'feeding',feeding.snapshot());send(client,'number-bomb',numberBomb.snapshot());send(client,'mower',mower.snapshot());send(client,'danmaku',danmakuState());for(const target of Object.values(lottery))send(client,'lottery',target.snapshot());send(client,'robot',{...robot.snapshot(),room:'main'});for(const entry of robotRooms.extra.values())send(client,'robot',{...entry.robot.snapshot(),room:entry.id});send(client,'robot-rooms',robotRooms.list());send(client,'update',updateState());}
     if(!client.consoleOnly)send(client,'noodle-motion',noodle.motionSnapshot());
   };
   const download=(res,filename,data)=>{res.setHeader('Content-Disposition',`attachment; filename=${filename}`);return data;};
@@ -333,6 +337,12 @@ async function startServer(options = {}) {
     '/api/robot/rooms': async input => ({ok:true,...await robotRooms.action(input)}),
     '/api/robot/blindbox/import': async input => {const robot=robotRooms.robotFor(input.room||'main');if(typeof input.csv!=='string')throw new Error('请选择 CSV 文件');const result=await robot.importBlindCsv(input.csv);return {ok:true,...result,state:{...robot.snapshot(),room:input.room||'main'}};},
     '/api/features': async input => ({ok:true,features:await features.set(input?.id,input?.enabled)}),
+    '/api/update/action': async input => {
+      if(!updater)throw new Error('当前运行方式不支持自动更新，请下载安装包');
+      if(input.action==='check')return {ok:true,state:await updater.check()};
+      if(input.action==='install')return {ok:true,state:await updater.install()};
+      throw new Error('未知更新操作');
+    },
     '/api/number-bomb/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>numberBomb.action(input)))}),
     '/api/danmaku/action': async (input,scoped) => {const state=await enqueue(scoped(()=>danmaku.action(input)));schedulePrune();return {ok:true,state:{...state,enabled:features.isOn('danmaku')}};},
     '/api/mower/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>mower.action(input)))}),
@@ -361,6 +371,7 @@ async function startServer(options = {}) {
   // GET handlers return a JSON body, or write the response themselves and return undefined.
   const getRoutes = {
     '/api/features': () => features.snapshot(),
+    '/api/update/state': () => updateState(),
     '/api/diagnostics/info': () => diagnostics?{...diagnostics.info(),canOpen:!!options.openLogs}:{enabled:false},
     '/api/diagnostics/export': async res => {
       if(!diagnostics){res.statusCode=503;return {error:'诊断日志未启用'};}

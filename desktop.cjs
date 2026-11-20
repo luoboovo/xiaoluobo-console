@@ -8,6 +8,15 @@ let runtime, window, overtimeWindow, mediaWindow, overtimeSize, mediaSize, drag,
 // showErrorBox blocks the main process (server, live connections, overlays), so it is only used when quitting anyway.
 function showError(title,error,{blocking=false}={}){diagnostics?.log('error','desktop.error',{title,error});const message=error.message||String(error);if(blocking)dialog.showErrorBox(title,message);else dialog.showMessageBox({type:'error',title,message:title,detail:message}).catch(()=>{});}
 const panelWindows = new Map();
+function createUpdater() {
+  const { Updater } = require('./lib/updater.cjs'), { UPDATE_PUBLIC_KEY } = require('./lib/update-key.cjs'), { launchInstaller } = require('./lib/update-install.cjs');
+  return new Updater({
+    currentVersion: app.getVersion(), publicKey: UPDATE_PUBLIC_KEY, downloadDir: path.join(app.getPath('temp'), 'xiaoluobo-update'),
+    log: (...args) => diagnostics?.log(...args),
+    // 装更新：交给后台脚本等控制台退出后静默安装、重新打开，这边正常退出（会先保存加班记录等）。
+    launch: async installer => { launchInstaller({ installer }); setTimeout(() => app.quit(), 800); }
+  });
+}
 ipcMain.on('overtime-drag', (event, phase) => {
   const panel = Array.from(panelWindows.values()).find(record => record.window && event.sender === record.window.webContents);
   const target = panel?.window || [overtimeWindow,mediaWindow].find(win => win && !win.isDestroyed() && event.sender === win.webContents);
@@ -47,7 +56,9 @@ else {
     };
     const douyin=require('./lib/douyin-desktop.cjs').createDouyinDesktop({BrowserWindow,session});
     app.on('before-quit',()=>douyin.close());
-    runtime = await startServer({ dataDir, secrets, douyin, diagnostics, autoSyncGifts: true, openLogs:async logDir=>{const error=await shell.openPath(logDir);if(error)throw new Error(error);}, port: 3181, overtimeLegacyFiles:[path.join(app.getPath('appData'), '小萝卜巨无霸加班机', 'config.json')],feedingLegacyFiles:[path.join(app.getPath('documents'),'ChatGPT','B站弹幕小游戏','config.json')] });
+    // 推送更新：只有装好的正式版才检查（开发时 electron . 跑的不检查）。
+    const updater = app.isPackaged ? createUpdater() : null;
+    runtime = await startServer({ dataDir, secrets, douyin, diagnostics, updater, autoSyncGifts: true, openLogs:async logDir=>{const error=await shell.openPath(logDir);if(error)throw new Error(error);}, port: 3181, overtimeLegacyFiles:[path.join(app.getPath('appData'), '小萝卜巨无霸加班机', 'config.json')],feedingLegacyFiles:[path.join(app.getPath('documents'),'ChatGPT','B站弹幕小游戏','config.json')] });
     const boundsPath = path.join(dataDir, 'overtime-window.json');
     const loadBounds = async file => {
       const bounds = await fs.readFile(file,'utf8').then(JSON.parse).catch(() => ({}));
@@ -133,6 +144,7 @@ else {
     await window.loadURL(runtime.url);
     window.on('closed',quitIfOnlyMedia);
     window.show();
+    if (updater) { setTimeout(() => updater.check(), 20000); setInterval(() => updater.check(), 6 * 3600 * 1000); }
   }).catch(async error => {showError('控制台启动失败',error,{blocking:true});stopDiagnostics?.();await diagnostics?.close().catch(()=>{});app.quit();});
   app.on('window-all-closed', () => app.quit());
   app.on('before-quit', event => {

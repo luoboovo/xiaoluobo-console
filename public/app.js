@@ -253,6 +253,7 @@ else syncPreviewFrames('console');
     source.addEventListener('feeding', event => window.dispatchEvent(new CustomEvent('feeding-state', {detail:JSON.parse(event.data)})));
     source.addEventListener('lottery', event => window.dispatchEvent(new CustomEvent('lottery-state', {detail:JSON.parse(event.data)})));
     source.addEventListener('number-bomb', event => window.dispatchEvent(new CustomEvent('number-bomb-state', {detail:JSON.parse(event.data)})));
+    source.addEventListener('update', event => window.dispatchEvent(new CustomEvent('update-state', {detail:JSON.parse(event.data)})));
     source.addEventListener('mower', event => window.dispatchEvent(new CustomEvent('mower-state', {detail:JSON.parse(event.data)})));
     source.addEventListener('danmaku', event => window.dispatchEvent(new CustomEvent('danmaku-state', {detail:JSON.parse(event.data)})));
     source.addEventListener('robot', event => window.dispatchEvent(new CustomEvent('robot-state', {detail:JSON.parse(event.data)})));

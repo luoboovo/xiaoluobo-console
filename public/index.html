@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/number-bomb-console.css"><script src="/number-bomb-console.js" type="module"></script>
   <link rel="stylesheet" href="/mower-console.css"><script src="/mower-console.js" type="module"></script>
   <link rel="stylesheet" href="/robot-console.css"><script src="/robot-console.js" type="module"></script>
+  <link rel="stylesheet" href="/update-console.css"><script src="/update-console.js" type="module"></script>
   <link rel="stylesheet" href="/danmaku-console.css"><script src="/danmaku/skins.js" defer></script><script src="/danmaku-console.js" type="module"></script>
 </head>
 <body>
@@ -40,6 +41,7 @@
     <nav class="nav" aria-label="主导航"><button class="nav-item active" data-view="console"><svg><use href="#i-grid"/></svg>控制台</button><button class="nav-item" data-view="robot"><svg><use href="#i-robot"/></svg>直播机器人</button><button class="nav-item" data-view="danmaku"><svg><use href="#i-chat"/></svg>弹幕姬</button><button class="nav-item" data-view="noodle"><svg><use href="#i-bowl"/></svg>弹幕面馆</button><button class="nav-item" data-view="feeding"><svg><use href="#i-bowl"/></svg>小萝卜吃吃吃</button><button class="nav-item" data-view="lottery"><svg><use href="#i-trophy"/></svg>抽奖工具</button><button class="nav-item" data-view="number-bomb"><svg><use href="#i-bomb"/></svg>数字炸弹</button><button class="nav-item" data-view="mower"><svg><use href="#i-blade"/></svg>萝卜割草</button><button class="nav-item" data-view="presets"><svg><use href="#i-copy"/></svg>店铺模板</button><button class="nav-item" data-view="overtime"><svg><use href="#i-clock"/></svg>加班机</button><button class="nav-item" data-view="gift-rules"><svg><use href="#i-gift"/></svg>礼物面板</button><button class="nav-item" data-view="gifts"><svg><use href="#i-gift"/></svg>礼物库</button><details id="nav-more" class="nav-more" hidden><summary aria-label="更多入口" title="更多入口"><span aria-hidden="true">···</span></summary><div id="nav-overflow" class="nav-overflow" aria-label="更多导航入口"></div></details></nav>
     <div class="top-actions"><span class="platform-pill"><span class="pink-dot"></span><span id="platform-pill-label">B 站直播</span></span><button id="theme-button" class="icon-button" aria-label="切换深浅色" title="切换深浅色"><svg><use href="#i-sun"/></svg></button><button id="settings-button" class="icon-button" aria-label="配置" title="配置"><svg><use href="#i-settings"/></svg></button></div>
   </header>
+  <div id="update-banner" class="update-banner" role="status" aria-live="polite" hidden></div>
   <main>
     <section id="console-view">
       <div class="hero"><div class="eyebrow"><span></span>YOUR LIVE SPACE</div><h1>直播互动，从这里开始<span>。</span></h1><p>连接你的直播间，让每一份心意都有回应。</p></div>
@@ -445,7 +447,8 @@
       </div>
     </section>
   </main>
-  <footer><span><span class="footer-dot" id="service-dot"></span><span id="service-label">本地运行</span></span><span>给直播，多一点可能。</span><span id="app-version">小萝卜</span></footer>
+  <footer><span><span class="footer-dot" id="service-dot"></span><span id="service-label">本地运行</span></span><span>给直播，多一点可能。</span><span class="footer-version"><span id="app-version">小萝卜</span><button class="text-button" id="update-check" type="button">检查更新</button></span></footer>
+<dialog id="update-dialog" class="dialog" aria-labelledby="update-dialog-title"><h2 id="update-dialog-title">现在更新？</h2><p id="update-dialog-text">控制台会关闭，安装好后自动重新打开，大约半分钟。直播画面和弹幕连接会暂时断开，建议下播后再更新。</p><div class="lottery-clear-actions"><button class="button white-button" data-close="update-dialog">稍后</button><button class="button dark-button" id="update-confirm">立即更新</button></div></dialog>
 </div>
 <dialog id="login-dialog" class="dialog login-dialog"><button class="icon-button dialog-close" data-close="login-dialog" aria-label="关闭"><svg><use href="#i-close"/></svg></button><div class="tile bili-tile dialog-tile">B</div><h2>登录 B 站</h2><p>使用哔哩哔哩 App 扫码</p><div id="qr-container" class="qr-container"></div><p id="qr-status" role="status">正在获取二维码…</p><button id="qr-refresh" class="button white-button">刷新二维码</button></dialog>
 <dialog id="preset-dialog" class="dialog preset-dialog"><button class="icon-button dialog-close" data-close="preset-dialog" aria-label="关闭"><svg><use href="#i-close"/></svg></button><h2 id="preset-dialog-title">新增面馆</h2><form id="preset-form"><label class="preset-name-label">面馆名称<input id="preset-name" maxlength="16" required autocomplete="off" placeholder="例如：萝卜面馆"></label><p id="preset-dialog-note">复制当前面馆的配置，招牌改为新名称。</p><button class="button dark-button" id="preset-submit" type="submit">创建面馆</button></form></dialog>
