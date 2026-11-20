@@ -25,7 +25,7 @@ const { LiveMemory } = require('./lib/live-memory.cjs');
 const { roomId } = require('./lib/protocol.cjs');
 
 // Overlay pages subscribe to one channel; everything else is a console page.
-const CHANNELS = { bomb:new Set(['number-bomb']), mower:new Set(['mower']), lottery:new Set(['lottery']), feeding:new Set(['feeding','feeding-motion','feeding-physics']), overtime:new Set(['overtime','overtime-clock','overtime-media']), scene:new Set(['noodle','noodle-motion']), danmaku:new Set(['message','danmaku-history']) };
+const CHANNELS = { bomb:new Set(['number-bomb']), mower:new Set(['mower']), lottery:new Set(['lottery']), feeding:new Set(['feeding','feeding-motion','feeding-physics']), overtime:new Set(['overtime','overtime-clock','overtime-media']), scene:new Set(['noodle','noodle-motion']), danmaku:new Set(['message','danmaku-history','danmaku']) };
 const MOTION = new Set(['noodle-motion','feeding-motion','feeding-physics']);
 // High-frequency frames bypass the 100ms state coalescing.
 const REALTIME = new Set([...MOTION,'overtime-clock','overtime-media']);
@@ -44,7 +44,8 @@ async function startServer(options = {}) {
   const common={dataDir:services.dataDir,seedDir:services.seedDir,templates,feedingLegacyFiles:options.feedingLegacyFiles||[]};
   games.bilibili=await createPlatformGames({...common,platform:'bilibili',catalog:services.biliGifts.length>=12?services.biliGifts:require('./data/gifts.json').list,legacyFiles:options.overtimeLegacyFiles||[]});
   games.douyin=await createPlatformGames({...common,platform:'douyin',catalog:services.dyGifts.length>=12?services.dyGifts:require('./data/douyin-gifts.json').list,source:games.bilibili.noodle});
-  let {noodle,overtime,feeding,lottery,numberBomb,mower}=games[services.platform];
+  let {noodle,overtime,feeding,lottery,numberBomb,mower,danmaku}=games[services.platform];
+  const danmakuState=()=>({...danmaku.snapshot(),enabled:features.isOn('danmaku')});
   // 机器人设置跨平台共用；DeepSeek Key 和登录凭证一起加密保存。
   // 每个 AI 服务商一个 Key；旧版只存了 DeepSeek 的 deepseekKey，读取时沿用。
   const aiKeys=()=>services.secretData.aiKeys&&typeof services.secretData.aiKeys==='object'?services.secretData.aiKeys:{};
@@ -75,7 +76,7 @@ async function startServer(options = {}) {
   // 上传素材只增不减会占满系统盘；启动时和改完设置后，清理已不在任何规则里的素材。
   let pruneTimer,pruning=Promise.resolve();
   const prune=()=>{pruning=pruning.then(async()=>{for(const game of Object.values(games)){
-    const result=await pruneAssets(game.dir,assetNames(game.overtime.state,game.feeding.state,game.mower.state.config,robot.config,...[...robotRooms.extra.values()].map(entry=>entry.robot.config))).catch(error=>{diagnostics?.log('warn','assets.prune_failed',{error});return {removed:0};});
+    const result=await pruneAssets(game.dir,assetNames(game.overtime.state,game.feeding.state,game.mower.state.config,game.danmaku.state,robot.config,...[...robotRooms.extra.values()].map(entry=>entry.robot.config))).catch(error=>{diagnostics?.log('warn','assets.prune_failed',{error});return {removed:0};});
     if(result.removed)diagnostics?.log('info','assets.pruned',{dir:path.basename(game.dir),...result});
   }});return pruning;};
   const schedulePrune=()=>{clearTimeout(pruneTimer);pruneTimer=setTimeout(prune,30000);pruneTimer.unref();};
@@ -156,7 +157,7 @@ async function startServer(options = {}) {
       pendingStates.clear();
       if (pendingMessages.length) {
         const frame = pendingMessages.map(event => frameOf('message', event)).join('');
-        for (const client of clients) if (!client.channel || client.channel === 'danmaku') write(client, frame);
+        for (const client of clients) if (!client.channel || (client.channel === 'danmaku' && features.isOn('danmaku'))) write(client, frame);
         pendingMessages.length = 0;
       }
     }, 100);
@@ -174,13 +175,20 @@ async function startServer(options = {}) {
   // 主直播间的专属进场视频：交给当前平台的加班机素材队列播（和礼物素材排队，加班机没开也播）。
   robot.on('entrance',cue=>overtime.playEntrance(cue.media).catch(error=>{cue.fail(error);diagnostics?.log('warn','robot.entrance_failed',{error});}));
   robotRooms.on('rooms',list=>broadcast('robot-rooms',list));
-  features.on('change',list=>broadcast('features',list));
+  features.on('change',list=>{broadcast('features',list);broadcast('danmaku',danmakuState());});
   services.on('event', event => robot.receive(event));
   services.on('event', event => {
     if(event.type==='system')diagnostics?.log('warn','system.message',{message:event.text,platform:services.platform});
     if (event.uid && event.face) noodle.rememberFace(event);
     // 点赞只给萝卜割草用（召唤最低级的小草），不进礼物批次。
     if (event.type === 'like' && features.isOn('mower')) mower.receiveLike(event).catch(error=>services.addEvent('system','',`萝卜割草：${error.message}`));
+    // 弹幕姬：观众发口令换定制气泡；每条弹幕标上这位观众现在用的气泡。
+    if (event.type === 'chat' && features.isOn('danmaku')) {
+      const command = danmaku.command(event);
+      if (command) event.bubbleCommand = command;
+      const bubble = danmaku.bubbleFor(event);
+      if (bubble) event.bubble = bubble;
+    }
     const chat=event.type==='chat';
     if (event.type !== 'gift' && !event.face && !chat) { broadcast('message', event); return; }
     if (event.type === 'gift') pendingGifts++;
@@ -240,6 +248,8 @@ async function startServer(options = {}) {
     game.feeding.on('state',current(state=>broadcast('feeding',state)));
     game.numberBomb.on('state',current(state=>broadcast('number-bomb',state)));
     game.mower.on('state',current(state=>broadcast('mower',state)));
+    game.danmaku.on('state',current(()=>broadcast('danmaku',danmakuState())));
+    game.danmaku.on('error-message',current(message=>services.addEvent('system','',`弹幕姬：${message}`)));
     for(const target of Object.values(game.lottery))target.on('state',current(state=>broadcast('lottery',state)));
     game.feeding.on('motion',current(motion=>broadcast('feeding-motion',motion)));
     game.feeding.on('physics',current(frame=>broadcast('feeding-physics',frame)));
@@ -259,7 +269,7 @@ async function startServer(options = {}) {
       return;
     }
     // 弹幕姬：刚打开时补上最近 30 条，免得画面空着。
-    if(client.channel==='danmaku')return send(client,'danmaku-history',services.events.slice(0,30));
+    if(client.channel==='danmaku'){send(client,'danmaku',danmakuState());return send(client,'danmaku-history',services.events.slice(0,100));}
     if(client.channel==='feeding')return send(client,'feeding',feeding.snapshot());
     if(client.channel==='lottery'){
       const key=url.searchParams.get('game')||'wheel';
@@ -270,7 +280,7 @@ async function startServer(options = {}) {
     const scene=client.channel==='scene';
     if(!scene)send(client,'state',services.state);
     sendNoodle(client,noodleFrames(noodle.snapshot()));
-    if(!scene){send(client,'features',features.snapshot());send(client,'overtime',overtime.snapshot());send(client,'feeding',feeding.snapshot());send(client,'number-bomb',numberBomb.snapshot());send(client,'mower',mower.snapshot());for(const target of Object.values(lottery))send(client,'lottery',target.snapshot());send(client,'robot',{...robot.snapshot(),room:'main'});for(const entry of robotRooms.extra.values())send(client,'robot',{...entry.robot.snapshot(),room:entry.id});send(client,'robot-rooms',robotRooms.list());}
+    if(!scene){send(client,'features',features.snapshot());send(client,'overtime',overtime.snapshot());send(client,'feeding',feeding.snapshot());send(client,'number-bomb',numberBomb.snapshot());send(client,'mower',mower.snapshot());send(client,'danmaku',danmakuState());for(const target of Object.values(lottery))send(client,'lottery',target.snapshot());send(client,'robot',{...robot.snapshot(),room:'main'});for(const entry of robotRooms.extra.values())send(client,'robot',{...entry.robot.snapshot(),room:entry.id});send(client,'robot-rooms',robotRooms.list());}
     if(!client.consoleOnly)send(client,'noodle-motion',noodle.motionSnapshot());
   };
   const download=(res,filename,data)=>{res.setHeader('Content-Disposition',`attachment; filename=${filename}`);return data;};
@@ -300,12 +310,13 @@ async function startServer(options = {}) {
         await numberBomb.deactivate();
         await mower.deactivate();
         await services.selectPlatform(input.platform);
-        ({noodle,overtime,feeding,lottery,numberBomb,mower}=games[input.platform]);
+        ({noodle,overtime,feeding,lottery,numberBomb,mower,danmaku}=games[input.platform]);
         pendingStates.clear();pendingMessages.length=0;avatars.clear();peopleSent=null;
         broadcast('state',services.state);broadcast('noodle',noodle.snapshot());broadcast('overtime',overtime.snapshot());broadcast('overtime-media',null);
         broadcast('feeding',feeding.snapshot());
         broadcast('number-bomb',numberBomb.snapshot());
         broadcast('mower',mower.snapshot());
+        broadcast('danmaku',danmakuState());
         for(const target of Object.values(lottery))broadcast('lottery',target.snapshot());
         robot.reset();
       });
@@ -323,6 +334,7 @@ async function startServer(options = {}) {
     '/api/robot/blindbox/import': async input => {const robot=robotRooms.robotFor(input.room||'main');if(typeof input.csv!=='string')throw new Error('请选择 CSV 文件');const result=await robot.importBlindCsv(input.csv);return {ok:true,...result,state:{...robot.snapshot(),room:input.room||'main'}};},
     '/api/features': async input => ({ok:true,features:await features.set(input?.id,input?.enabled)}),
     '/api/number-bomb/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>numberBomb.action(input)))}),
+    '/api/danmaku/action': async (input,scoped) => {const state=await enqueue(scoped(()=>danmaku.action(input)));schedulePrune();return {ok:true,state:{...state,enabled:features.isOn('danmaku')}};},
     '/api/mower/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>mower.action(input)))}),
     '/api/panels/generate': async (input,scoped) => ({ok:true,panel:await enqueue(scoped(()=>generatePanel(input.game,{noodle,overtime,feeding,mower})))}),
     '/api/overtime/action': async (input,scoped) => {const state=await enqueue(scoped(()=>overtime.action(input)));schedulePrune();return {ok:true,state};},
@@ -362,6 +374,7 @@ async function startServer(options = {}) {
     '/api/feeding/state': () => feeding.snapshot(),
     '/api/number-bomb/state': () => numberBomb.snapshot(),
     '/api/mower/state': () => mower.snapshot(),
+    '/api/danmaku/state': () => danmakuState(),
     '/api/robot/state': (_res,url) => {const room=url.searchParams.get('room')||'main';return {...robotRooms.robotFor(room).snapshot(),room};},
     '/api/robot/blindbox/export': (res,url) => {
       const robot=robotRooms.robotFor(url.searchParams.get('room')||'main'),d=new Date(),day=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;

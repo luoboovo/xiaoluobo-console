@@ -214,7 +214,7 @@ const world={};
 const cfg=()=>game?.config||{hero_name:'小萝卜',hero_image:'',hero_size:72,hero_hp:1000,control_mode:'keyboard',hero_speed:220,blade_count:1,blade_damage:30,blade_radius:95,blade_speed:3.5,auto_spawn:true,auto_spawn_per_second:1.5,pickups:true,pickup_interval_seconds:10,monster_growth_percent:20,like_spawn:true,boss_damage:40,gift_rules:[]};
 function resetWorld(){
   Object.assign(world,{t:0,hero:{x:W/2,y:H/2+30,vx:0,vy:0,hp:cfg().hero_hp,maxHp:cfg().hero_hp,hurt:0,shield:0,down:0,orbit:1,orbitFlip:4},
-    enemies:[],bullets:[],particles:[],texts:[],feed:[],pickups:[],bossQueue:[],boss:null,banner:null,kills:0,downs:0,spawnAcc:0,pickupAcc:0,nextBossAt:0,flash:0,clock:0,disarm:0,xp:0,heroLevel:1,gems:[],levelGlow:0});
+    enemies:[],bullets:[],particles:[],texts:[],feed:[],pickups:[],bossQueue:[],boss:null,banner:null,kills:0,downs:0,run:1,spawnAcc:0,pickupAcc:0,nextBossAt:0,flash:0,clock:0,disarm:0,xp:0,heroLevel:1,gems:[],levelGlow:0});
   resetBuffs();
 }
 function resetBuffs(){Object.assign(world,{weapon:'sickle',extraBlades:0,speedMul:1,radiusAdd:0,damageMul:1});}
@@ -359,15 +359,25 @@ function bossDefeated(b){
   report(b,'win');world.nextBossAt=Math.max(world.nextBossAt,world.t+2);
   for(const e of world.enemies)if(e.summoned===b.id&&!e.dead)killEnemy(e);
 }
-function heroDown(reason='3 秒后满血复活'){
+// 主角倒下就重开一局：3 秒后清场，等级、经验、割草数和怪物强度都从头来；排队中的 BOSS（观众送的礼物）留到下一局。
+const clockText=t=>`${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')}`;
+function newRun(){
+  const keep={feed:world.feed,bossQueue:world.bossQueue,downs:world.downs,run:world.run+1,t:world.t,banner:world.banner};
+  resetWorld();Object.assign(world,keep);
+  world.hero.shield=2;world.nextBossAt=world.t+3;
+  world.banner={title:`第 ${world.run} 局开始！`,sub:keep.bossQueue.length?`还有 ${keep.bossQueue.length} 个 BOSS 在排队`:'满血出发，重新割草',life:2.4,color:'#9dffb0'};
+  announce(`第${world.run}局开始`);
+}
+function heroDown(reason=''){
   const h=world.hero,list=liveBosses(),b=list.find(x=>x.id===world.lastHitBy)||list[0];
-  h.down=3;h.hp=0;world.downs++;burst(h.x,h.y,['#f09b68','#ffcfaa','#9dbc80'],30,260);
+  h.down=3;h.hp=0;world.downs++;
+  const summary=`本局坚持 ${clockText(world.clock)} · 割草 ${world.kills} · Lv.${world.heroLevel} · 3 秒后重开`;burst(h.x,h.y,['#f09b68','#ffcfaa','#9dbc80'],30,260);
   if(b){
-    world.banner={title:`${b.name} 击倒了 ${cfg().hero_name}！`,sub:list.length>1?`场上 ${list.length} 个 BOSS 一起获胜，扬长而去`:'BOSS 获胜，扬长而去',face:b.face,name:b.name,life:3.2,color:'#ff8a8a'};
+    world.banner={title:`${b.name} 击倒了 ${cfg().hero_name}！`,sub:summary,face:b.face,name:b.name,life:3.2,color:'#ff8a8a'};
     announce(`${b.name}击倒了${cfg().hero_name}`);
     for(const o of list){report(o,'lose');o.state='leave';o.timer=2;floatText(o.x,o.y-o.r-24,'哈哈哈！','#ffdede',30);}world.nextBossAt=world.t+4;
-  }else world.banner={title:`${cfg().hero_name} 倒下了`,sub:reason,life:2.4,color:'#ffd0a8'};
-  world.bullets=[];resetBuffs();world.clock*=.6;world.disarm=0;
+  }else{world.banner={title:`${cfg().hero_name} 倒下了${reason?'：'+reason:''}`,sub:summary,life:3.2,color:'#ffd0a8'};announce(`${cfg().hero_name}倒下了`);}
+  world.bullets=[];world.disarm=0;
 }
 
 // —— 每帧模拟 ——
@@ -388,7 +398,7 @@ function update(dt){
   if(world.gems.some(g=>g.taken))world.gems=world.gems.filter(g=>!g.taken);
   h.hurt=Math.max(0,h.hurt-dt);h.shield=Math.max(0,h.shield-dt);
   if(!h.down)world.clock+=dt;world.disarm=Math.max(0,world.disarm-dt);
-  if(h.down){h.down=Math.max(0,h.down-dt);h.vx=h.vy=0;if(!h.down){h.hp=h.maxHp;h.shield=2;for(const e of world.enemies)if(e.kind!=='boss'&&dist(e,h)<260)killEnemy(e);}}
+  if(h.down){h.down=Math.max(0,h.down-dt);h.vx=h.vy=0;if(!h.down){newRun();return;}}
   // 刷怪
   if(c.auto_spawn&&c.auto_spawn_per_second>0){world.spawnAcc+=dt*c.auto_spawn_per_second*Math.min(3,1+.12*minutes())*(liveBosses().length?.4:1);const auto=world.enemies.length;while(world.spawnAcc>=1){world.spawnAcc--;if(auto<160)spawnMonster(autoLevel());}}
   if(world.bossQueue.length&&world.t>=world.nextBossAt&&liveBosses().length<MAX_BOSSES){summonBoss();world.nextBossAt=world.t+1.5;}
@@ -609,7 +619,7 @@ function drawHud(){
   bar(30,66,240,7,world.xp/xpNeed(world.heroLevel),'#6ec8ff');label(`经验 ${Math.floor(world.xp)}/${xpNeed(world.heroLevel)}`,276,69,{size:10,align:'left',stroke:null,color:'#cfeeff'});
   bar(30,46,240,14,h.hp/h.maxHp,h.hp/h.maxHp<.3?'#ff6b6b':'#7ee07a');
   label(`${Math.max(0,Math.ceil(h.hp))}/${h.maxHp}`,150,53,{size:11,stroke:null});
-  label(`割草 ${world.kills}`,334,32,{size:15,align:'right',color:'#e7ffd9',stroke:null});
+  label(`第${world.run}局 · 割草 ${world.kills}`,334,32,{size:15,align:'right',color:'#e7ffd9',stroke:null});
   label(`${WEAPONS[world.weapon].name} ×${bladeCount()}`,334,53,{size:13,align:'right',color:'#cfe8ff',stroke:null});
   const chips=[[`怪物强度 ×${growth().toFixed(1)}`,'rgba(120,60,40,.75)']];if(world.disarm>0)chips.push([`缴械 ${Math.ceil(world.disarm)}s`,'#c8742e']);if(world.speedMul>1)chips.push(['转速×'+world.speedMul.toFixed(1),BUFFS.speed.color]);if(world.radiusAdd)chips.push(['范围+'+world.radiusAdd,BUFFS.range.color]);if(world.damageMul>1)chips.push(['攻击×'+world.damageMul.toFixed(1),BUFFS.power.color]);
   let cx=16;for(const [text,color] of chips){ctx.font='bold 12px "Microsoft YaHei",sans-serif';const w=ctx.measureText(text).width+18;roundRect(cx,90,w,22,11);ctx.fillStyle=color;ctx.fill();label(text,cx+w/2,101,{size:12,stroke:null});cx+=w+6;}

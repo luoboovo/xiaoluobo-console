@@ -8,7 +8,10 @@
   <script src="/danmaku/overlay.js" defer></script>
 </head>
 <body>
+  <div id="backdrop" class="backdrop" hidden></div>
   <main id="chat" class="chat" aria-live="polite" aria-label="直播弹幕"></main>
+  <button id="more" class="more" type="button" hidden></button>
+  <div id="off" class="off" hidden>弹幕姬已关闭 · 在控制台打开总开关后才接直播间消息</div>
   <div id="connection" class="connection" hidden>连接中…</div>
 </body>
 </html>

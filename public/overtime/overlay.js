@@ -23,8 +23,17 @@
       region.addEventListener('pointerup',end); region.addEventListener('pointercancel',end); region.addEventListener('lostpointercapture',end);
     }
   }
+  // 下班画面：彩纸 + 大字「下班！」，字号按浮窗大小自动适配。
+  const DONE = `<div class="done"><div class="confetti" aria-hidden="true">${'<i></i>'.repeat(18)}</div><div class="done-badge" aria-hidden="true">🎉</div><div class="done-text"><strong>下班！</strong></div></div>`;
+  function fitDone() {
+    const box = $('#time'), done = box.querySelector('.done'); if (!done) return;
+    let low = 12, high = 160;
+    while (low < high) { const middle = Math.ceil((low + high) / 2); done.style.setProperty('--done-size', `${middle}px`); if (done.scrollHeight <= box.clientHeight + 1 && done.scrollWidth <= box.clientWidth + 1) low = middle; else high = middle - 1; }
+    done.style.setProperty('--done-size', `${Math.max(12, Math.floor(low * .82))}px`);
+  }
   function fit() {
     if (mediaOnly || panelId) return;
+    if ($('#time').classList.contains('finished')) { $('#time').style.fontSize = ''; fitDone(); return; }
     const el = $('#time'); let low = 8, high = 110;
     while (low < high) { const middle = Math.ceil((low + high) / 2); el.style.fontSize = `${middle}px`; if (el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1) low = middle; else high = middle - 1; }
     el.style.fontSize = `${low}px`;
@@ -32,7 +41,11 @@
   function clock(next) {
     if (mediaOnly || panelId || !state) return;
     Object.assign(state,next);
-    $('#time').textContent = state.mode === 'idle' ? '等待开机' : state.remaining === '0' ? '🎉 下班！' : formatDuration(state.remaining);
+    const finished = state.mode !== 'idle' && state.remaining === '0', time = $('#time');
+    if (finished !== time.classList.contains('finished')) time.innerHTML = '';
+    time.classList.toggle('finished', finished);
+    if (finished) { if (!time.firstChild) time.innerHTML = DONE; }
+    else time.textContent = state.mode === 'idle' ? '等待开机' : formatDuration(state.remaining);
     $('#time').classList.toggle('urgent',state.mode === 'running' && BigInt(state.remaining) <= 60n);
     fit();
   }

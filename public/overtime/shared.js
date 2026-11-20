@@ -49,9 +49,10 @@
     }
     return parts.join('  ');
   }
-  const operations = { add:'加时间', subtract:'减时间', multiply:'倍增加班', divide:'缩短加班', clear:'立即下班', lock_toggle:'切换清空锁', media:'只播放素材' };
+  const operations = { add:'加时间', subtract:'减时间', random_add:'随机加时间', random_subtract:'随机减时间', random_both:'随机加减时间', multiply:'倍增加班', divide:'缩短加班', clear:'立即下班', lock_toggle:'切换清空锁', media:'只播放素材' };
+  const signed = n => n > 0 ? `＋${n}` : n < 0 ? `−${-n}` : '0';
   function ruleText(rule) {
-    return ({ add:`＋${rule.value} 分钟`, subtract:`−${rule.value} 分钟`, multiply:`时间 ×${rule.value}`, divide:`时间 ÷${rule.value}`, clear:'立即下班', lock_toggle:'切换清空锁', media:'播放素材' })[rule.operation];
+    return ({ add:`＋${rule.value} 分钟`, subtract:`−${rule.value} 分钟`, random_add:`随机＋${rule.value}～${rule.value_max} 分钟`, random_subtract:`随机−${rule.value}～${rule.value_max} 分钟`, random_both:`随机 ${signed(rule.value)}～${signed(rule.value_max)} 分钟`, multiply:`时间 ×${rule.value}`, divide:`时间 ÷${rule.value}`, clear:'立即下班', lock_toggle:'切换清空锁', media:'播放素材' })[rule.operation];
   }
   const avatarUrl = face => face ? `/api/avatar?url=${encodeURIComponent(face)}` : '/overtime/radish.svg';
   const ruleKey = rule => rule.gift_id ? `id:${rule.gift_id}` : `name:${rule.gift_name}`;

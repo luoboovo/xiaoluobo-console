@@ -302,7 +302,7 @@
         <aside class="overtime-card">
           <form id="overtime-settings"><h2>时间设置</h2><label for="overtime-initial">初始加班时间</label><div class="overtime-initial"><input id="overtime-initial" maxlength="160" required placeholder="60、1亿、1e16"><select id="overtime-unit" aria-label="初始时间单位"><option>分钟</option><option>小时</option><option>天</option><option>周</option><option>月</option><option>年</option></select></div><label class="overtime-lock-default"><input id="overtime-default-lock" type="checkbox">保存时锁定清空</label><button class="button dark-button" type="submit">保存时间设置</button></form>
           <div class="manual-row"><input id="overtime-manual-minutes" value="1" maxlength="160" aria-label="手动加减分钟数"><button class="button white-button" id="overtime-manual-add">加时间</button><button class="button white-button" id="overtime-manual-subtract">减时间</button></div>
-          <form id="overtime-gift-settings"><div class="overtime-rule-title"><h2>礼物规则</h2><button type="button" class="text-button" id="overtime-add-rule">新增规则 ＋</button></div><div id="overtime-rules"></div><p class="overtime-note">点击礼物进入礼物库选择；加减填分钟数，倍增和缩短填倍率。可为每条规则添加图片/视频，也可选择“只播放素材”。视频默认抠绿，图片可设置显示秒数。缩短至少保留1分钟，已不足1分钟时不会增加时间。</p><button class="button dark-button" type="submit">保存礼物规则</button><p class="overtime-note">创建展示画面请前往「礼物面板」，选择加班机模板。</p><button type="button" class="text-button" data-view="gift-rules">前往礼物面板 ↗</button></form>
+          <form id="overtime-gift-settings"><div class="overtime-rule-title"><h2>礼物规则</h2><button type="button" class="text-button" id="overtime-add-rule">新增规则 ＋</button></div><div id="overtime-rules"></div><p class="overtime-note">点击礼物进入礼物库选择；加减填分钟数，随机加/减填最少～最多分钟数，随机加减可以填负数（比如 -30～30，抽到负数就减），每份礼物各抽一次，倍增和缩短填倍率。可为每条规则添加图片/视频，也可选择“只播放素材”。视频默认抠绿，图片可设置显示秒数。缩短至少保留1分钟，已不足1分钟时不会增加时间。</p><button class="button dark-button" type="submit">保存礼物规则</button><p class="overtime-note">创建展示画面请前往「礼物面板」，选择加班机模板。</p><button type="button" class="text-button" data-view="gift-rules">前往礼物面板 ↗</button></form>
           <form id="overtime-test"><div class="overtime-rule-title"><h2>模拟送礼</h2></div><div class="overtime-simulate"><input id="overtime-test-user" value="测试观众" maxlength="100" required aria-label="模拟观众昵称"><select id="overtime-test-rule" aria-label="模拟礼物"></select><input id="overtime-test-count" type="number" min="1" value="1" required aria-label="模拟礼物数量"></div><button class="button white-button" type="submit">测试礼物</button><p class="overtime-note">测试观众单独标记，不会与真实UID观众合并。</p></form>
         </aside>
       </div>
@@ -327,7 +327,7 @@
     <section id="danmaku-view" hidden>
       <div class="lottery-heading"><div><div class="eyebrow"><span></span>EVERY MESSAGE, A LITTLE CHAT</div><h1>弹幕姬<span>。</span></h1><p>弹幕排成聊天记录，礼物是红包，大礼物是转账。</p></div><div class="lottery-output"><button class="button white-button" id="danmaku-open">打开画面 ↗</button><button class="button white-button" id="danmaku-copy">复制地址</button></div></div>
       <div class="danmaku-workspace">
-        <article class="danmaku-preview"><div class="danmaku-preview-top"><span>预览 · 直播软件建议 420 × 720</span><div><button class="text-button" id="danmaku-demo">发几条试试</button><button class="text-button" id="danmaku-clear">清空预览</button></div></div><div class="danmaku-stage"><iframe id="danmaku-frame" data-src="/danmaku/?preview=1" title="弹幕姬预览：微信聊天样式的弹幕和礼物"></iframe></div></article>
+        <article class="danmaku-preview"><div class="danmaku-preview-top"><span>预览 · 鼠标滚轮可以往上翻 · 直播软件建议 420 × 720</span><div><button class="text-button" id="danmaku-demo">发几条试试</button><button class="text-button" id="danmaku-clear">清空预览</button></div></div><div class="danmaku-stage"><iframe id="danmaku-frame" data-src="/danmaku/?preview=1" title="弹幕姬预览：微信聊天样式的弹幕和礼物"></iframe></div></article>
         <aside class="danmaku-sidebar">
           <article class="lottery-card"><div class="lottery-card-title"><h2>画面设置</h2></div><form id="danmaku-settings">
             <label>气泡主题<select name="theme"></select></label>
@@ -339,6 +339,22 @@
             <label class="danmaku-check"><input type="checkbox" name="social" checked>显示关注、分享</label>
             <label class="danmaku-check"><input type="checkbox" name="like">显示点赞</label>
           </form></article>
+          <article class="lottery-card"><div class="lottery-card-title"><h2>聊天背景</h2><div class="danmaku-inline"><button type="button" class="text-button" id="danmaku-bg-upload">上传图片</button><button type="button" class="text-button" id="danmaku-bg-remove" hidden>去掉</button></div></div><input id="danmaku-bg-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp" hidden>
+            <form id="danmaku-background"><div id="danmaku-bg-thumb" class="danmaku-bg-thumb" hidden></div>
+            <p id="danmaku-bg-empty" class="lottery-help">没有背景图时用主题自带的底色。「显示聊天背景」关掉时不显示背景图。</p>
+            <fieldset id="danmaku-bg-fields" class="danmaku-fieldset" disabled>
+              <label>大小<select name="fit"><option value="cover">铺满（多余的裁掉）</option><option value="contain">完整显示</option><option value="custom">自己调缩放</option></select></label>
+              <label class="danmaku-range" data-only="custom">缩放<input type="range" name="scale" min="10" max="400" step="1"><output></output></label>
+              <label class="danmaku-range">左右位置<input type="range" name="x" min="0" max="100" step="1"><output></output></label>
+              <label class="danmaku-range">上下位置<input type="range" name="y" min="0" max="100" step="1"><output></output></label>
+              <label class="danmaku-range">不透明度<input type="range" name="opacity" min="0" max="100" step="1"><output></output></label>
+              <label class="danmaku-range">模糊<input type="range" name="blur" min="0" max="20" step="1"><output></output></label>
+            </fieldset></form>
+          </article>
+          <article class="lottery-card"><div class="lottery-card-title"><h2>定制气泡</h2><button type="button" class="text-button" id="danmaku-bubble-new">新建气泡</button></div>
+            <p class="lottery-help">上传一整张气泡图，框好文字放哪。观众发口令（比如「切换萝卜专属气泡」）就换上，发「切换默认气泡」换回。</p>
+            <ul id="danmaku-bubbles" class="danmaku-bubbles"></ul>
+          </article>
           <article class="lottery-card"><div class="lottery-card-title"><h2>气泡身份</h2></div><ul class="danmaku-legend">
             <li><i class="dot normal"></i><span><b>普通观众</b>白色气泡</span></li>
             <li><i class="dot fans"></i><span><b>粉丝牌</b>B站戴本房间粉丝牌，绿色气泡</span></li>
@@ -346,18 +362,37 @@
             <li><i class="dot guard3"></i><span><b>舰长</b>蓝色气泡、蓝框头像</span></li>
             <li><i class="dot guard2"></i><span><b>提督</b>紫色气泡</span></li>
             <li><i class="dot guard1"></i><span><b>总督</b>金色流光气泡</span></li>
-          </ul></article>
+          </ul><p class="lottery-help danmaku-legend-note">换上定制气泡的观众用定制气泡，名字前的身份标签照常显示。</p></article>
         </aside>
       </div>
+      <dialog id="danmaku-bubble-dialog" class="dialog danmaku-bubble-dialog" aria-labelledby="danmaku-bubble-title">
+        <form id="danmaku-bubble-form" method="dialog">
+          <h2 id="danmaku-bubble-title">定制气泡</h2>
+          <div class="danmaku-bubble-editor">
+            <div class="danmaku-bubble-canvas"><div id="danmaku-bubble-stage" class="danmaku-bubble-stage"><img id="danmaku-bubble-image" alt=""><div id="danmaku-bubble-box" class="danmaku-bubble-box"><span>今天也要开心呀～一起聊天吧！</span></div><p id="danmaku-bubble-placeholder">先上传一张气泡图</p></div><button type="button" class="button white-button" id="danmaku-bubble-upload">上传气泡图</button><input id="danmaku-bubble-file" type="file" accept="image/png,image/gif,image/webp,image/jpeg" hidden><p class="lottery-help">建议用透明底的 PNG。虚线框是文字区，用右边四个滑块调。框外左右两头（人物、装饰）原样保留，框里那段随字数拉长，所以框里放空白的部分。</p></div>
+            <div class="danmaku-bubble-fields lottery-card">
+              <div class="lottery-field-pair"><label>名字<input name="name" maxlength="12" placeholder="萝卜专属" required></label><label>谁能用<select name="who"><option value="all">所有观众</option><option value="fans">粉丝牌 / 粉丝团</option><option value="guard">舰长及以上</option></select></label></div>
+              <label>观众发的口令<input name="keyword" maxlength="20" placeholder="切换萝卜专属气泡"></label>
+              <label class="danmaku-range">文字区 · 左<input type="range" name="left" min="0" max="90" step="0.5"><output></output></label>
+              <label class="danmaku-range">文字区 · 右<input type="range" name="right" min="0" max="90" step="0.5"><output></output></label>
+              <label class="danmaku-range">文字区 · 上<input type="range" name="top" min="0" max="90" step="0.5"><output></output></label>
+              <label class="danmaku-range">文字区 · 下<input type="range" name="bottom" min="0" max="90" step="0.5"><output></output></label>
+              <div class="lottery-field-pair"><label>最宽 / px<input name="width" type="number" min="120" max="600" step="10"></label><label>字号 / %<input name="font" type="number" min="50" max="200" step="5"></label></div>
+              <label class="danmaku-color">文字颜色<input name="color" type="color"></label>
+            </div>
+          </div>
+          <div class="danmaku-dialog-actions"><button type="button" class="text-button danmaku-danger" id="danmaku-bubble-delete">删除这个气泡</button><span></span><button type="button" class="button white-button" id="danmaku-bubble-cancel">取消</button><button type="submit" class="button dark-button">保存</button></div>
+        </form>
+      </dialog>
     </section>
     <section id="bomb-view" hidden>
       <div class="lottery-heading"><h1>数字炸弹</h1><div class="lottery-output"><button class="button white-button" id="bomb-open">打开画面 ↗</button><button class="button white-button" id="bomb-copy">复制地址</button></div></div>
       <div class="bomb-workspace"><div class="bomb-main">
-        <article class="bomb-preview"><div class="bomb-preview-top"><span id="bomb-status">读取中…</span></div><iframe id="bomb-frame" data-src="/number-bomb/?preview=1" title="数字炸弹：数字方格与两侧观众头像"></iframe><div class="bomb-playbar"><div><button class="text-button" id="bomb-pause" hidden>暂停</button><button class="lottery-spin" id="bomb-start" disabled>开始游戏</button></div></div></article>
+        <article class="bomb-preview"><div class="bomb-preview-top"><span id="bomb-host-hint" hidden>点数字 = 主播亲自猜，随时介入</span><span id="bomb-status">读取中…</span></div><iframe id="bomb-frame" data-src="/number-bomb/?preview=1" title="数字炸弹：数字方格与两侧观众头像"></iframe><div class="bomb-playbar"><div><button class="text-button" id="bomb-restart" hidden>重开本轮</button><button class="text-button" id="bomb-pause" hidden>暂停</button><button class="lottery-spin" id="bomb-start" disabled>开始游戏</button></div></div></article>
         <details class="lottery-card"><summary>猜数记录</summary><ol id="bomb-history"><li class="lottery-empty">暂无记录</li></ol></details>
       </div><aside class="bomb-sidebar">
         <article class="lottery-card"><form id="bomb-settings"><label>猜数模式<select name="guess_mode"><option value="free">自由模式</option><option value="queue">排队模式</option></select></label><label>报名口令<input name="keyword" maxlength="40" value="参与数字炸弹" required autocomplete="off"></label><div class="lottery-field-pair"><label>最小数字<input name="min" type="number" min="0" max="999998" step="1" value="1" required></label><label>最大数字<input name="max" type="number" min="1" max="999999" step="1" value="100" required></label></div><label>每人 CD / 秒<input name="user_cooldown_seconds" type="number" min="0" max="60" step="0.1" value="3" required></label><button class="button white-button" type="submit">保存设置</button></form><p id="bomb-live-note" class="lottery-help" role="status"></p></article>
-        <article class="lottery-card bomb-participants"><div class="lottery-card-title"><h2>已报名 <span id="bomb-count">0</span></h2><button class="text-button" id="bomb-reset">重新报名</button></div><div id="bomb-queue" hidden><p class="bomb-order-hint">拖动排序</p><ol id="bomb-order" aria-label="玩家猜数顺序"></ol></div></article>
+        <article class="lottery-card bomb-participants"><div class="lottery-card-title"><h2>已报名 <span id="bomb-count">0</span></h2><button class="text-button" id="bomb-reset">重新报名</button></div><div id="bomb-queue"><p class="bomb-order-hint" id="bomb-order-hint">拖动排序</p><ol id="bomb-order" aria-label="玩家猜数顺序"></ol></div></article>
       </aside></div>
     </section>
     <section id="mower-view" hidden>
@@ -420,6 +455,7 @@
 <dialog id="settings-dialog" class="dialog settings-dialog"><button class="icon-button dialog-close" data-close="settings-dialog" aria-label="关闭"><svg><use href="#i-close"/></svg></button><h2>配置</h2><p>保存直播间配置</p><a class="button dark-button" href="/api/config/export" download>导出配置<svg><use href="#i-download"/></svg></a><button id="import-config" class="button white-button">导入配置</button><input id="import-file" type="file" accept=".json,application/json" hidden><h3>诊断日志</h3><p id="diagnostics-status">正在读取日志状态…</p><div class="overtime-tools"><button id="diagnostics-open" class="button white-button" type="button" disabled>打开日志目录</button><a id="diagnostics-export" class="button white-button" href="/api/diagnostics/export" download>导出诊断日志</a></div><p class="overtime-note">异常和卡顿自动记录，日志限量轮转。若程序完全卡住，可关闭后重新打开，再导出日志排查。</p></dialog>
 <dialog id="lottery-clear-dialog" class="dialog"><h2 id="lottery-clear-title">清空当前数据源？</h2><p>只清空当前玩法的名单并停止其报名。另两个玩法和历史记录会保留。</p><div class="lottery-clear-actions"><button class="button white-button" data-close="lottery-clear-dialog">取消</button><button class="button dark-button" id="lottery-confirm-clear">清空当前数据源</button></div></dialog>
 <dialog id="bomb-reset-dialog" class="dialog" aria-labelledby="bomb-reset-title"><h2 id="bomb-reset-title">重新报名？</h2><p>结束本轮、清空数字炸弹报名名单和猜数记录，然后重新开放报名。</p><div class="lottery-clear-actions"><button class="button white-button" data-close="bomb-reset-dialog">取消</button><button class="button dark-button" id="bomb-confirm-reset">重新报名</button></div></dialog>
+<dialog id="bomb-restart-dialog" class="dialog" aria-labelledby="bomb-restart-title"><h2 id="bomb-restart-title">重开本轮？</h2><p>报名名单保留，换一个新的炸弹数字，从第一位重新开始猜。本轮的猜数记录会清空。</p><div class="lottery-clear-actions"><button class="button white-button" data-close="bomb-restart-dialog">取消</button><button class="button dark-button" id="bomb-confirm-restart">重开本轮</button></div></dialog>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <dialog id="obs-url-dialog" class="dialog"><button class="icon-button dialog-close" data-close="obs-url-dialog" aria-label="关闭"><svg><use href="#i-close"/></svg></button><h2>画面地址</h2><p>网页素材：1920 × 1080</p><input id="obs-url-value" class="obs-url-input" readonly aria-label="画面地址"></dialog>
 <dialog id="scene-dialog" class="dialog scene-dialog" aria-labelledby="scene-dialog-title">

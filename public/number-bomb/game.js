@@ -1,6 +1,6 @@
 const $=selector=>document.querySelector(selector),stage=$('#bomb-stage'),rows=new Map();
 const colors=['#dbe9d2','#e3eacc','#d0e4de','#e9d8cb','#dcd8e9','#e8e0bf'];
-let game,clockOffset=0,page=0,gridStamp='',lastGuess='';
+let game,clockOffset=0,page=0,gridStamp='',lastGuess='',hostPending=false;
 function fit(){const scale=Math.min(innerWidth/1280,innerHeight/720);stage.style.transform=`scale(${scale})`;stage.style.left=(innerWidth-1280*scale)/2+'px';stage.style.top=(innerHeight-720*scale)/2+'px';}
 addEventListener('resize',fit);fit();
 function avatar(player){
@@ -49,10 +49,10 @@ function renderGrid(){
       const portrait=document.createElement('div');portrait.className='tile-avatar';const number=document.createElement('span');number.textContent=value;cell.append(portrait,number);grid.append(cell);
     }
   }
-  const byId=new Map(players.map(p=>[p.id,p])),last=r?.guesses[0],guessedBy=r?.guessed_by||Object.fromEntries((r?.guesses||[]).map(g=>[g.value,g.id]));
+  const byId=new Map([...players,game.host].filter(Boolean).map(p=>[p.id,p])),last=r?.guesses[0],guessedBy=r?.guessed_by||Object.fromEntries((r?.guesses||[]).map(g=>[g.value,g.id]));
   for(const cell of grid.children){
     const value=Number(cell.dataset.number),player=byId.get(guessedBy[value]);
-    cell.className='number-cell'+(r&&(value<r.min||value>r.max)?' outside':'')+(player?' guessed':'')+(last?.value===value?' latest':'')+(game.phase==='exploded'&&value===r.secret?' hit':'')+(value>9999?' wide':'');
+    cell.className='number-cell'+(r&&(value<r.min||value>r.max)?' outside':'')+(player?' guessed':'')+(last?.value===value?' latest':'')+(game.phase==='exploded'&&value===r.secret?' hit':'')+(value>9999?' wide':'')+(game.phase==='running'&&value>=r.min&&value<=r.max&&!player?' clickable':'')+(player&&player.id===game.host?.id?' by-host':'');
     if(player)showAvatar(cell.querySelector('.tile-avatar'),player);
     cell.setAttribute('aria-label',value+(player?'，'+player.name+'猜过':r&&(value<r.min||value>r.max)?'，已排除':'，可猜'));
   }
@@ -65,11 +65,23 @@ function update(next){
   if(key!==lastGuess){page=last?Math.floor((last.value-next.config.min)/100):0;lastGuess=key;}
   game=next;clockOffset=next.now-Date.now();stage.className=next.phase;
   const done=next.phase==='exploded';$('#explosion').hidden=!done;
-  if(done){const loser=next.players.find(p=>p.id===next.round.loser_id);showAvatar($('#loser-avatar'),loser);$('#loser-name').textContent=loser.name;$('#secret-number').textContent=next.round.secret;}
+  if(done){const loser=next.players.find(p=>p.id===next.round.loser_id)||(next.round.loser_id===next.host?.id?next.host:null);showAvatar($('#loser-avatar'),loser);$('#loser-name').textContent=loser.name;$('#secret-number').textContent=next.round.secret;}
   $('#bomb-announcement').textContent=done?`${$('#loser-name').textContent}踩中${next.round.secret}`:next.phase==='enrolling'?'等待开始':next.phase==='paused'?'已暂停':`可猜范围${next.round.min}到${next.round.max}`;
   if(next.config.guess_mode==='queue'&&next.phase==='running')$('#bomb-announcement').textContent+='，轮到'+next.players.find(p=>p.id===next.round.turn_id)?.name;
   renderGrid();renderPlayers();
 }
+// 主播随时介入：点画面上还能猜的数字，直接以「主播」身份猜
+function notice(text){const el=$('#bomb-connection');el.textContent=text;el.hidden=false;clearTimeout(notice.timer);notice.timer=setTimeout(()=>{el.hidden=true;},2500);}
+$('#number-grid').addEventListener('click',async event=>{
+  const cell=event.target.closest('.number-cell.clickable');if(!cell||hostPending)return;
+  hostPending=true;cell.classList.add('pressed');
+  try{
+    const response=await fetch('/api/number-bomb/action',{method:'POST',headers:{'Content-Type':'application/json','X-Luobo-Platform':game.platform},body:JSON.stringify({action:'guess',value:Number(cell.dataset.number)})});
+    const data=await response.json();if(!response.ok)throw new Error(data.error||'操作失败');
+    update(data.state);
+  }catch(error){notice(error.message);}
+  finally{hostPending=false;cell.classList.remove('pressed');}
+});
 $('#grid-previous').onclick=()=>{if(page>0){page--;renderGrid();}};
 $('#grid-next').onclick=()=>{if(game.config.min+(page+1)*100<=game.config.max){page++;renderGrid();}};
 const source=new LuoboEvents('/api/events?bomb=1');

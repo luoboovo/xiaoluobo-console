@@ -171,3 +171,67 @@ test('排队单人仍可循环猜数，遵守CD',async t=>{
   assert.equal(game.state.round.turn_id,'uid:a');await chat(game,'a','20');assert.equal(game.state.round.count,1);
   advance(3000);await chat(game,'a','20');assert.equal(game.state.round.count,2);assert.equal(game.state.round.turn_id,'uid:a');
 });
+test('重开本轮保留名单换新炸弹，报名阶段不能重开',async t=>{
+  let next=41;const {game}=await fixture(t,()=>next);await game.action({action:'configure',config:{guess_mode:'queue',user_cooldown_seconds:0}});
+  await assert.rejects(game.action({action:'restart'}),/开始游戏/);
+  for(const uid of ['a','b'])await chat(game,uid,'参与数字炸弹');
+  await game.action({action:'start'});await chat(game,'a','10');await chat(game,'b','42');assert.equal(game.state.phase,'exploded');
+  next=69;await game.action({action:'restart'});
+  assert.equal(game.state.phase,'running');assert.equal(game.state.round.secret,70);assert.equal(game.state.round.count,0);assert.deepEqual(game.state.round.guesses,[]);
+  assert.equal(game.state.round.loser_id,null);assert.equal(game.state.round.turn_id,'uid:a');assert.deepEqual(game.state.players.map(p=>p.id),['uid:a','uid:b']);
+  assert.ok(game.state.players.every(p=>!p.message));
+  await chat(game,'a','50');await game.action({action:'pause'});await game.action({action:'restart'});assert.equal(game.state.phase,'running');assert.equal(game.state.round.count,0);assert.equal(game.state.round.min,1);
+});
+test('踢人：移出名单、轮到的人被踢自动换人、重新报名前不能再加入',async t=>{
+  const {game,dir}=await fixture(t);await game.action({action:'configure',config:{guess_mode:'queue',user_cooldown_seconds:0}});
+  for(const uid of ['a','b','c'])await chat(game,uid,'参与数字炸弹');
+  await game.action({action:'kick',id:'uid:b'});assert.deepEqual(game.state.players.map(p=>p.id),['uid:a','uid:c']);
+  await chat(game,'b','参与数字炸弹');assert.equal(game.state.players.length,2);
+  await assert.rejects(game.action({action:'kick',id:'uid:b'}),/不在名单/);
+  assert.equal('kicked' in game.snapshot(),false);
+  await game.action({action:'start'});await game.action({action:'kick',id:'uid:a'});assert.equal(game.state.round.turn_id,'uid:c');
+  await chat(game,'a','10');assert.equal(game.state.round.count,0);
+  await chat(game,'d','参与数字炸弹');assert.equal(game.state.players.length,1);
+  const restored=await new NumberBomb(dir).init();assert.deepEqual(restored.state.kicked,['uid:b','uid:a']);assert.equal(restored.state.round.turn_id,'uid:c');
+  await game.action({action:'kick',id:'uid:c'});assert.equal(game.state.phase,'enrolling');assert.equal(game.state.round,null);
+  await chat(game,'a','参与数字炸弹');assert.equal(game.state.players.length,0);
+  await game.action({action:'reset'});await chat(game,'a','参与数字炸弹');assert.equal(game.state.players.length,1);
+});
+test('踢人：最后一位被踢时轮到第一位，爆炸后不能踢踩中的人',async t=>{
+  const {game}=await fixture(t);await game.action({action:'configure',config:{guess_mode:'queue',user_cooldown_seconds:0}});
+  for(const uid of ['a','b','c'])await chat(game,uid,'参与数字炸弹');
+  await game.action({action:'start'});await chat(game,'a','10');await chat(game,'b','20');assert.equal(game.state.round.turn_id,'uid:c');
+  await game.action({action:'kick',id:'uid:c'});assert.equal(game.state.round.turn_id,'uid:a');
+  await chat(game,'a','42');assert.equal(game.state.phase,'exploded');
+  await assert.rejects(game.action({action:'kick',id:'uid:a'}),/重开/);
+  await game.action({action:'kick',id:'uid:b'});assert.deepEqual(game.state.players.map(p=>p.id),['uid:a']);
+});
+test('主播点数字介入：不占排队、不受CD、踩中由主播爆炸',async t=>{
+  const {game,dir}=await fixture(t);await game.action({action:'configure',config:{guess_mode:'queue'}});
+  await assert.rejects(game.action({action:'guess',value:10}),/还没开始/);
+  for(const uid of ['a','b'])await chat(game,uid,'参与数字炸弹');
+  await game.action({action:'start'});await chat(game,'a','10');assert.equal(game.state.round.turn_id,'uid:b');
+  await game.action({action:'guess',value:90});await game.action({action:'guess',value:20});
+  assert.equal(game.state.round.turn_id,'uid:b');assert.equal(game.state.round.min,21);assert.equal(game.state.round.max,89);
+  assert.equal(game.state.round.guessed_by[90],'host');assert.equal(game.state.round.guesses[0].name,'主播');
+  for(const value of [20,90,10.5,'50',null])await assert.rejects(game.action({action:'guess',value}),/排除/);
+  await game.action({action:'pause'});await assert.rejects(game.action({action:'guess',value:50}),/暂停/);await game.action({action:'resume'});
+  const snap=await game.action({action:'guess',value:42});
+  assert.equal(snap.phase,'exploded');assert.equal(snap.round.loser_id,'host');assert.equal(snap.host.name,'主播');assert.equal(snap.round.secret,42);
+  const restored=await new NumberBomb(dir).init();assert.equal(restored.state.phase,'exploded');assert.equal(restored.state.round.loser_id,'host');
+  await assert.rejects(game.action({action:'guess',value:50}),/还没开始/);
+});
+test('主播点数字走本地接口，平台切换后拒绝',async t=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'luobo-bomb-http2-'));
+  const runtime=await startServer({featuresOn:true,dataDir:dir,seedDir:path.join(__dirname,'../data')});
+  t.after(async()=>{await runtime.close();await removeDir(dir);});
+  runtime.numberBomb.random=()=>41;
+  const post=(body,platform)=>fetch(runtime.url+'/api/number-bomb/action',{method:'POST',headers:{'Content-Type':'application/json',...(platform?{'X-Luobo-Platform':platform}:{})},body:JSON.stringify(body)});
+  runtime.services.emit('event',{type:'chat',uid:'a',user:'甲',text:'参与数字炸弹'});
+  await new Promise(resolve=>setTimeout(resolve,100));
+  assert.equal((await post({action:'start'})).status,200);
+  const ok=await (await post({action:'guess',value:30},'bilibili')).json();assert.equal(ok.state.round.min,31);assert.equal(ok.state.round.guesses[0].id,'host');
+  assert.equal((await post({action:'guess',value:50},'douyin')).status,409);
+  assert.equal((await post({action:'guess',value:5})).status,400);
+  const kicked=await (await post({action:'kick',id:'uid:a'})).json();assert.equal(kicked.state.phase,'enrolling');
+});

@@ -1,5 +1,5 @@
 // 增量更新包：只装上次正式版以来改过的文件。
-// 用法：先 npm run package，再 npm run package:update [-- --from v3.0.0]
+// 用法：先 npm run package，再 npm run package:update [-- --from v3.0.0] [--allow v3.6.5]
 // 默认从「和现在用同一个 Electron 的最早正式版」算起，所以装了其中任何一个版本都能直接打这个更新包。
 const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
@@ -58,7 +58,11 @@ const issString = value => value.replaceAll('"', '""');
   if (from && !releases.has(from)) throw new Error(`找不到发过的版本 v${from}`);
   const sameRuntime = [...releases].filter(([v, commit]) => (!from || compare(v, from) >= 0) && electronOf(lockAt(commit)) === electron).sort((a, b) => compare(a[0], b[0]));
   if (!sameRuntime.length) throw new Error(`没有和现在同一个 Electron（${electron}）的旧版本，这次只能发完整安装包`);
-  const allowed = [...new Set([...sameRuntime.map(([v]) => v), version])];
+  // --allow 3.6.5：没提交过、但发出去过的中间版本（比最后一个提交过的版本新）。改动是和提交过的版本比的并集，已经包含它。
+  const newest = sameRuntime.at(-1)[0];
+  const extra = (argValue('--allow') || '').split(',').map(v => v.trim().replace(/^v/, '')).filter(Boolean);
+  for (const v of extra) if (!/^\d+\.\d+\.\d+$/.test(v) || compare(v, newest) <= 0 || compare(v, version) >= 0) throw new Error(`--allow v${v} 必须比 v${newest} 新、比 v${version} 旧`);
+  const allowed = [...new Set([...sameRuntime.map(([v]) => v), ...extra, version])];
 
   // 改过、新增、删掉的文件：分别和每个能升级的旧版本比，取并集（包含还没提交的改动和新文件），
   // 这样中间某版改过、后来又改回去的文件也会被换回来。

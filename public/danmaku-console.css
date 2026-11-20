@@ -16,3 +16,35 @@
 .dot.normal{background:#fff}.dot.fans{background:#95ec69}.dot.star{background:linear-gradient(135deg,#ffe1f0,#ead9ff);border-color:#f6c4e3}
 .dot.guard3{background:linear-gradient(135deg,#e6f1ff,#d6e6ff);border-color:#a9c9ff}.dot.guard2{background:linear-gradient(135deg,#f1e4ff,#e2cfff);border-color:#caa6ff}.dot.guard1{background:linear-gradient(120deg,#fff3cf,#ffe08a);border-color:#f2c45a}
 @media(max-width:900px){.danmaku-workspace{grid-template-columns:1fr}}
+.danmaku-inline{display:flex;gap:12px}
+.danmaku-fieldset{border:0;margin:0;padding:0;min-width:0}.danmaku-fieldset:disabled{opacity:.45}
+.lottery-card .danmaku-range{display:grid;grid-template-columns:64px minmax(0,1fr) 42px;align-items:center;gap:8px;margin:0 0 8px}
+.lottery-card .danmaku-range input{margin:0;padding:0;width:100%;accent-color:#07c160;background:none;border:0}
+.danmaku-range output{font:11px monospace;color:var(--muted);text-align:right}
+.danmaku-range[hidden]{display:none}
+.danmaku-bg-thumb{height:90px;border-radius:10px;border:1px solid var(--line);background:var(--surface-soft) center/cover no-repeat;margin:0 0 12px}
+.danmaku-bubbles{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.danmaku-bubbles li{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--surface-soft)}
+.danmaku-bubbles li.danmaku-empty{justify-content:center;color:var(--muted);font-size:11px;padding:14px}
+.danmaku-bubble-thumb{flex:none;width:64px;height:38px;display:grid;place-items:center;background:repeating-conic-gradient(#0000000d 0 25%,#0000 0 50%) 0 0/10px 10px;border-radius:6px;overflow:hidden}
+.danmaku-bubble-thumb img{max-width:100%;max-height:100%;object-fit:contain}
+.danmaku-bubble-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.danmaku-bubble-info b{font-size:12px}.danmaku-bubble-info span{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.danmaku-legend-note{margin:12px 0 0}
+dialog.danmaku-bubble-dialog{width:880px;max-width:94vw;text-align:left;padding:26px}
+.danmaku-bubble-editor{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:18px;margin-top:14px}
+.danmaku-bubble-canvas{display:flex;flex-direction:column;gap:12px;align-items:stretch;min-width:0}
+.danmaku-bubble-canvas .button{align-self:flex-start}
+.danmaku-bubble-stage{position:relative;width:100%;border-radius:12px;background:repeating-conic-gradient(var(--surface-soft) 0 25%,var(--surface) 0 50%) 0 0/16px 16px;border:1px solid var(--line);overflow:hidden}
+.danmaku-bubble-stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:fill}
+.danmaku-bubble-stage.empty{aspect-ratio:16/9!important}.danmaku-bubble-stage.empty img,.danmaku-bubble-stage.empty .danmaku-bubble-box{display:none}
+.danmaku-bubble-stage #danmaku-bubble-placeholder{display:none;position:absolute;inset:0;margin:0;place-items:center;color:var(--muted);font-size:12px}
+.danmaku-bubble-stage.empty #danmaku-bubble-placeholder{display:grid}
+.danmaku-bubble-box{position:absolute;display:flex;align-items:center;outline:2px dashed #07c160;outline-offset:0;background:#07c16014;overflow:hidden;font-weight:600;line-height:1.35;word-break:break-word}
+.danmaku-bubble-fields{padding:16px}
+.lottery-card .danmaku-color{display:flex;align-items:center;gap:10px}.lottery-card .danmaku-color input{width:46px;height:28px;padding:2px;margin:0}
+.danmaku-dialog-actions{display:flex;align-items:center;gap:10px;margin-top:18px}.danmaku-dialog-actions span{flex:1}
+.danmaku-danger{color:#d9534f}
+@media(max-width:760px){.danmaku-bubble-editor{grid-template-columns:1fr}}
+
+.danmaku-builtin{margin-left:6px;padding:1px 6px;border-radius:999px;background:#e8f1ff;color:#3a6fd8;font-size:11px;font-style:normal;font-weight:600;vertical-align:1px}

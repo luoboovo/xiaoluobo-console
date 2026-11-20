@@ -1,28 +1,52 @@
 // 小萝卜弹幕姬：把弹幕排成微信聊天，礼物是红包，大额礼物和上舰是转账。
-// 地址参数（控制台「弹幕姬」页会帮你拼好）：
-//   theme 主题  bg=0 透明背景  enter=1 显示进场  social=1 显示关注分享  like=1 显示点赞
-//   max 最多条数  size 字号  fade 几秒后淡出（0 不淡出）  big 多少元起算「转账」  preview=1 控制台预览
+// 设置、背景和定制气泡都存在控制台里（弹幕姬页），这个画面连上就自动拿到；地址只有 ?preview=1 一个参数（控制台预览用）。
 (function () {
-  const params = new URLSearchParams(location.search), chat = document.getElementById('chat');
-  const config = {};
-  function readConfig(source) {
-    const num = (key, fallback, min, max) => { const v = Number(source.get(key)); return Number.isFinite(v) && source.has(key) ? Math.min(max, Math.max(min, v)) : fallback; };
-    const themes = window.DanmakuSkins.THEMES.map(t => t.key);
-    Object.assign(config, {
-      theme: themes.includes(source.get('theme')) ? source.get('theme') : 'wechat',
-      bg: source.get('bg') !== '0',
-      enter: source.get('enter') === '1', social: source.get('social') !== '0', like: source.get('like') === '1',
-      max: num('max', 40, 5, 200), size: num('size', 15, 10, 32), fade: num('fade', 0, 0, 600), big: num('big', 50, 1, 100000)
-    });
+  const params = new URLSearchParams(location.search), preview = params.has('preview');
+  const chat = document.getElementById('chat'), backdrop = document.getElementById('backdrop'), more = document.getElementById('more'), off = document.getElementById('off');
+  let config = { theme: 'wechat', bg: true, size: 15, max: 40, fade: 0, big: 50, enter: false, social: true, like: false };
+  let bubbles = new Map(), enabled = true, demoing = false;
+
+  function applySettings(next) {
+    config = { ...config, ...next };
     document.body.dataset.theme = config.theme;
     document.body.classList.toggle('transparent', !config.bg);
     document.documentElement.style.setProperty('--font-size', config.size + 'px');
+    for (const skin of chat.querySelectorAll('.skin[data-bubble]')) { const bubble = bubbles.get(skin.dataset.bubble); if (bubble) styleSkin(skin, bubble); }
     trim();
+  }
+  // 背景图：铺满 / 完整显示 / 自定义（位置 + 缩放）。
+  function applyBackground(bg = {}) {
+    backdrop.hidden = !bg.image;
+    if (!bg.image) return;
+    backdrop.style.backgroundImage = `url("${bg.image}")`;
+    backdrop.style.backgroundSize = bg.fit === 'custom' ? `${bg.scale}% auto` : bg.fit;
+    backdrop.style.backgroundPosition = `${bg.x}% ${bg.y}%`;
+    backdrop.style.opacity = String(bg.opacity / 100);
+    backdrop.style.filter = bg.blur ? `blur(${bg.blur}px)` : '';
+    backdrop.style.inset = bg.blur ? `-${bg.blur * 2}px` : '0';
+  }
+  function applyBubbles(list = []) {
+    bubbles = new Map(list.map(b => [b.id, b]));
+    for (const skin of chat.querySelectorAll('.skin[data-bubble]')) {
+      const bubble = bubbles.get(skin.dataset.bubble);
+      if (bubble) styleSkin(skin, bubble);
+    }
+  }
+  function applyState(state) {
+    if (!state) return;
+    if (state.settings) applySettings(state.settings);
+    if ('background' in state) applyBackground(state.background);
+    if (state.bubbles) applyBubbles(state.bubbles);
+    if (typeof state.enabled === 'boolean') {
+      if (enabled && !state.enabled && !preview) clear();
+      enabled = state.enabled;
+      off.hidden = enabled || !preview;
+    }
   }
 
   const escapeHtml = text => String(text ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const yuan = value => '¥' + value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    function avatar(event) {
+  function avatar(event) {
     const face = String(event.face || '').replace(/^http:\/\//, 'https://');
     const name = String(event.user || '观众'), color = [...name].reduce((sum, c) => sum + c.codePointAt(0), 0) % 8;
     const letter = `<span class="avatar-letter c${color}">${escapeHtml(Array.from(name)[0] || '·')}</span>`;
@@ -59,30 +83,67 @@
     }
     if (event.superChat) return card('packet sc', escapeHtml(event.text), yuan(Number(event.price) || 0), '醒目留言 · 红包', {});
     const mention = event.mention?.name && !/^\s*[@＠]/.test(event.text) ? `<span class="mention">@${escapeHtml(event.mention.name)}</span> ` : '';
+    const bubble = bubbles.get(event.bubble);
+    if (bubble) return `<div class="skin" data-bubble="${escapeHtml(bubble.id)}"><div class="skin-text"><span>${mention}${escapeHtml(event.text)}</span></div></div>`;
     return `<div class="bubble">${mention}${escapeHtml(event.text)}</div>`;
   }
+  // 定制气泡：整张图按比例缩放，文字放进图里框好的那一块，字多了自动缩小。
+  // 定制气泡像普通气泡一样按字数伸缩：高度和两行字的普通气泡差不多，左右两头（人物、装饰）原样不变形，只拉长中间那段。
+  function styleSkin(skin, bubble) {
+    skin.querySelector('img')?.remove();
+    const font = config.size * bubble.font / 100, { left, right, top, bottom } = bubble.box;
+    const height = font * 1.35 * 1.7 / Math.max(0.2, (100 - top - bottom) / 100);
+    const px = v => Math.round(v * 10) / 10 + 'px';
+    const capLeft = height * bubble.ratio * left / 100, capRight = height * bubble.ratio * right / 100;
+    Object.assign(skin.style, {
+      height: px(height), maxWidth: `min(100%, ${bubble.width}px)`, minWidth: px(capLeft + capRight + font * 2),
+      borderWidth: `${px(height * top / 100)} ${px(capRight)} ${px(height * bottom / 100)} ${px(capLeft)}`,
+      borderImageSource: `url("${bubble.image}")`, borderImageSlice: `${top}% ${right}% ${bottom}% ${left}% fill`,
+      color: bubble.color
+    });
+    skin.dataset.font = font;
+    fitText(skin, bubble);
+  }
+  function fitText(skin) {
+    const box = skin.querySelector('.skin-text');
+    if (!skin.isConnected || !box.clientHeight) return;
+    let size = Number(skin.dataset.font) || config.size;
+    box.style.fontSize = size + 'px';
+    while ((box.scrollHeight > box.clientHeight + 1 || box.scrollWidth > box.clientWidth + 1) && size > 9) { size -= 0.5; box.style.fontSize = size + 'px'; }
+  }
   const TIP_TYPES = { member: 'enter', social: 'social', like: 'like' };
+  function tipRow(event, text) {
+    const row = document.createElement('div');
+    row.className = `tip tip-${event.type}`;
+    row.innerHTML = `<span><b>${escapeHtml(event.user || '观众')}</b> ${escapeHtml(text)}</span>`;
+    return row;
+  }
   function render(event) {
     if (!event || !event.type) return null;
     const tip = TIP_TYPES[event.type];
-    if (tip) {
-      if (!config[tip]) return null;
-      const row = document.createElement('div');
-      row.className = `tip tip-${event.type}`;
-      row.innerHTML = `<span><b>${escapeHtml(event.user || '观众')}</b> ${escapeHtml(event.text || '')}</span>`;
-      return row;
-    }
+    if (tip) return config[tip] ? tipRow(event, event.text || '') : null;
     if (event.type !== 'chat' && event.type !== 'gift') return null;
+    // 换气泡的口令不进聊天，只出一行小提示。
+    if (event.bubbleCommand) return tipRow(event, event.bubbleCommand.text);
     const tier = window.DanmakuSkins.tierOf(event);
     const row = document.createElement('div');
-    row.className = `msg tier-${tier.key} type-${event.type}${event.superChat ? ' type-sc' : ''}`;
+    row.className = `msg tier-${tier.key} type-${event.type}${event.superChat ? ' type-sc' : ''}${bubbles.has(event.bubble) ? ' has-skin' : ''}`;
     row.innerHTML = `${avatar(event)}<div class="content">${header(event, tier)}${body(event)}</div>`;
-    for (const img of row.querySelectorAll('img')) img.addEventListener('error', () => img.remove(), { once: true });
+    for (const img of row.querySelectorAll('.avatar img, .card-gift')) img.addEventListener('error', () => img.remove(), { once: true });
     return row;
   }
 
   const seen = new Set();
-  let lastGift = null;
+  let lastGift = null, unread = 0;
+  // 鼠标往上滚看旧消息时，不再自动跳到最底下；新消息攒着，点「新消息」回到底部。
+  const atBottom = () => chat.scrollHeight - chat.scrollTop - chat.clientHeight < 40;
+  let follow = true;
+  chat.addEventListener('scroll', () => { follow = atBottom(); if (follow) { unread = 0; more.hidden = true; } });
+  more.addEventListener('click', () => { follow = true; unread = 0; more.hidden = true; chat.scrollTop = chat.scrollHeight; });
+  function stick(added) {
+    if (follow) { chat.scrollTop = chat.scrollHeight; return; }
+    if (added) { unread++; more.hidden = false; more.textContent = `↓ ${unread} 条新消息`; }
+  }
   // B站连击会一条条发同一个礼物：同一个人 5 秒内送同一个礼物，合并到上一张红包里。
   function mergeGift(event) {
     if (event.type !== 'gift' || event.guardName || !lastGift) return false;
@@ -102,10 +163,12 @@
     if (!row) return;
     if (!animate) row.classList.add('still');
     chat.append(row);
+    const skin = row.querySelector('.skin');
+    if (skin) styleSkin(skin, bubbles.get(skin.dataset.bubble));
     if (event.type === 'gift' && !event.guardName) lastGift = { event, row };
     schedule(row);
     trim();
-    chat.scrollTop = chat.scrollHeight;
+    stick(animate);
   }
   function schedule(row) {
     if (!config.fade) return;
@@ -113,24 +176,27 @@
     row.fadeTimer = setTimeout(() => { row.classList.add('leaving'); setTimeout(() => row.remove(), 600); }, config.fade * 1000);
   }
   function trim() { while (chat.children.length > config.max) chat.firstElementChild.remove(); }
+  function clear() { chat.replaceChildren(); lastGift = null; unread = 0; more.hidden = true; follow = true; }
+  new ResizeObserver(() => { for (const skin of chat.querySelectorAll('.skin')) { const b = bubbles.get(skin.dataset.bubble); if (b) fitText(skin, b); } if (follow) chat.scrollTop = chat.scrollHeight; }).observe(chat);
 
-  readConfig(params);
-
-  // 控制台预览：调整设置时即时生效，「发几条试试」塞演示消息。
+  // 控制台预览：草稿即时生效，「发几条试试」塞演示消息。
   window.addEventListener('message', message => {
     if (message.origin !== location.origin || !message.data) return;
-    if (message.data.type === 'danmaku-config') readConfig(new URLSearchParams(message.data.query));
-    if (message.data.type === 'danmaku-demo') for (const event of message.data.events || []) add({ ...event, id: undefined, time: Date.now() });
-    if (message.data.type === 'danmaku-clear') { chat.replaceChildren(); lastGift = null; }
+    const data = message.data;
+    if (data.type === 'danmaku-draft') applyState(data.state);
+    if (data.type === 'danmaku-demo') { demoing = true; for (const event of data.events || []) add({ ...event, id: undefined, time: Date.now() }); }
+    if (data.type === 'danmaku-clear') clear();
   });
 
   const connection = document.getElementById('connection');
   const source = new LuoboEvents('/api/events?danmaku=1');
   source.addEventListener('open', () => { connection.hidden = true; });
+  source.addEventListener('danmaku', event => applyState(JSON.parse(event.data)));
   source.addEventListener('danmaku-history', event => {
-    const list = JSON.parse(event.data);
-    for (const item of list.slice().reverse()) add(item, false);
+    if (!enabled || demoing) return;
+    clear();
+    for (const item of JSON.parse(event.data).slice().reverse()) add(item, false);
   });
-  source.addEventListener('message', event => add(JSON.parse(event.data)));
-  source.onerror = () => { if (params.has('preview')) return; connection.hidden = false; connection.textContent = '连接中断，正在重连…'; };
+  source.addEventListener('message', event => { if (enabled) add(JSON.parse(event.data)); });
+  source.onerror = () => { if (preview) return; connection.hidden = false; connection.textContent = '连接中断，正在重连…'; };
 })();

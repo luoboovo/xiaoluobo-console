@@ -234,3 +234,56 @@ test('面板样式：旧配置默认样式、独立字体颜色描边、保存�
   const reload = await new OvertimeMachine(dir).init();assert.deepEqual(reload.state.config.gift_panels[1].style,style);
   await machine.action({action:'import',config:machine.snapshot().config});assert.deepEqual(machine.state.config.gift_panels[1].style,style);
 });
+
+test('随机加时间 / 随机减时间：在设定范围里抽，范围不对拒绝保存', async t => {
+  const { rollMinutes } = require('../lib/overtime.cjs');
+  const { ruleText } = require('../public/overtime/shared.js');
+  assert.throws(() => normalizeConfig({ ...config, gift_rules:[{ gift_name:'乱', gift_id:9, operation:'random_add', value:10, value_max:5 }] }), /随机范围无效/);
+  const rule = { gift_name:'骰子', gift_id:7, operation:'random_add', value:5, value_max:15 };
+  assert.deepEqual(normalizeConfig({ ...config, gift_rules:[rule] }).gift_rules[0], rule);
+  assert.equal(ruleText(rule), '随机＋5～15 分钟');
+  assert.equal(rollMinutes(rule, 3, () => 0), 15n);
+  assert.equal(rollMinutes(rule, 2, () => .9999), 30n);
+  assert.equal(rollMinutes(rule, 5000, () => 0), 25000n, '大额连送按比例放大');
+
+  const { machine, gift } = await fixture(t);
+  await machine.action({ action:'configure', config:{ ...config, gift_rules:[...config.gift_rules, rule, { gift_name:'坏骰子', gift_id:8, operation:'random_subtract', value:1, value_max:3 }] } });
+  await machine.action({ action:'start' });
+  for (let i = 0; i < 20; i++) {
+    const before = BigInt(machine.snapshot().remaining);
+    await gift(7);
+    const added = BigInt(machine.snapshot().remaining) - before;
+    assert.ok(added >= 300n && added <= 900n, `加了 ${added} 秒`);
+  }
+  const before = BigInt(machine.snapshot().remaining);
+  await gift(8, 2);
+  const reduced = before - BigInt(machine.snapshot().remaining);
+  assert.ok(reduced >= 60n && reduced <= 180n);
+  assert.match(machine.state.history[0].effect, /^随机减 [1-3] 分钟$/);
+
+  // 随机加减：范围可以是负数，-30～30
+  const both = { gift_name:'命运骰', gift_id:10, operation:'random_both', value:-30, value_max:30 };
+  assert.equal(ruleText(both), '随机 −30～＋30 分钟');
+  assert.throws(() => normalizeConfig({ ...config, gift_rules:[{ ...both, operation:'random_add' }] }), /数值无效/, '只有随机加减能填负数');
+  assert.equal(rollMinutes(both, 1, () => 0), -30n);
+  assert.equal(rollMinutes(both, 1, () => .9999), 30n);
+  await machine.action({ action:'configure', config:{ ...config, gift_rules:[...config.gift_rules, both] } });
+  await machine.action({ action:'start' });
+  const seen = new Set();
+  for (let i = 0; i < 60; i++) {
+    const start = BigInt(machine.snapshot().remaining);
+    await gift(10, 3);
+    const change = BigInt(machine.snapshot().remaining) - start;
+    assert.ok(change >= -1800n && change <= 1800n && change % 60n === 0n, `变了 ${change} 秒`);
+    seen.add(change > 0n ? '+' : change < 0n ? '-' : '0');
+  }
+  assert.ok(seen.has('+') && seen.has('-'), '有加有减');
+  await machine.action({ action:'clear' });
+  const original = Math.random;
+  try {
+    Math.random = () => 0; await gift(10, 3);
+    assert.equal(machine.snapshot().remaining, '0'); assert.match(machine.state.history[0].effect, /没有生效/);
+    Math.random = () => .9999; await gift(10, 3);
+    assert.equal(machine.snapshot().remaining, '1800'); assert.equal(machine.snapshot().mode, 'running', '下班后抽到加时间会重新开工');
+  } finally { Math.random = original; }
+});
