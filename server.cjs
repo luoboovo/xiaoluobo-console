@@ -25,14 +25,14 @@ const { LiveMemory } = require('./lib/live-memory.cjs');
 const { roomId } = require('./lib/protocol.cjs');
 
 // Overlay pages subscribe to one channel; everything else is a console page.
-const CHANNELS = { bomb:new Set(['number-bomb']), lottery:new Set(['lottery']), feeding:new Set(['feeding','feeding-motion','feeding-physics']), overtime:new Set(['overtime','overtime-clock','overtime-media']), scene:new Set(['noodle','noodle-motion']) };
+const CHANNELS = { bomb:new Set(['number-bomb']), mower:new Set(['mower']), lottery:new Set(['lottery']), feeding:new Set(['feeding','feeding-motion','feeding-physics']), overtime:new Set(['overtime','overtime-clock','overtime-media']), scene:new Set(['noodle','noodle-motion']) };
 const MOTION = new Set(['noodle-motion','feeding-motion','feeding-physics']);
 // High-frequency frames bypass the 100ms state coalescing.
 const REALTIME = new Set([...MOTION,'overtime-clock','overtime-media']);
 const accepts = (client, type, data) => client.channel ? CHANNELS[client.channel].has(type)&&(type!=='lottery'||client.lotteryGame===data.game) : !(client.consoleOnly && MOTION.has(type));
 const BODY_LIMITS = { '/api/robot/blindbox/import':5*1024*1024, '/api/templates/import':MAX_PACKAGE_BYTES, '/api/diagnostics/client':32768, '/api/feeding/motion':300000 };
 const CLIENT_EVENTS = ['runtime_error','promise_error','page_stall','resource_error','operation_error'];
-const CLIENT_PAGES = ['/','/noodle/','/overtime/','/feeding/','/lottery/','/number-bomb/'];
+const CLIENT_PAGES = ['/','/noodle/','/overtime/','/feeding/','/lottery/','/number-bomb/','/mower/'];
 
 async function startServer(options = {}) {
   const diagnostics=options.diagnostics;
@@ -44,7 +44,7 @@ async function startServer(options = {}) {
   const common={dataDir:services.dataDir,seedDir:services.seedDir,templates,feedingLegacyFiles:options.feedingLegacyFiles||[]};
   games.bilibili=await createPlatformGames({...common,platform:'bilibili',catalog:services.biliGifts.length>=12?services.biliGifts:require('./data/gifts.json').list,legacyFiles:options.overtimeLegacyFiles||[]});
   games.douyin=await createPlatformGames({...common,platform:'douyin',catalog:services.dyGifts.length>=12?services.dyGifts:require('./data/douyin-gifts.json').list,source:games.bilibili.noodle});
-  let {noodle,overtime,feeding,lottery,numberBomb}=games[services.platform];
+  let {noodle,overtime,feeding,lottery,numberBomb,mower}=games[services.platform];
   // 机器人设置跨平台共用；DeepSeek Key 和登录凭证一起加密保存。
   // 每个 AI 服务商一个 Key；旧版只存了 DeepSeek 的 deepseekKey，读取时沿用。
   const aiKeys=()=>services.secretData.aiKeys&&typeof services.secretData.aiKeys==='object'?services.secretData.aiKeys:{};
@@ -75,7 +75,7 @@ async function startServer(options = {}) {
   // 上传素材只增不减会占满系统盘；启动时和改完设置后，清理已不在任何规则里的素材。
   let pruneTimer,pruning=Promise.resolve();
   const prune=()=>{pruning=pruning.then(async()=>{for(const game of Object.values(games)){
-    const result=await pruneAssets(game.dir,assetNames(game.overtime.state,game.feeding.state,robot.config,...[...robotRooms.extra.values()].map(entry=>entry.robot.config))).catch(error=>{diagnostics?.log('warn','assets.prune_failed',{error});return {removed:0};});
+    const result=await pruneAssets(game.dir,assetNames(game.overtime.state,game.feeding.state,game.mower.state.config,robot.config,...[...robotRooms.extra.values()].map(entry=>entry.robot.config))).catch(error=>{diagnostics?.log('warn','assets.prune_failed',{error});return {removed:0};});
     if(result.removed)diagnostics?.log('info','assets.pruned',{dir:path.basename(game.dir),...result});
   }});return pruning;};
   const schedulePrune=()=>{clearTimeout(pruneTimer);pruneTimer=setTimeout(prune,30000);pruneTimer.unref();};
@@ -179,13 +179,15 @@ async function startServer(options = {}) {
   services.on('event', event => {
     if(event.type==='system')diagnostics?.log('warn','system.message',{message:event.text,platform:services.platform});
     if (event.uid && event.face) noodle.rememberFace(event);
+    // 点赞只给萝卜割草用（召唤最低级的小草），不进礼物批次。
+    if (event.type === 'like' && features.isOn('mower')) mower.receiveLike(event).catch(error=>services.addEvent('system','',`萝卜割草：${error.message}`));
     const chat=event.type==='chat';
     if (event.type !== 'gift' && !event.face && !chat) { broadcast('message', event); return; }
     if (event.type === 'gift') pendingGifts++;
     // Gifts, chat and avatar updates share one ordered batch. Queuing avatars and chat as separate steps
     // split a busy room's gifts into one batch (and one full save) per gift. Manual actions still close the batch.
     if (!giftBatch || giftBatch.tail !== actions || giftBatch.events.length >= 128) {
-      const batch = {events:[],gifts:0,noodle,overtime,feeding,numberBomb,lotteries:Object.values(lottery)};
+      const batch = {events:[],gifts:0,noodle,overtime,feeding,numberBomb,mower,lotteries:Object.values(lottery)};
       const receive = actions.then(async () => {
         const started=performance.now();
         diagnostics?.context({operation:'gift.batch',batchSize:batch.gifts,pendingGifts});
@@ -198,10 +200,12 @@ async function startServer(options = {}) {
           if(event.type!=='chat')continue;
           if(features.isOn('number_bomb'))await Promise.resolve().then(()=>batch.numberBomb.receiveChat({...event,face})).catch(error=>services.addEvent('system','',`数字炸弹：${error.message}`));
           if(features.isOn('lottery'))await Promise.resolve().then(async()=>{for(const target of batch.lotteries)await target.receiveChat({...event,face});}).catch(error=>services.addEvent('system','',`抽奖：${error.message}`));
+          if(features.isOn('mower'))await Promise.resolve().then(()=>batch.mower.receiveChat({...event,face})).catch(error=>services.addEvent('system','',`萝卜割草：${error.message}`));
         }
         const events = batch.events.filter(item=>item.event.type==='gift').map(({event:gift}) => ({...gift,face:batch.noodle.faces.get(gift.uid) || gift.face}));
         const overtimeError = error => services.addEvent('system', '', `加班机：${error.message}`);
         if(events.length&&features.isOn('overtime'))await batch.overtime.receiveBatch(events,overtimeError).catch(overtimeError);
+        if(events.length&&features.isOn('mower'))await batch.mower.receiveBatch(events).catch(error=>services.addEvent('system','',`萝卜割草：${error.message}`));
         // Feeding counts both gifts and chat, so only a chat that changes feeding splits its gift run.
         const feedingError=error=>services.addEvent('system','',`吃吃吃：${error.message}`);
         let run=[],index=0;
@@ -235,6 +239,7 @@ async function startServer(options = {}) {
     game.noodle.on('motion',current(motion=>broadcast('noodle-motion',motion)));
     game.feeding.on('state',current(state=>broadcast('feeding',state)));
     game.numberBomb.on('state',current(state=>broadcast('number-bomb',state)));
+    game.mower.on('state',current(state=>broadcast('mower',state)));
     for(const target of Object.values(game.lottery))target.on('state',current(state=>broadcast('lottery',state)));
     game.feeding.on('motion',current(motion=>broadcast('feeding-motion',motion)));
     game.feeding.on('physics',current(frame=>broadcast('feeding-physics',frame)));
@@ -245,6 +250,14 @@ async function startServer(options = {}) {
   const subscribe=(client,url)=>{
     client.channel=Object.keys(CHANNELS).find(key=>url.searchParams.has(key));client.consoleOnly=url.searchParams.has('console');clients.add(client);
     if(client.channel==='bomb')return send(client,'number-bomb',numberBomb.snapshot());
+    if(client.channel==='mower'){
+      client.mowerPlay=url.searchParams.has('play');client.mowerPreview=url.searchParams.has('preview');
+      send(client,'mower',mower.snapshot());
+      if(mowerLastFrame&&mowerLastPlatform===services.platform)write(client,mowerLastFrame);
+      // 新开的操作窗口直接当主画面；其他画面在已有主画面时只跟着显示。
+      if(!mowerLeader||client.mowerPlay)pickMowerLeader();else send(client,'mower-role',{leader:false});
+      return;
+    }
     if(client.channel==='feeding')return send(client,'feeding',feeding.snapshot());
     if(client.channel==='lottery'){
       const key=url.searchParams.get('game')||'wheel';
@@ -255,7 +268,7 @@ async function startServer(options = {}) {
     const scene=client.channel==='scene';
     if(!scene)send(client,'state',services.state);
     sendNoodle(client,noodleFrames(noodle.snapshot()));
-    if(!scene){send(client,'features',features.snapshot());send(client,'overtime',overtime.snapshot());send(client,'feeding',feeding.snapshot());send(client,'number-bomb',numberBomb.snapshot());for(const target of Object.values(lottery))send(client,'lottery',target.snapshot());send(client,'robot',{...robot.snapshot(),room:'main'});for(const entry of robotRooms.extra.values())send(client,'robot',{...entry.robot.snapshot(),room:entry.id});send(client,'robot-rooms',robotRooms.list());}
+    if(!scene){send(client,'features',features.snapshot());send(client,'overtime',overtime.snapshot());send(client,'feeding',feeding.snapshot());send(client,'number-bomb',numberBomb.snapshot());send(client,'mower',mower.snapshot());for(const target of Object.values(lottery))send(client,'lottery',target.snapshot());send(client,'robot',{...robot.snapshot(),room:'main'});for(const entry of robotRooms.extra.values())send(client,'robot',{...entry.robot.snapshot(),room:entry.id});send(client,'robot-rooms',robotRooms.list());}
     if(!client.consoleOnly)send(client,'noodle-motion',noodle.motionSnapshot());
   };
   const download=(res,filename,data)=>{res.setHeader('Content-Disposition',`attachment; filename=${filename}`);return data;};
@@ -283,12 +296,14 @@ async function startServer(options = {}) {
         if(feeding.state.mode==='running')await feeding.action({action:'pause'});
         for(const target of Object.values(lottery))await target.deactivate();
         await numberBomb.deactivate();
+        await mower.deactivate();
         await services.selectPlatform(input.platform);
-        ({noodle,overtime,feeding,lottery,numberBomb}=games[input.platform]);
+        ({noodle,overtime,feeding,lottery,numberBomb,mower}=games[input.platform]);
         pendingStates.clear();pendingMessages.length=0;avatars.clear();peopleSent=null;
         broadcast('state',services.state);broadcast('noodle',noodle.snapshot());broadcast('overtime',overtime.snapshot());broadcast('overtime-media',null);
         broadcast('feeding',feeding.snapshot());
         broadcast('number-bomb',numberBomb.snapshot());
+        broadcast('mower',mower.snapshot());
         for(const target of Object.values(lottery))broadcast('lottery',target.snapshot());
         robot.reset();
       });
@@ -306,7 +321,8 @@ async function startServer(options = {}) {
     '/api/robot/blindbox/import': async input => {const robot=robotRooms.robotFor(input.room||'main');if(typeof input.csv!=='string')throw new Error('请选择 CSV 文件');const result=await robot.importBlindCsv(input.csv);return {ok:true,...result,state:{...robot.snapshot(),room:input.room||'main'}};},
     '/api/features': async input => ({ok:true,features:await features.set(input?.id,input?.enabled)}),
     '/api/number-bomb/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>numberBomb.action(input)))}),
-    '/api/panels/generate': async (input,scoped) => ({ok:true,panel:await enqueue(scoped(()=>generatePanel(input.game,{noodle,overtime,feeding})))}),
+    '/api/mower/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>mower.action(input)))}),
+    '/api/panels/generate': async (input,scoped) => ({ok:true,panel:await enqueue(scoped(()=>generatePanel(input.game,{noodle,overtime,feeding,mower})))}),
     '/api/overtime/action': async (input,scoped) => {const state=await enqueue(scoped(()=>overtime.action(input)));schedulePrune();return {ok:true,state};},
     '/api/noodle/motion': input => ({ok:true,accepted:noodle.motion(input)}),
     '/api/noodle/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>noodle.action(input)))}),
@@ -343,6 +359,7 @@ async function startServer(options = {}) {
     '/api/overtime/state': () => overtime.snapshot(),
     '/api/feeding/state': () => feeding.snapshot(),
     '/api/number-bomb/state': () => numberBomb.snapshot(),
+    '/api/mower/state': () => mower.snapshot(),
     '/api/robot/state': (_res,url) => {const room=url.searchParams.get('room')||'main';return {...robotRooms.robotFor(room).snapshot(),room};},
     '/api/robot/blindbox/export': (res,url) => {
       const robot=robotRooms.robotFor(url.searchParams.get('room')||'main'),d=new Date(),day=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
@@ -442,18 +459,52 @@ async function startServer(options = {}) {
       if (!await servePublic(res, path.join(__dirname, 'public'), url.pathname,images,path.join(services.dataDir,'render-cache'))) return json({ error: '页面不存在' }, 404);
     } catch (error) { diagnostics?.log('error','http.error',{method:req.method,path:req.url?.split('?')[0],error});if (!res.headersSent) json({ error: error.message }, error.status || 400); else res.end(); }
   });
-  const sockets=new WebSocketServer({noServer:true,maxPayload:1024});
+  // 萝卜割草：同一时刻只让一个画面（主画面）算战斗，它的每帧经这里转给其他割草画面，所以操作窗口、
+  // OBS 里复制的地址和控制台预览永远是同一局。主画面优先选操作窗口（最后打开的那个），没有就选最早的
+  // 非预览画面（一般是 OBS），再没有才用控制台预览。主画面断开或 1.5 秒没发帧，马上换一个接手。
+  // 记住最新一帧：新打开的画面（尤其是要接手的操作窗口）先拿到它，才能从这一局接着算。
+  let mowerLeader=null,mowerLeaderAt=0,mowerFrameAt=0,mowerLastFrame=null,mowerLastPlatform='';
+  const mowerClients=()=>[...clients].filter(client=>client.channel==='mower'&&!client.destroyed);
+  const setMowerLeader=next=>{
+    const changed=next!==mowerLeader;
+    mowerLeader=next;mowerLeaderAt=Date.now();
+    if(changed)for(const client of mowerClients())send(client,'mower-role',{leader:client===next});
+  };
+  const pickMowerLeader=()=>{
+    const now=Date.now(),all=mowerClients(),fresh=all.filter(client=>!(client.mowerStaleAt&&now-client.mowerStaleAt<5000)),pool=fresh.length?fresh:all;
+    setMowerLeader(pool.filter(client=>client.mowerPlay).at(-1)||pool.find(client=>!client.mowerPreview)||pool[0]||null);
+  };
+  const leaveMower=client=>{if(client===mowerLeader){mowerLeader=null;pickMowerLeader();}};
+  const mowerWatchdog=setInterval(()=>{
+    if(!mowerLeader)return;
+    if(mowerLeader.destroyed||!clients.has(mowerLeader)){leaveMower(mowerLeader);return;}
+    if(Date.now()-Math.max(mowerLeaderAt,mowerFrameAt)<1500)return;
+    // 主画面卡住了（比如所在窗口被最小化、网页暂停），换别的画面接手。
+    const stalled=mowerLeader;stalled.mowerStaleAt=Date.now();mowerLeader=null;pickMowerLeader();
+    if(mowerLeader!==stalled)send(stalled,'mower-role',{leader:false});
+  },500);
+  mowerWatchdog.unref?.();
+  const relayMower=(client,raw)=>{
+    if(client.channel!=='mower'||client!==mowerLeader)return;
+    let message;try{message=JSON.parse(raw);}catch{return;}
+    if(message?.type!=='mower-frame'||message.platform!==services.platform||!message.frame||typeof message.frame!=='object')return;
+    mowerFrameAt=Date.now();client.mowerStaleAt=0;
+    const frame=mowerLastFrame=frameOf('mower-frame',message.frame);mowerLastPlatform=message.platform;
+    for(const other of clients)if(other!==client&&other.channel==='mower')write(other,frame);
+  };
+  const sockets=new WebSocketServer({noServer:true,maxPayload:512*1024});
   server.on('upgrade',(req,socket,head)=>{
     if(`http://${req.headers.host}`!==origin||req.headers.origin!==origin||req.url?.split('?')[0]!=='/api/events/socket'){socket.destroy();return;}
     sockets.handleUpgrade(req,socket,head,ws=>{
       const client={get destroyed(){return ws.readyState!==1;},get writableLength(){return ws.bufferedAmount;},write(frame){if(ws.readyState===1)ws.send(frame);},destroy(){ws.terminate();},end(){ws.terminate();}};
-      ws.on('close',()=>clients.delete(client));ws.on('error',()=>{clients.delete(client);ws.terminate();});subscribe(client,new URL(req.url,origin));
+      ws.on('message',raw=>relayMower(client,String(raw)));
+      ws.on('close',()=>{clients.delete(client);leaveMower(client);});ws.on('error',()=>{clients.delete(client);leaveMower(client);ws.terminate();});subscribe(client,new URL(req.url,origin));
     });
   });
   try{
     await new Promise((resolve,reject)=>{const failed=error=>reject(error);server.once('error',failed);server.listen(options.port??0,'127.0.0.1',()=>{server.removeListener('error',failed);resolve();});});
   }catch(error){
-    diagnostics?.log('error','server.bind_failed',{host:'127.0.0.1',port:options.port??0,error});services.close();
+    clearInterval(mowerWatchdog);diagnostics?.log('error','server.bind_failed',{host:'127.0.0.1',port:options.port??0,error});services.close();
     if(error.code==='EADDRINUSE')error.message=`本地端口 ${options.port} 已被其他程序占用，请退出重复启动的控制台或调整占用该端口的软件。`;
     throw error;
   }
@@ -519,16 +570,16 @@ async function startServer(options = {}) {
   }, 15000);
   const close = async () => {
     closed=true;clearTimeout(autoSyncTimer);
-    for (const timer of [lotteryTimer, physicsTimer, keepAlive, sealTimer, cleanupTimer, overtimeTimer, checkpointTimer]) clearInterval(timer);
+    for (const timer of [mowerWatchdog, lotteryTimer, physicsTimer, keepAlive, sealTimer, cleanupTimer, overtimeTimer, checkpointTimer]) clearInterval(timer);
     clearTimeout(pruneTimer); liveMemory.close(); services.close(); await robot.close(); await robotRooms.close(); await actions; await pruning;
-    for(const game of Object.values(games)){game.overtime.close();await game.overtime.checkpoint();await game.feeding.close();await game.numberBomb.close();for(const target of Object.values(game.lottery))await target.close();}
+    for(const game of Object.values(games)){game.overtime.close();await game.overtime.checkpoint();await game.feeding.close();await game.numberBomb.close();await game.mower.close();for(const target of Object.values(game.lottery))await target.close();}
     await services.flush();
     mediaListeners.clear();clearTimeout(broadcastTimer);clearTimeout(peopleTimer); pendingStates.clear(); pendingMessages.length = 0; avatars.clear();
     for (const client of clients) client.end();
     const stopped = new Promise(resolve => server.close(resolve)); server.closeAllConnections(); await stopped;
     await images.close();
   };
-  return { url: origin, services, get noodle(){return noodle;},get overtime(){return overtime;},get feeding(){return feeding;},get lottery(){return lottery;},get numberBomb(){return numberBomb;},robot,robotRooms,aiKeyPages:new Set(Object.values(AI_PROVIDERS).map(p=>p.keyUrl).filter(url=>url.startsWith('https://'))),onOvertimeMedia(listener){mediaListeners.add(listener);}, close };
+  return { url: origin, services, get noodle(){return noodle;},get overtime(){return overtime;},get feeding(){return feeding;},get lottery(){return lottery;},get numberBomb(){return numberBomb;},get mower(){return mower;},robot,robotRooms,aiKeyPages:new Set(Object.values(AI_PROVIDERS).map(p=>p.keyUrl).filter(url=>url.startsWith('https://'))),onOvertimeMedia(listener){mediaListeners.add(listener);}, close };
 }
 
 if (require.main === module) {

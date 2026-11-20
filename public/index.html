@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/feeding-console.css"><script src="/feeding/shared.js" defer></script><script src="/feeding-console.js" type="module"></script><script src="/game-panels.js" type="module"></script>
   <link rel="stylesheet" href="/lottery-console.css"><script src="/lottery-console.js" type="module"></script>
   <link rel="stylesheet" href="/number-bomb-console.css"><script src="/number-bomb-console.js" type="module"></script>
+  <link rel="stylesheet" href="/mower-console.css"><script src="/mower-console.js" type="module"></script>
   <link rel="stylesheet" href="/robot-console.css"><script src="/robot-console.js" type="module"></script>
 </head>
 <body>
@@ -30,11 +31,12 @@
   <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M7 3h10v6a5 5 0 0 1-10 0V3ZM7 5H4v3a4 4 0 0 0 4 4m9-7h3v3a4 4 0 0 1-4 4M12 14v6m-4 1h8"/></symbol>
   <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></symbol>
   <symbol id="i-bomb" viewBox="0 0 24 24"><circle cx="10" cy="14" r="7"/><path d="m14 8 2-3 2 1m-1-5 1 2m4 2-2 1m2 4-2-1M6 12l1-2"/></symbol>
+  <symbol id="i-blade" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><path d="M12 9.5C11 5 13 3 17 3c-1 3-2 5-5 6.5ZM14.5 12c4.5-1 6.5 1 6.5 5-3-1-5-2-6.5-5ZM12 14.5c1 4.5-1 6.5-5 6.5 1-3 2-5 5-6.5ZM9.5 12C5 13 3 11 3 7c3 1 5 2 6.5 5Z"/></symbol>
 </defs></svg>
 <div class="shell">
   <header class="topbar">
     <a class="brand" href="/"><img loading="lazy" src="/app-icon.png?v=cat-1" alt=""><span>小萝卜<span class="brand-sub">游戏控制台</span></span></a>
-    <nav class="nav" aria-label="主导航"><button class="nav-item active" data-view="console"><svg><use href="#i-grid"/></svg>控制台</button><button class="nav-item" data-view="robot"><svg><use href="#i-robot"/></svg>直播机器人</button><button class="nav-item" data-view="noodle"><svg><use href="#i-bowl"/></svg>弹幕面馆</button><button class="nav-item" data-view="feeding"><svg><use href="#i-bowl"/></svg>小萝卜吃吃吃</button><button class="nav-item" data-view="lottery"><svg><use href="#i-trophy"/></svg>抽奖工具</button><button class="nav-item" data-view="number-bomb"><svg><use href="#i-bomb"/></svg>数字炸弹</button><button class="nav-item" data-view="presets"><svg><use href="#i-copy"/></svg>店铺模板</button><button class="nav-item" data-view="overtime"><svg><use href="#i-clock"/></svg>加班机</button><button class="nav-item" data-view="gift-rules"><svg><use href="#i-gift"/></svg>礼物面板</button><button class="nav-item" data-view="gifts"><svg><use href="#i-gift"/></svg>礼物库</button><details id="nav-more" class="nav-more" hidden><summary aria-label="更多入口" title="更多入口"><span aria-hidden="true">···</span></summary><div id="nav-overflow" class="nav-overflow" aria-label="更多导航入口"></div></details></nav>
+    <nav class="nav" aria-label="主导航"><button class="nav-item active" data-view="console"><svg><use href="#i-grid"/></svg>控制台</button><button class="nav-item" data-view="robot"><svg><use href="#i-robot"/></svg>直播机器人</button><button class="nav-item" data-view="noodle"><svg><use href="#i-bowl"/></svg>弹幕面馆</button><button class="nav-item" data-view="feeding"><svg><use href="#i-bowl"/></svg>小萝卜吃吃吃</button><button class="nav-item" data-view="lottery"><svg><use href="#i-trophy"/></svg>抽奖工具</button><button class="nav-item" data-view="number-bomb"><svg><use href="#i-bomb"/></svg>数字炸弹</button><button class="nav-item" data-view="mower"><svg><use href="#i-blade"/></svg>萝卜割草</button><button class="nav-item" data-view="presets"><svg><use href="#i-copy"/></svg>店铺模板</button><button class="nav-item" data-view="overtime"><svg><use href="#i-clock"/></svg>加班机</button><button class="nav-item" data-view="gift-rules"><svg><use href="#i-gift"/></svg>礼物面板</button><button class="nav-item" data-view="gifts"><svg><use href="#i-gift"/></svg>礼物库</button><details id="nav-more" class="nav-more" hidden><summary aria-label="更多入口" title="更多入口"><span aria-hidden="true">···</span></summary><div id="nav-overflow" class="nav-overflow" aria-label="更多导航入口"></div></details></nav>
     <div class="top-actions"><span class="platform-pill"><span class="pink-dot"></span><span id="platform-pill-label">B 站直播</span></span><button id="theme-button" class="icon-button" aria-label="切换深浅色" title="切换深浅色"><svg><use href="#i-sun"/></svg></button><button id="settings-button" class="icon-button" aria-label="配置" title="配置"><svg><use href="#i-settings"/></svg></button></div>
   </header>
   <main>
@@ -329,6 +331,36 @@
       </div><aside class="bomb-sidebar">
         <article class="lottery-card"><form id="bomb-settings"><label>猜数模式<select name="guess_mode"><option value="free">自由模式</option><option value="queue">排队模式</option></select></label><label>报名口令<input name="keyword" maxlength="40" value="参与数字炸弹" required autocomplete="off"></label><div class="lottery-field-pair"><label>最小数字<input name="min" type="number" min="0" max="999998" step="1" value="1" required></label><label>最大数字<input name="max" type="number" min="1" max="999999" step="1" value="100" required></label></div><label>每人 CD / 秒<input name="user_cooldown_seconds" type="number" min="0" max="60" step="0.1" value="3" required></label><button class="button white-button" type="submit">保存设置</button></form><p id="bomb-live-note" class="lottery-help" role="status"></p></article>
         <article class="lottery-card bomb-participants"><div class="lottery-card-title"><h2>已报名 <span id="bomb-count">0</span></h2><button class="text-button" id="bomb-reset">重新报名</button></div><div id="bomb-queue" hidden><p class="bomb-order-hint">拖动排序</p><ol id="bomb-order" aria-label="玩家猜数顺序"></ol></div></article>
+      </aside></div>
+    </section>
+    <section id="mower-view" hidden>
+      <div class="lottery-heading"><div><h1>萝卜割草</h1><p>点「打开操作窗口」用 WASD 或方向键玩；复制的地址放进 OBS 浏览器源，会实时显示操作窗口里的这一局。</p></div><div class="lottery-output"><button class="button white-button" id="mower-open">打开操作窗口 ↗</button><button class="button white-button" id="mower-copy">复制地址</button><button class="button white-button" data-generate-panel="mower">生成礼物面板</button></div></div>
+      <div class="bomb-workspace mower-workspace"><div class="bomb-main">
+        <article class="bomb-preview mower-preview"><div class="bomb-preview-top"><span id="mower-status">读取中…</span></div><iframe id="mower-frame" data-src="/mower/?preview=1" title="萝卜割草：主角、旋转刀、小怪和头像BOSS"></iframe><div class="bomb-playbar"><div><button class="text-button" id="mower-reset">重新开局</button><button class="text-button" id="mower-pause" hidden>暂停</button><button class="lottery-spin" id="mower-start" disabled>开始游戏</button></div></div></article>
+        <article class="lottery-card"><form id="mower-rules-form"><div class="lottery-card-title"><h2>礼物规则 <span id="mower-rule-count">0</span></h2><button type="button" class="text-button" id="mower-add-rule">新增规则 ＋</button></div><p class="lottery-help">怪物共 5 级：小草、蘑菇、仙人掌（会射刺）、石头怪、树精（会冲撞），自动刷怪随时间解锁高等级并越来越强；「召唤高级怪物」的数值填等级 1～5，连送几个就来几只。主角默认只有一把镰刀，地图上会刷宝剑、大刀、战斧和增幅（+1刀、转速、范围、攻击、回血），倒下后重置。点礼物去礼物库选择。召唤BOSS的数值是每个礼物给BOSS的血量，连送按数量相乘；同一位观众再送，会给自己的BOSS加血。</p><div id="mower-rules"></div><div class="lottery-field-pair mower-test"><label>试送观众名<input id="mower-test-user" maxlength="24" value="测试观众" autocomplete="off"></label><label>试送数量<input id="mower-test-count" type="number" min="1" max="1000" step="1" value="1"></label></div><button class="button dark-button" type="submit">保存礼物规则</button></form></article>
+        <details class="lottery-card" open><summary>决斗记录</summary><div class="mower-stats"><span>BOSS 被割 <b id="mower-wins">0</b></span><span>主角被击倒 <b id="mower-losses">0</b></span><button class="text-button" id="mower-clear-history">清空记录</button></div><ol id="mower-duels"><li class="lottery-empty">还没有决斗</li></ol></details>
+      </div><aside class="bomb-sidebar">
+        <article class="lottery-card"><form id="mower-settings">
+          <div class="mower-save-bar"><button class="button dark-button" type="submit">保存设置</button><p id="mower-live-note" class="lottery-help" role="status"></p></div>
+          <h2 class="mower-form-title">主角</h2>
+          <label>操作方式<select name="control_mode"><option value="keyboard">主播操作（WASD / ↑↓←→）</option><option value="auto">自动走位（按键也能临时接管）</option></select></label>
+          <div class="mower-hero-image"><span class="mower-hero-preview" id="mower-hero-preview"><img alt="" hidden></span><div><label class="button white-button mower-upload">上传主角图片<input type="file" id="mower-hero-file" accept="image/png,image/gif,image/webp,image/jpeg" hidden></label><button type="button" class="text-button" id="mower-hero-default">恢复小萝卜</button><p class="lottery-help">PNG 或 GIF 动图，建议透明背景，不超过 16MB</p></div></div>
+          <div class="lottery-field-pair"><label>主角大小<input name="hero_size" type="number" min="40" max="200" step="1" required></label><label>移动速度<input name="hero_speed" type="number" min="80" max="600" step="1" required></label></div>
+          <div class="lottery-field-pair"><label>名字<input name="hero_name" maxlength="12" required autocomplete="off"></label><label>血量<input name="hero_hp" type="number" min="100" max="1000000" step="1" required></label></div>
+          <div class="lottery-field-pair"><label>初始刀数<input name="blade_count" type="number" min="1" max="12" step="1" required></label><label>每刀伤害<input name="blade_damage" type="number" min="1" max="100000" step="1" required></label></div>
+          <div class="lottery-field-pair"><label>旋转半径<input name="blade_radius" type="number" min="50" max="220" step="1" required></label><label>旋转速度<input name="blade_speed" type="number" min="0.5" max="12" step="0.1" required></label></div>
+          <label class="lottery-check"><input type="checkbox" name="pickups">地图随机刷武器和增幅</label>
+          <label>道具刷新间隔 / 秒<input name="pickup_interval_seconds" type="number" min="2" max="120" step="0.5" required></label>
+          <h2 class="mower-form-title">怪物</h2>
+          <label class="lottery-check"><input type="checkbox" name="auto_spawn">自动刷草怪</label>
+          <div class="lottery-field-pair"><label>每分钟变强 %<input name="monster_growth_percent" type="number" min="0" max="200" step="1" required></label><label>每只小草要几个赞<input name="likes_per_monster" type="number" min="1" max="1000" step="1" required></label></div>
+          <label class="lottery-check"><input type="checkbox" name="like_spawn">点赞召唤小草</label>
+          <div class="lottery-field-pair"><label>每秒刷怪<input name="auto_spawn_per_second" type="number" min="0" max="20" step="0.1" required></label><label>BOSS伤害<input name="boss_damage" type="number" min="1" max="100000" step="1" required></label></div>
+          <h2 class="mower-form-title">弹幕</h2>
+          <div class="lottery-field-pair"><label>派小怪口令<input name="chat_spawn_keyword" maxlength="20" autocomplete="off" placeholder="留空不启用"></label><label>回血口令<input name="chat_heal_keyword" maxlength="20" autocomplete="off" placeholder="留空不启用"></label></div>
+          <div class="lottery-field-pair"><label>每次派出小怪<input name="chat_spawn_count" type="number" min="1" max="50" step="1" required></label><label>弹幕回血量<input name="chat_heal_value" type="number" min="1" max="100000" step="1" required></label></div>
+          <div class="lottery-field-pair"><label>每人 CD / 秒<input name="user_cooldown_seconds" type="number" min="0" max="60" step="0.1" required></label><label>匹配方式<select name="chat_match_mode"><option value="exact">完全相同</option><option value="includes">包含口令</option></select></label></div>
+        </form></article>
       </aside></div>
     </section>
     <section id="lottery-view" hidden>
