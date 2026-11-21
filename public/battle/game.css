@@ -1,0 +1,14 @@
+html,body{margin:0;height:100%;overflow:hidden;background:#1d2a1a;font-family:"Microsoft YaHei","PingFang SC",sans-serif}
+#cv{display:block;width:100vw;height:100vh;object-fit:contain}
+#panel{position:fixed;left:12px;bottom:12px;background:rgba(20,24,20,.82);color:#fff;border-radius:12px;padding:8px 10px;font-size:12px;width:280px;box-shadow:0 4px 18px rgba(0,0,0,.35)}
+#panel.hide{display:none}
+#panel .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px}
+#panel .head span{opacity:.6}
+#panel .team{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
+#panel .tname{width:100%;font-weight:bold}
+#panel .veg .tname{color:#8fe36a}
+#panel .fruit .tname{color:#ff8a80}
+#panel button{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:7px;padding:5px 8px;cursor:pointer;font:inherit}
+#panel button:hover{background:rgba(255,255,255,.24)}
+#panel .veg button{border-color:#5fbf3a}
+#panel .fruit button{border-color:#e8453c}

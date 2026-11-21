@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>泽小酱闯关</title>
+<link rel="stylesheet" href="game.css">
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="panel">
+  <div class="row head"><b>模拟直播间</b><span>按 H 隐藏</span></div>
+  <div class="row"><label><input type="checkbox" id="auto" checked> 自动模拟观众</label><button id="restart">重新开始</button></div>
+  <div class="team veg">
+    <div class="tname">泽小酱军团</div>
+    <button data-act="clown">弹幕「1」小丑兵</button>
+    <button data-act="web">蛛网侠</button>
+    <button data-act="venom">黑毒侠</button>
+    <button data-act="blue">蓝皮侠</button>
+    <button data-act="spear">红肚兜小将</button>
+    <button data-act="gourd">紫葫芦娃</button>
+    <button data-act="white">白毛大佬</button>
+    <button data-act="giant">胖光之巨人</button>
+  </div>
+  <div class="team fruit">
+    <div class="tname">鱼僵军阵营</div>
+    <button data-team="R" data-act="thug">弹幕「2」条纹小弟</button>
+    <button data-team="R" data-act="guard">抱胸亲卫</button>
+    <button data-team="R" data-act="whip">虾线攻击</button>
+    <button data-team="R" data-act="spray">辣椒水</button>
+    <button data-act="boss">测试：跳到鱼僵军</button>
+  </div>
+</div>
+<script src="/events.js"></script>
+<script src="chars.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

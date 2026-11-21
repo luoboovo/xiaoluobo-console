@@ -32,7 +32,7 @@ test('玩法总开关：默认全关，关着的玩法收不到直播间的礼�
   let app = await startServer({ dataDir: dir, seedDir: dir });
   try {
     const list = await (await fetch(app.url + '/api/features')).json();
-    assert.deepEqual(list.map(f => [f.id, f.name, f.enabled]), [['noodle', '弹幕面馆', false], ['feeding', '小萝卜吃吃吃', false], ['lottery', '抽奖工具', false], ['number_bomb', '数字炸弹', false], ['mower', '萝卜割草', false], ['overtime', '加班机', false], ['danmaku', '弹幕姬', false]]);
+    assert.deepEqual(list.map(f => [f.id, f.name, f.enabled]), [['noodle', '弹幕面馆', false], ['feeding', '小萝卜吃吃吃', false], ['lottery', '抽奖工具', false], ['number_bomb', '数字炸弹', false], ['mower', '萝卜割草', false], ['battle', '泽小酱闯关', false], ['overtime', '加班机', false], ['danmaku', '弹幕姬', false]]);
     let got = spy(app);
     app.services.addGift({ type: 'gift', giftId: 1, transactionId: 'a', count: 1, uid: 1, user: '观众' });
     app.services.addEvent('chat', '观众', '参加', { uid: 1 });

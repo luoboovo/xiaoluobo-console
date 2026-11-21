@@ -25,14 +25,14 @@ const { LiveMemory } = require('./lib/live-memory.cjs');
 const { roomId } = require('./lib/protocol.cjs');
 
 // Overlay pages subscribe to one channel; everything else is a console page.
-const CHANNELS = { bomb:new Set(['number-bomb']), mower:new Set(['mower']), lottery:new Set(['lottery']), feeding:new Set(['feeding','feeding-motion','feeding-physics']), overtime:new Set(['overtime','overtime-clock','overtime-media']), scene:new Set(['noodle','noodle-motion']), danmaku:new Set(['message','danmaku-history','danmaku']) };
+const CHANNELS = { bomb:new Set(['number-bomb']), mower:new Set(['mower']), battle:new Set(['battle']), lottery:new Set(['lottery']), feeding:new Set(['feeding','feeding-motion','feeding-physics']), overtime:new Set(['overtime','overtime-clock','overtime-media']), scene:new Set(['noodle','noodle-motion']), danmaku:new Set(['message','danmaku-history','danmaku']) };
 const MOTION = new Set(['noodle-motion','feeding-motion','feeding-physics']);
 // High-frequency frames bypass the 100ms state coalescing.
 const REALTIME = new Set([...MOTION,'overtime-clock','overtime-media']);
 const accepts = (client, type, data) => client.channel ? CHANNELS[client.channel].has(type)&&(type!=='lottery'||client.lotteryGame===data.game) : !(client.consoleOnly && MOTION.has(type));
 const BODY_LIMITS = { '/api/robot/blindbox/import':5*1024*1024, '/api/templates/import':MAX_PACKAGE_BYTES, '/api/diagnostics/client':32768, '/api/feeding/motion':300000 };
 const CLIENT_EVENTS = ['runtime_error','promise_error','page_stall','resource_error','operation_error'];
-const CLIENT_PAGES = ['/','/noodle/','/overtime/','/feeding/','/lottery/','/number-bomb/','/mower/','/danmaku/'];
+const CLIENT_PAGES = ['/','/noodle/','/overtime/','/feeding/','/lottery/','/number-bomb/','/mower/','/danmaku/','/battle/'];
 
 async function startServer(options = {}) {
   const diagnostics=options.diagnostics;
@@ -44,7 +44,7 @@ async function startServer(options = {}) {
   const common={dataDir:services.dataDir,seedDir:services.seedDir,templates,feedingLegacyFiles:options.feedingLegacyFiles||[]};
   games.bilibili=await createPlatformGames({...common,platform:'bilibili',catalog:services.biliGifts.length>=12?services.biliGifts:require('./data/gifts.json').list,legacyFiles:options.overtimeLegacyFiles||[]});
   games.douyin=await createPlatformGames({...common,platform:'douyin',catalog:services.dyGifts.length>=12?services.dyGifts:require('./data/douyin-gifts.json').list,source:games.bilibili.noodle});
-  let {noodle,overtime,feeding,lottery,numberBomb,mower,danmaku}=games[services.platform];
+  let {noodle,overtime,feeding,lottery,numberBomb,mower,battle,danmaku}=games[services.platform];
   // 弹幕姬的微信群名默认用直播间标题。
   const danmakuState=()=>({...danmaku.snapshot(),enabled:features.isOn('danmaku'),liveTitle:String(services.state.live?.title||'').slice(0,60)});
   // 机器人设置跨平台共用；DeepSeek Key 和登录凭证一起加密保存。
@@ -199,7 +199,7 @@ async function startServer(options = {}) {
     // Gifts, chat and avatar updates share one ordered batch. Queuing avatars and chat as separate steps
     // split a busy room's gifts into one batch (and one full save) per gift. Manual actions still close the batch.
     if (!giftBatch || giftBatch.tail !== actions || giftBatch.events.length >= 128) {
-      const batch = {events:[],gifts:0,noodle,overtime,feeding,numberBomb,mower,lotteries:Object.values(lottery)};
+      const batch = {events:[],gifts:0,noodle,overtime,feeding,numberBomb,mower,battle,lotteries:Object.values(lottery)};
       const receive = actions.then(async () => {
         const started=performance.now();
         diagnostics?.context({operation:'gift.batch',batchSize:batch.gifts,pendingGifts});
@@ -213,11 +213,13 @@ async function startServer(options = {}) {
           if(features.isOn('number_bomb'))await Promise.resolve().then(()=>batch.numberBomb.receiveChat({...event,face})).catch(error=>services.addEvent('system','',`数字炸弹：${error.message}`));
           if(features.isOn('lottery'))await Promise.resolve().then(async()=>{for(const target of batch.lotteries)await target.receiveChat({...event,face});}).catch(error=>services.addEvent('system','',`抽奖：${error.message}`));
           if(features.isOn('mower'))await Promise.resolve().then(()=>batch.mower.receiveChat({...event,face})).catch(error=>services.addEvent('system','',`萝卜割草：${error.message}`));
+          if(features.isOn('battle'))await Promise.resolve().then(()=>batch.battle.receiveChat(event)).catch(error=>services.addEvent('system','',`泽小酱闯关：${error.message}`));
         }
         const events = batch.events.filter(item=>item.event.type==='gift').map(({event:gift}) => ({...gift,face:batch.noodle.faces.get(gift.uid) || gift.face}));
         const overtimeError = error => services.addEvent('system', '', `加班机：${error.message}`);
         if(events.length&&features.isOn('overtime'))await batch.overtime.receiveBatch(events,overtimeError).catch(overtimeError);
         if(events.length&&features.isOn('mower'))await batch.mower.receiveBatch(events).catch(error=>services.addEvent('system','',`萝卜割草：${error.message}`));
+        if(events.length&&features.isOn('battle'))await batch.battle.receiveBatch(events).catch(error=>services.addEvent('system','',`泽小酱闯关：${error.message}`));
         // Feeding counts both gifts and chat, so only a chat that changes feeding splits its gift run.
         const feedingError=error=>services.addEvent('system','',`吃吃吃：${error.message}`);
         let run=[],index=0;
@@ -256,6 +258,7 @@ async function startServer(options = {}) {
     game.feeding.on('state',current(state=>broadcast('feeding',state)));
     game.numberBomb.on('state',current(state=>broadcast('number-bomb',state)));
     game.mower.on('state',current(state=>broadcast('mower',state)));
+    game.battle.on('state',current(state=>broadcast('battle',state)));
     game.danmaku.on('state',current(()=>broadcast('danmaku',danmakuState())));
     game.danmaku.on('error-message',current(message=>services.addEvent('system','',`弹幕姬：${message}`)));
     for(const target of Object.values(game.lottery))target.on('state',current(state=>broadcast('lottery',state)));
@@ -277,6 +280,7 @@ async function startServer(options = {}) {
       return;
     }
     // 弹幕姬：刚打开时补上最近 30 条，免得画面空着。
+    if(client.channel==='battle')return send(client,'battle',battle.snapshot());
     if(client.channel==='danmaku'){send(client,'danmaku',danmakuState());return send(client,'danmaku-history',services.events.slice(0,100));}
     if(client.channel==='feeding')return send(client,'feeding',feeding.snapshot());
     if(client.channel==='lottery'){
@@ -288,7 +292,7 @@ async function startServer(options = {}) {
     const scene=client.channel==='scene';
     if(!scene)send(client,'state',services.state);
     sendNoodle(client,noodleFrames(noodle.snapshot()));
-    if(!scene){send(client,'features',features.snapshot());send(client,'overtime',overtime.snapshot());send(client,'feeding',feeding.snapshot());send(client,'number-bomb',numberBomb.snapshot());send(client,'mower',mower.snapshot());send(client,'danmaku',danmakuState());for(const target of Object.values(lottery))send(client,'lottery',target.snapshot());send(client,'robot',{...robot.snapshot(),room:'main'});for(const entry of robotRooms.extra.values())send(client,'robot',{...entry.robot.snapshot(),room:entry.id});send(client,'robot-rooms',robotRooms.list());send(client,'update',updateState());}
+    if(!scene){send(client,'features',features.snapshot());send(client,'overtime',overtime.snapshot());send(client,'feeding',feeding.snapshot());send(client,'number-bomb',numberBomb.snapshot());send(client,'mower',mower.snapshot());send(client,'battle',battle.snapshot());send(client,'danmaku',danmakuState());for(const target of Object.values(lottery))send(client,'lottery',target.snapshot());send(client,'robot',{...robot.snapshot(),room:'main'});for(const entry of robotRooms.extra.values())send(client,'robot',{...entry.robot.snapshot(),room:entry.id});send(client,'robot-rooms',robotRooms.list());send(client,'update',updateState());}
     if(!client.consoleOnly)send(client,'noodle-motion',noodle.motionSnapshot());
   };
   const download=(res,filename,data)=>{res.setHeader('Content-Disposition',`attachment; filename=${filename}`);return data;};
@@ -317,13 +321,15 @@ async function startServer(options = {}) {
         for(const target of Object.values(lottery))await target.deactivate();
         await numberBomb.deactivate();
         await mower.deactivate();
+        await battle.deactivate();
         await services.selectPlatform(input.platform);
-        ({noodle,overtime,feeding,lottery,numberBomb,mower,danmaku}=games[input.platform]);
+        ({noodle,overtime,feeding,lottery,numberBomb,mower,battle,danmaku}=games[input.platform]);
         pendingStates.clear();pendingMessages.length=0;avatars.clear();peopleSent=null;
         broadcast('state',services.state);broadcast('noodle',noodle.snapshot());broadcast('overtime',overtime.snapshot());broadcast('overtime-media',null);
         broadcast('feeding',feeding.snapshot());
         broadcast('number-bomb',numberBomb.snapshot());
         broadcast('mower',mower.snapshot());
+        broadcast('battle',battle.snapshot());
         broadcast('danmaku',danmakuState());
         for(const target of Object.values(lottery))broadcast('lottery',target.snapshot());
         robot.reset();
@@ -350,7 +356,8 @@ async function startServer(options = {}) {
     '/api/number-bomb/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>numberBomb.action(input)))}),
     '/api/danmaku/action': async (input,scoped) => {const state=await enqueue(scoped(()=>danmaku.action(input)));schedulePrune();return {ok:true,state:{...state,enabled:features.isOn('danmaku')}};},
     '/api/mower/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>mower.action(input)))}),
-    '/api/panels/generate': async (input,scoped) => ({ok:true,panel:await enqueue(scoped(()=>generatePanel(input.game,{noodle,overtime,feeding,mower})))}),
+    '/api/battle/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>battle.action(input)))}),
+    '/api/panels/generate': async (input,scoped) => ({ok:true,panel:await enqueue(scoped(()=>generatePanel(input.game,{noodle,overtime,feeding,mower,battle})))}),
     '/api/overtime/action': async (input,scoped) => {const state=await enqueue(scoped(()=>overtime.action(input)));schedulePrune();return {ok:true,state};},
     '/api/noodle/motion': input => ({ok:true,accepted:noodle.motion(input)}),
     '/api/noodle/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>noodle.action(input)))}),
@@ -389,6 +396,7 @@ async function startServer(options = {}) {
     '/api/feeding/state': () => feeding.snapshot(),
     '/api/number-bomb/state': () => numberBomb.snapshot(),
     '/api/mower/state': () => mower.snapshot(),
+    '/api/battle/state': () => battle.snapshot(),
     '/api/danmaku/state': () => danmakuState(),
     '/api/robot/state': (_res,url) => {const room=url.searchParams.get('room')||'main';return {...robotRooms.robotFor(room).snapshot(),room};},
     '/api/robot/blindbox/export': (res,url) => {
@@ -602,14 +610,14 @@ async function startServer(options = {}) {
     closed=true;clearTimeout(autoSyncTimer);
     for (const timer of [mowerWatchdog, lotteryTimer, physicsTimer, keepAlive, sealTimer, cleanupTimer, overtimeTimer, checkpointTimer]) clearInterval(timer);
     clearTimeout(pruneTimer); liveMemory.close(); services.close(); await robot.close(); await robotRooms.close(); await actions; await pruning;
-    for(const game of Object.values(games)){game.overtime.close();await game.overtime.checkpoint();await game.feeding.close();await game.numberBomb.close();await game.mower.close();for(const target of Object.values(game.lottery))await target.close();}
+    for(const game of Object.values(games)){game.overtime.close();await game.overtime.checkpoint();await game.feeding.close();await game.numberBomb.close();await game.mower.close();await game.battle.close();for(const target of Object.values(game.lottery))await target.close();}
     await services.flush();
     mediaListeners.clear();clearTimeout(broadcastTimer);clearTimeout(peopleTimer); pendingStates.clear(); pendingMessages.length = 0; avatars.clear();
     for (const client of clients) client.end();
     const stopped = new Promise(resolve => server.close(resolve)); server.closeAllConnections(); await stopped;
     await images.close();
   };
-  return { url: origin, services, get noodle(){return noodle;},get overtime(){return overtime;},get feeding(){return feeding;},get lottery(){return lottery;},get numberBomb(){return numberBomb;},get mower(){return mower;},robot,robotRooms,aiKeyPages:new Set(Object.values(AI_PROVIDERS).map(p=>p.keyUrl).filter(url=>url.startsWith('https://'))),onOvertimeMedia(listener){mediaListeners.add(listener);}, close };
+  return { url: origin, services, get noodle(){return noodle;},get overtime(){return overtime;},get feeding(){return feeding;},get lottery(){return lottery;},get numberBomb(){return numberBomb;},get mower(){return mower;},get battle(){return battle;},robot,robotRooms,aiKeyPages:new Set(Object.values(AI_PROVIDERS).map(p=>p.keyUrl).filter(url=>url.startsWith('https://'))),onOvertimeMedia(listener){mediaListeners.add(listener);}, close };
 }
 
 if (require.main === module) {

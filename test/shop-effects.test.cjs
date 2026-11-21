@@ -282,7 +282,7 @@ test('重复满屏投掷不重写存档，重复头像消息不刷新，过期�
 test('场景只收游戏推送，控制台不收运动，原订阅保留兼容',async t=>{
   const {dir}=await fixture(t),app=await startServer({featuresOn:true, dataDir:dir,seedDir:dir});
   t.after(()=>app.close());
-  for(const [query,expected] of [['?scene=1',['noodle','noodle-motion']],['?console=1',['state','noodle','features','overtime','feeding','number-bomb','mower','danmaku','lottery','lottery','lottery','robot','robot-rooms','update']],['?overtime=1',['overtime']],['?feeding=1',['feeding']],['?bomb=1',['number-bomb']],['?mower=1',['mower']],['?lottery=1',['lottery']],['?lottery=1&game=duel',['lottery']],['?lottery=1&game=scratch',['lottery']],['',['state','noodle','features','overtime','feeding','number-bomb','mower','danmaku','lottery','lottery','lottery','robot','robot-rooms','update','noodle-motion']]]) {
+  for(const [query,expected] of [['?scene=1',['noodle','noodle-motion']],['?console=1',['state','noodle','features','overtime','feeding','number-bomb','mower','battle','danmaku','lottery','lottery','lottery','robot','robot-rooms','update']],['?overtime=1',['overtime']],['?feeding=1',['feeding']],['?bomb=1',['number-bomb']],['?mower=1',['mower']],['?battle=1',['battle']],['?lottery=1',['lottery']],['?lottery=1&game=duel',['lottery']],['?lottery=1&game=scratch',['lottery']],['',['state','noodle','features','overtime','feeding','number-bomb','mower','battle','danmaku','lottery','lottery','lottery','robot','robot-rooms','update','noodle-motion']]]) {
     const stop=new AbortController(),timer=setTimeout(()=>stop.abort(),3000);
     const response=await fetch(app.url+'/api/events'+query,{signal:stop.signal}),reader=response.body.getReader();
     try {

@@ -84,7 +84,7 @@ document.fonts.ready.then(layoutNavigation);
 document.addEventListener('click',event=>{if(!navMore.contains(event.target))navMore.open=false;});
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&navMore.open){navMore.open=false;navMore.querySelector('summary').focus();event.preventDefault();}});
 function syncPreviewFrames(view) {
-  for(const [id,target] of [['noodle-frame','noodle'],['feeding-frame','feeding'],['overtime-frame','overtime'],['overtime-media-frame','overtime'],['bomb-frame','number-bomb'],['mower-frame','mower'],['lottery-frame','lottery'],['danmaku-frame','danmaku']]) {
+  for(const [id,target] of [['noodle-frame','noodle'],['feeding-frame','feeding'],['overtime-frame','overtime'],['overtime-media-frame','overtime'],['bomb-frame','number-bomb'],['mower-frame','mower'],['battle-frame','battle'],['lottery-frame','lottery'],['danmaku-frame','danmaku']]) {
     const frame=$('#'+id);
     if(view===target){if(frame.getAttribute('src')!==frame.dataset.src)frame.src=frame.dataset.src;}
     else if(frame.hasAttribute('src'))frame.removeAttribute('src');
@@ -101,6 +101,7 @@ export function switchView(view) {
   $('#lottery-view').hidden = view !== 'lottery';
   $('#bomb-view').hidden = view !== 'number-bomb';
   $('#mower-view').hidden = view !== 'mower';
+  $('#battle-view').hidden = view !== 'battle';
   $('#robot-view').hidden = view !== 'robot';
   $('#danmaku-view').hidden = view !== 'danmaku';
   syncPreviewFrames(view);
@@ -241,7 +242,7 @@ document.addEventListener('error', event => {
 }, true);
 try { document.body.classList.toggle('dark', localStorage.getItem('theme') === 'dark'); } catch {}
 $('#theme-button').addEventListener('click', () => { const dark = document.body.classList.toggle('dark'); try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch {} });
-if (['noodle', 'presets', 'gifts', 'overtime', 'gift-rules','feeding','lottery','number-bomb','mower','robot','danmaku'].includes(location.hash.slice(1))) switchView(location.hash.slice(1));
+if (['noodle', 'presets', 'gifts', 'overtime', 'gift-rules','feeding','lottery','number-bomb','mower','battle','robot','danmaku'].includes(location.hash.slice(1))) switchView(location.hash.slice(1));
 else syncPreviewFrames('console');
 (async () => {
   try {
@@ -255,6 +256,7 @@ else syncPreviewFrames('console');
     source.addEventListener('number-bomb', event => window.dispatchEvent(new CustomEvent('number-bomb-state', {detail:JSON.parse(event.data)})));
     source.addEventListener('update', event => window.dispatchEvent(new CustomEvent('update-state', {detail:JSON.parse(event.data)})));
     source.addEventListener('mower', event => window.dispatchEvent(new CustomEvent('mower-state', {detail:JSON.parse(event.data)})));
+    source.addEventListener('battle', event => window.dispatchEvent(new CustomEvent('battle-state', {detail:JSON.parse(event.data)})));
     source.addEventListener('danmaku', event => window.dispatchEvent(new CustomEvent('danmaku-state', {detail:JSON.parse(event.data)})));
     source.addEventListener('robot', event => window.dispatchEvent(new CustomEvent('robot-state', {detail:JSON.parse(event.data)})));
     source.addEventListener('features', event => renderFeatureBars(JSON.parse(event.data)));
@@ -267,7 +269,7 @@ else syncPreviewFrames('console');
 })();
 
 // —— 玩法总开关：每个玩法页面最上面一个，默认关着；关着时这个玩法不接直播间的礼物和弹幕 ——
-const FEATURE_VIEWS = { noodle: 'noodle-view', feeding: 'feeding-view', lottery: 'lottery-view', number_bomb: 'bomb-view', mower: 'mower-view', overtime: 'overtime-view', danmaku: 'danmaku-view' };
+const FEATURE_VIEWS = { noodle: 'noodle-view', feeding: 'feeding-view', lottery: 'lottery-view', number_bomb: 'bomb-view', mower: 'mower-view', battle: 'battle-view', overtime: 'overtime-view', danmaku: 'danmaku-view' };
 const featureBusy = new Set();
 function featureBar(id) {
   let bar = document.querySelector(`[data-feature-bar="${id}"]`);
