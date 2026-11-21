@@ -5,7 +5,7 @@ import {switchView,state as consoleState} from './app.js';
 const settings=$('#battle-settings'),rulesForm=$('#battle-rules-form'),ruleList=$('#battle-rules');
 const TEXTS=['chat_left_keyword','chat_right_keyword','chat_match_mode'],NUMBERS=['user_cooldown_seconds'];
 const SKILLS=new Set(['giant','whip','spray']);
-let game,pending=false,settingsDirty=false,rulesDirty=false,settingsStamp='',rulesStamp='',historyStamp='',picking=null;
+let effectsStamp='',game,pending=false,settingsDirty=false,rulesDirty=false,settingsStamp='',rulesStamp='',historyStamp='',picking=null;
 const note=document.createElement('div');note.className='feeding-pick-note';note.hidden=true;note.innerHTML='正在为泽小酱闯关选择礼物。<button class="text-button" data-view="battle">返回泽小酱闯关</button>';$('#gifts-view').prepend(note);
 
 function liveNote(){$('#battle-live-note').textContent=settingsDirty?'设置未保存':consoleState?.live?.status==='connected'?'':'请先连接直播间，并打开上面的总开关';}
@@ -16,14 +16,21 @@ function render(next){
   $('#battle-start').textContent=s.mode==='paused'?'继续游戏':'开始游戏';$('#battle-start').hidden=s.mode==='running';$('#battle-start').disabled=pending;
   $('#battle-pause').hidden=s.mode!=='running';$('#battle-pause').disabled=pending;$('#battle-reset').disabled=pending;
   const ss=JSON.stringify(c);
-  if(!settingsDirty&&settingsStamp!==ss){settingsStamp=ss;for(const key of [...TEXTS,...NUMBERS])settings.elements[key].value=c[key];}
+  if(!settingsDirty&&settingsStamp!==ss){settingsStamp=ss;for(const key of [...TEXTS,...NUMBERS])settings.elements[key].value=c[key];renderNames(c.names,s.nameDefaults);}
   const rs=JSON.stringify(c.gift_rules);
-  if(!rulesDirty&&rulesStamp!==rs){rulesStamp=rs;ruleList.replaceChildren();for(const rule of c.gift_rules)addRule(rule);}
+  // 名字改了，礼物规则下拉框里的文字也要跟着换
+  const es=JSON.stringify(s.effects);
+  if(!rulesDirty&&(rulesStamp!==rs||effectsStamp!==es)){rulesStamp=rs;effectsStamp=es;ruleList.replaceChildren();for(const rule of c.gift_rules)addRule(rule);}
   $('#battle-rule-count').textContent=ruleList.children.length;
   $('#battle-wins').textContent=s.stats.wins;$('#battle-losses').textContent=s.stats.losses;
   const hs=JSON.stringify(s.history);
   if(hs!==historyStamp){historyStamp=hs;$('#battle-history').innerHTML=s.history.length?s.history.map(h=>`<li><div><strong>${h.result==='win'?'泽小酱通关':'鱼僵军守住了'}</strong><span>${h.mvp.length?'MVP：'+h.mvp.map(v=>`${escapeHtml(v.name)}（${v.dmg}）`).join('、'):'没有 MVP'} · ${new Date(h.time).toLocaleTimeString()}</span></div></li>`).join(''):'<li class="lottery-empty">还没有战绩</li>';}
   liveNote();
+}
+// 兵种名字：左边泽小酱阵营 8 个，右边鱼僵军阵营 2 个兵 + 2 个技能
+const NAME_GROUPS=[['泽小酱军团',['clown','web','venom','blue','spear','gourd','white','giant']],['鱼僵军阵营',['thug','guard','whip','spray']]];
+function renderNames(names,defaults={}){
+  $('#battle-names').innerHTML=NAME_GROUPS.map(([title,keys])=>`<p class="battle-names-group">${title}</p><div class="battle-names-grid">${keys.map(key=>`<label>${escapeHtml(defaults[key]||key)}<input name="name_${key}" maxlength="8" value="${escapeHtml(names?.[key]||'')}" placeholder="${escapeHtml(defaults[key]||'')}" autocomplete="off"></label>`).join('')}</div>`).join('');
 }
 function binding(row){const gift=giftById.get(Number(row.dataset.giftId)),button=row.querySelector('.mower-gift');button.innerHTML=(gift?.icon?`<img loading="lazy" src="${image(gift)}" alt="">`:'')+`<span class="gift-binding-name">${escapeHtml(row.dataset.giftName||'选择礼物')}</span>`;}
 function addRule(rule={gift_id:0,gift_name:'',effect:'web',value:1}){
@@ -47,6 +54,7 @@ settings.addEventListener('submit',run(async()=>{
   const config={};
   for(const key of TEXTS)config[key]=settings.elements[key].value;
   for(const key of NUMBERS)config[key]=Number(settings.elements[key].value);
+  config.names=Object.fromEntries([...settings.querySelectorAll('[name^="name_"]')].map(input=>[input.name.slice(5),input.value.trim()]));
   await action({action:'configure',config});settingsDirty=false;settingsStamp='';render();toast('闯关设置已保存');
 }));
 rulesForm.addEventListener('input',event=>{if(!event.target.closest('.mower-test'))rulesDirty=true;});

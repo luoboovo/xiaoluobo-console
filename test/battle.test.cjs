@@ -23,6 +23,18 @@ test('设置校验：默认口令、范围和礼物规则',()=>{
   assert.equal(normalizeConfig({gift_rules:[{...WEB,effect:'spray',value:9}]}).gift_rules[0].value,1,'技能不需要数量');
 });
 
+test('兵种名字可以改：没填用默认，最多8个字，礼物作用和面板跟着换',async t=>{
+  assert.equal(normalizeConfig().names.web,'蛛网侠');
+  const c=normalizeConfig({names:{web:'小飞侠',spray:''}});
+  assert.equal(c.names.web,'小飞侠');assert.equal(c.names.spray,'辣椒水','留空恢复默认');
+  for(const names of [{web:'一二三四五六七八九'},{web:3},[],'x'])assert.throws(()=>normalizeConfig({names}),JSON.stringify(names));
+  const {game}=await fixture(t);
+  await game.action({action:'configure',config:{names:{web:'小飞侠',whip:'甩面条'},gift_rules:[WEB,{gift_id:0,gift_name:'冲浪',effect:'whip',value:1}]}});
+  const s=game.snapshot();
+  assert.equal(s.effects.web,'召唤小飞侠');assert.equal(s.effects.whip,'鱼僵军：甩面条');
+  assert.deepEqual(panelFor('battle',{battle:game}).entries.map(e=>e.text),['帮泽小酱 · 召唤小飞侠 ×2','帮鱼僵军 · 甩面条']);
+});
+
 test('新存档按礼物库挑默认礼物，缺的直接跳过',()=>{
   const rules=defaultRules('bilibili',[{id:1,name:'小花花',price:100},{id:2,name:'冲浪',price:100}]);
   assert.deepEqual(rules.map(r=>[r.gift_id,r.effect]),[[1,'web'],[2,'spray']]);

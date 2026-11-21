@@ -39,7 +39,9 @@ const TYPES = {
 };
 const GIFTS = [['小礼物', ['web', 'venom']], ['中礼物', ['blue', 'spear']], ['大礼物', ['gourd', 'white']], ['超级礼物', ['giant']]];
 // 右边（鱼僵军阵营）观众送礼：小礼物召唤亲卫，中礼物放虾线，大礼物放辣椒水
-const GIFTS_R = [['小礼物', 'guard', '抱胸亲卫'], ['中礼物', 'whip', '虾线攻击'], ['大礼物', 'spray', '辣椒水']];
+const GIFTS_R = [['小礼物', 'guard'], ['中礼物', 'whip'], ['大礼物', 'spray']];
+// 兵种和技能的名字，控制台「兵种名字」里可以改（画面、播报、礼物说明都用这里）
+const UNIT_NAMES = { clown: '小丑兵', web: '蛛网侠', venom: '黑毒侠', blue: '蓝皮侠', spear: '红肚兜小将', gourd: '紫葫芦娃', white: '白毛大佬', giant: '胖光之巨人', thug: '条纹小弟', guard: '抱胸亲卫', whip: '虾线攻击', spray: '辣椒水' };
 const WAVES = [
   { title: '第 1 波', list: [['thug', 8, 1.5]] },
   { title: '第 2 波', list: [['thug', 10, 1.2], ['guard', 2, 7]] },
@@ -154,7 +156,7 @@ function spawnR(type) {
 function castGiant(name) {
   viewer(name, 'L');
   S.giants.push({ owner: name, t: 0, x: 380, y: 960, hit: false });
-  feed(`${name} 召唤了「胖光之巨人」！`, 'L');
+  feed(`${name} 召唤了「${UNIT_NAMES.giant}」！`, 'L');
 }
 
 // ---------- 特效 ----------
@@ -194,13 +196,13 @@ function enemiesOf(u) { return S.units.filter(e => !e.dead && !e.flee && e.team 
 function castWhip(u, owner) {
   S.whips.push({ u, x: u.x, y: u.y - 120, dir: u.dir, len: 760, t: 0, hit: false, src: { owner, team: 'R' } });
   if (!u.virtual) { bubble(u, '吃我虾线！', 1.6); u.atk = 0; u.hitDone = true; }
-  feed(owner ? `${owner} 送出礼物，鱼僵军使出「虾线攻击」！` : '鱼僵军 使出「虾线攻击」！', 'R');
+  feed(owner ? `${owner} 送出礼物，鱼僵军使出「${UNIT_NAMES.whip}」！` : `鱼僵军 使出「${UNIT_NAMES.whip}」！`, 'R');
 }
 // 鱼僵军技能二：辣椒水攻击——前方扇形喷射，小丑兵全部吓跑
 function castSpray(u, owner) {
   S.sprays.push({ u, x: u.x + u.dir * 40, y: u.y - 130, dir: u.dir, t: 0, hit: false, src: { owner, team: 'R' } });
   if (!u.virtual) { bubble(u, '辣椒水伺候！', 1.8); u.atk = 0; u.hitDone = true; }
-  feed(owner ? `${owner} 送出礼物，鱼僵军喷出「辣椒水」！小丑兵全跑了！` : '鱼僵军 喷出「辣椒水」！小丑兵全跑了！', 'R');
+  feed(owner ? `${owner} 送出礼物，鱼僵军喷出「${UNIT_NAMES.spray}」！${UNIT_NAMES.clown}全跑了！` : `鱼僵军 喷出「${UNIT_NAMES.spray}」！${UNIT_NAMES.clown}全跑了！`, 'R');
 }
 function updateWhip(w, dt) {
   w.t += dt;
@@ -719,9 +721,10 @@ function drawLegend() {
     rr(cx - 108, 270, 216, 118, 18, 'rgba(70,140,230,0.35)');
     text(gift, cx, 292, 22, '#ffe07a', 'center', '#333', 5);
     types.forEach((t, j) => spr(t + '_idle', cx + (types.length === 1 ? 0 : (j ? 50 : -50)), 392, { scale: 0.3, sx: 1.2, sy: 1.2 }));
-    text(types.map(t => t === 'giant' ? '胖光之巨人' : TYPES[t].name).join(' / '), cx, 320, 17, '#fff', 'center', '#333', 4);
+    text(types.map(t => UNIT_NAMES[t]).join(' / '), cx, 320, 17, '#fff', 'center', '#333', 4);
   });
-  GIFTS_R.forEach(([gift, kind, label], i) => {
+  GIFTS_R.forEach(([gift, kind], i) => {
+    const label = UNIT_NAMES[kind];
     const cx = x0 + (i + 4) * step;
     rr(cx - 108, 270, 216, 118, 18, 'rgba(230,60,60,0.35)');
     text(gift, cx, 292, 22, '#ffe07a', 'center', '#333', 5);
@@ -863,6 +866,17 @@ function applyCue(c) {
   }
   for (let i = 0; i < n; i++) c.kind === 'guard' ? spawnViewerR('guard', name) : spawnL(c.kind, name);
 }
+function applyNames(names) {
+  if (!names || typeof names !== 'object') return;
+  let changed = false;
+  for (const key of Object.keys(UNIT_NAMES)) {
+    const v = typeof names[key] === 'string' && names[key].trim() ? names[key].trim().slice(0, 8) : null;
+    if (v && v !== UNIT_NAMES[key]) { UNIT_NAMES[key] = v; changed = true; }
+  }
+  if (!changed) return;
+  for (const key of Object.keys(TYPES)) if (UNIT_NAMES[key]) TYPES[key].name = UNIT_NAMES[key];
+  legendCache = null; // 礼物说明栏重画
+}
 function receive(next) {
   const restarted = lastSeq !== null && next.seq < lastSeq;
   if (srv.round !== next.round || restarted) {
@@ -873,6 +887,7 @@ function receive(next) {
     srv.round = next.round;
   }
   srv.mode = next.mode; srv.platform = next.platform || srv.platform;
+  applyNames(next.config && next.config.names);
   if (lastSeq === null) lastSeq = next.seq;
   for (const c of next.cues) {
     if (c.seq <= lastSeq || c.round !== next.round) continue;
