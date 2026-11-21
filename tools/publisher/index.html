@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:">
+  <title>小萝卜发版助手</title>
+  <link rel="stylesheet" href="app.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="logo" aria-hidden="true">🥕</span><div><h1>小萝卜发版助手</h1><p>选好要发的版本，点一下，所有控制台都会弹出更新提示</p></div></div>
+    <div class="online"><span>线上版本</span><strong id="online-version">读取中…</strong><small id="online-date"></small><button id="online-refresh" class="link" type="button">刷新</button></div>
+  </header>
+
+  <main>
+    <section class="card" id="key-card">
+      <div class="card-title"><span class="step">1</span><h2>上传密钥</h2><span id="key-status" class="pill">未设置</span></div>
+      <div id="key-saved" hidden><p class="muted">已保存：<b id="key-id"></b>（用 Windows 系统加密存在这台电脑上）</p><button id="key-change" class="link" type="button">更换密钥</button></div>
+      <form id="key-form" autocomplete="off">
+        <p class="muted">只要填一次。用腾讯云里「xiaoluobo-uploader」子账号的密钥，它只能往更新存储桶里传文件。</p>
+        <div class="row"><label>SecretId<input name="secretId" placeholder="AKID 开头" spellcheck="false"></label><label>SecretKey<input name="secretKey" type="password" spellcheck="false"></label></div>
+        <button class="button" type="submit">验证并保存</button>
+      </form>
+    </section>
+
+    <section class="card" id="folder-card">
+      <div class="card-title"><span class="step">2</span><h2>要发布的版本</h2></div>
+      <div id="drop" class="drop"><p>把「腾讯云上传-vX.Y.Z」文件夹拖到这里，或者</p><button id="choose" class="button ghost" type="button">选择文件夹</button><div id="recent" class="recent"></div></div>
+      <div id="release" class="release" hidden>
+        <div class="release-head"><div><span class="muted">准备发布</span><strong id="release-version"></strong></div><button id="release-change" class="link" type="button">换一个</button></div>
+        <p id="release-path" class="path"></p>
+        <ul id="release-files" class="files"></ul>
+        <details><summary>更新说明（控制台弹窗里显示的内容）</summary><pre id="release-notes"></pre></details>
+        <p id="release-check" class="check"></p>
+      </div>
+    </section>
+
+    <section class="card publish">
+      <button id="publish" class="button big" type="button" disabled>一键发布</button>
+      <p id="publish-hint" class="muted center">先保存上传密钥，再选要发布的版本</p>
+      <ol id="steps" class="steps" hidden>
+        <li data-kind="setup"><span class="name">完整安装包</span><div class="bar"><i></i></div><span class="status">等待</span></li>
+        <li data-kind="update"><span class="name">更新包</span><div class="bar"><i></i></div><span class="status">等待</span></li>
+        <li data-kind="manifest"><span class="name">更新清单</span><div class="bar"><i></i></div><span class="status">等待</span></li>
+        <li data-kind="verify"><span class="name">回读核对</span><div class="bar"><i></i></div><span class="status">等待</span></li>
+      </ol>
+      <div id="result" class="result" hidden></div>
+    </section>
+  </main>
+
+  <dialog id="confirm"><h2 id="confirm-title">发布 v?</h2><p id="confirm-text"></p><div class="actions"><button id="confirm-no" class="button ghost" type="button">再想想</button><button id="confirm-yes" class="button" type="button">确定发布</button></div></dialog>
+  <div id="toast" class="toast" hidden></div>
+</body>
+</html>

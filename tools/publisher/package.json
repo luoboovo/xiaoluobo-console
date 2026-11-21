@@ -1,0 +1,7 @@
+{
+  "name": "xiaoluobo-publisher",
+  "productName": "小萝卜发版助手",
+  "version": "1.0.0",
+  "private": true,
+  "main": "main.cjs"
+}

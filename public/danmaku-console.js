@@ -163,14 +163,14 @@ $('#danmaku-copy').addEventListener('click', async () => {
 const DEMO = [
   { type: 'member', user: '路过的小鱼', text: '进入了直播间' },
   { type: 'chat', user: '路过的小鱼', text: '主播晚上好～' },
-  { type: 'chat', user: '萝卜粉丝', text: '今天也来打卡啦', medalLevel: 12, medalName: '小萝卜' },
-  { type: 'chat', user: '星星守护者', text: '冲冲冲！', fansLevel: 8, fansClub: '萝卜团', platform: 'douyin' },
+  { type: 'chat', user: '萝卜粉丝', text: '今天也来打卡啦', medalLevel: 12, medalName: '小萝卜', wealthLevel: 8 },
+  { type: 'chat', user: '星星守护者', text: '冲冲冲！', fansLevel: 8, fansClub: '萝卜团', wealthLevel: 23, platform: 'douyin' },
   { type: 'gift', user: '萝卜粉丝', giftName: '小花花', count: 5, giftUnit: 100, giftCoin: 'gold', medalLevel: 12, medalName: '小萝卜' },
-  { type: 'chat', user: '舰长大人', text: '这把稳了', guard: 3 },
-  { type: 'chat', user: '提督阁下', text: '@舰长大人 你说得对', guard: 2, mention: { name: '舰长大人' } },
+  { type: 'chat', user: '舰长大人', text: '这把稳了', guard: 3, medalLevel: 21, medalName: '小萝卜', wealthLevel: 31, vip: 1 },
+  { type: 'chat', user: '提督阁下', text: '@舰长大人 你说得对', guard: 2, medalLevel: 26, medalName: '小萝卜', wealthLevel: 42, mention: { name: '舰长大人' } },
   { type: 'social', user: '新来的朋友', text: '关注了主播' },
   { type: 'gift', user: '提督阁下', giftName: '告白气球', count: 1, giftUnit: 52000, giftCoin: 'gold', guard: 2 },
-  { type: 'chat', user: '总督殿下', text: '全场的礼物我包了', guard: 1, admin: true },
+  { type: 'chat', user: '总督殿下', text: '全场的礼物我包了', guard: 1, admin: true, medalLevel: 32, medalName: '小萝卜', wealthLevel: 55, vip: 2 },
   { type: 'chat', user: '老板', text: '主播唱首歌吧！', superChat: true, price: 30 },
   { type: 'gift', user: '总督殿下', giftName: '舰长', guardName: '舰长', count: 1, guardPrice: 198000, guard: 1 }
 ];

@@ -21,7 +21,24 @@ function render(next){
   banner.innerHTML=`<div class="update-main"><strong>${u.status==='error'?'更新没成功：'+escapeHtml(u.error):`发现新版本 v${escapeHtml(latest.version)}`}</strong><span>当前 v${escapeHtml(u.current)} · ${what}${latest.kind==='setup'?'（版本差得比较多，这次要装完整版）':''}</span></div>
     <details class="update-notes"><summary>更新内容</summary><div>${notes(latest.notes)||'（没有写更新说明）'}</div></details>
     <div class="update-actions"><button class="text-button" id="update-later" type="button">稍后</button><button class="button dark-button" id="update-install" type="button">${u.status==='error'?'重试':'立即更新'}</button></div>`;
+  popup(u);
 }
+// 打开控制台时发现新版本：直接弹窗（每次打开控制台、每个新版本弹一次；点「稍后」这次就不再弹，顶部横幅还在）。
+const popupDialog=$('#update-popup');
+function popup(u){
+  const latest=u.latest;
+  if(u.status!=='available'||!latest||popupDialog.open||dialog.open)return;
+  let shown='';try{shown=sessionStorage.getItem('update-popup')||'';}catch{}
+  if(shown===latest.version)return;
+  try{sessionStorage.setItem('update-popup',latest.version);}catch{}
+  const what=latest.kind==='update'?`更新包 ${size(latest.size)}`:`完整安装包 ${size(latest.size)}（版本差得比较多，这次要装完整版）`;
+  $('#update-popup-title').textContent=`发现新版本 v${latest.version}`;
+  $('#update-popup-sub').textContent=`当前 v${u.current} · ${what}`;
+  $('#update-popup-notes').innerHTML=notes(latest.notes)||'（没有写更新说明）';
+  popupDialog.showModal();
+}
+$('#update-popup-later').onclick=()=>popupDialog.close();
+$('#update-popup-install').onclick=async()=>{popupDialog.close();try{await action('install');}catch(error){toast(error.message,true);}};
 async function action(name){
   pending=true;render();
   try{const result=await api('/api/update/action',{action:name});render(result.state);return result.state;}

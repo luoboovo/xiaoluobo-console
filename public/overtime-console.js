@@ -10,13 +10,13 @@ async function action(input) {
 function addRule(rule = { gift_name:'', gift_id:0, operation:'add', value:1 }) {
   const row = document.createElement('div'); row.className = 'overtime-rule'; row.dataset.giftId = rule.gift_id || 0; row.dataset.giftName = rule.gift_name;
   row.media = rule.media ? {...rule.media} : null;
-  row.innerHTML = `<button type="button" class="rule-gift gift-binding" aria-label="从礼物库选择礼物"></button><select class="rule-operation" aria-label="礼物作用">${Object.entries(operations).map(([value,label]) => `<option value="${value}"${rule.operation === value ? ' selected' : ''}>${label}</option>`).join('')}</select><span class="rule-values"><input class="rule-value" type="number" min="1" max="1000000000000" required aria-label="分钟数或倍率" value="${rule.value}"><i class="rule-range-sep">～</i><input class="rule-value-max" type="number" min="1" max="1000000000000" aria-label="随机最多分钟数" value="${rule.value_max ?? Math.max(rule.value, 10)}"></span><button type="button" class="icon-button rule-remove" aria-label="删除礼物规则">×</button>`;
+  row.innerHTML = `<button type="button" class="rule-gift gift-binding" aria-label="从礼物库选择礼物"></button><select class="rule-operation" aria-label="礼物作用">${Object.entries(operations).map(([value,label]) => `<option value="${value}"${rule.operation === value ? ' selected' : ''}>${label}</option>`).join('')}</select><span class="rule-values"><input class="rule-value" type="number" min="1" max="1000000000000" required aria-label="时间或倍率" value="${rule.value}"><i class="rule-range-sep">～</i><input class="rule-value-max" type="number" min="1" max="1000000000000" aria-label="随机最多是多少" value="${rule.value_max ?? Math.max(rule.value, 10)}"><select class="rule-unit" aria-label="时间单位">${['秒','分钟','小时'].map(unit => `<option${(rule.unit || '分钟') === unit ? ' selected' : ''}>${unit}</option>`).join('')}</select></span><button type="button" class="icon-button rule-remove" aria-label="删除礼物规则">×</button>`;
   row.insertAdjacentHTML('beforeend', '<div class="rule-media"><button type="button" class="text-button rule-media-pick">添加图片/视频</button><span class="rule-media-name"></span><input class="rule-media-file" type="file" accept=".png,.jpg,.jpeg,.gif,.webp,.mp4,.webm" hidden><label class="rule-media-key" hidden><input class="rule-media-green" type="checkbox" checked>去掉绿幕</label><label class="rule-media-time" hidden>显示<input class="rule-media-seconds" type="number" min="0.1" max="120" step="0.1" value="5" aria-label="图片显示秒数">秒</label><button type="button" class="text-button rule-media-test" hidden>试播</button><button type="button" class="icon-button rule-media-clear" aria-label="移除素材" hidden>×</button></div>');
   row.querySelector('.rule-media-pick').addEventListener('click', () => row.querySelector('.rule-media-file').click());
   row.querySelector('.rule-media-file').addEventListener('change', event => upload(row,event));
   row.querySelector('.rule-media-clear').addEventListener('click', () => { row.media = null; mediaControls(row); rulesDirty = true; });
   row.querySelector('.rule-media-test').addEventListener('click', async () => { try { await action({action:'preview_media',media:rowMedia(row)}); } catch(error) { toast(error.message,true); } });
-  const sync = () => { const operation = row.querySelector('select').value, value = row.querySelector('.rule-value'); value.disabled = ['clear','lock_toggle','media'].includes(operation); value.min = operation === 'random_both' ? '-1000000000000' : ['multiply','divide'].includes(operation) ? '2' : '1'; const max = row.querySelector('.rule-value-max'); max.min = operation === 'random_both' ? '-1000000000000' : '1'; if (operation === 'random_both' && row.dataset.operation && row.dataset.operation !== operation && Number(value.value) > 0) { max.value = value.value; value.value = String(-Number(value.value)); } else if (operation !== 'random_both' && Number(value.value) < 1) value.value = String(Math.max(1, Math.abs(Number(value.value)) || 1)); row.dataset.operation = operation; if (value.disabled) value.value = '1'; const random = operation.startsWith('random_'); row.classList.toggle('is-random', random); value.title = random ? '最少分钟数' : ''; row.querySelector('.rule-value-max').required = random; };
+  const sync = () => { const operation = row.querySelector('select').value, value = row.querySelector('.rule-value'); value.disabled = ['clear','lock_toggle','media'].includes(operation); value.min = operation === 'random_both' ? '-1000000000000' : ['multiply','divide'].includes(operation) ? '2' : '1'; const max = row.querySelector('.rule-value-max'); max.min = operation === 'random_both' ? '-1000000000000' : '1'; if (operation === 'random_both' && row.dataset.operation && row.dataset.operation !== operation && Number(value.value) > 0) { max.value = value.value; value.value = String(-Number(value.value)); } else if (operation !== 'random_both' && Number(value.value) < 1) value.value = String(Math.max(1, Math.abs(Number(value.value)) || 1)); row.dataset.operation = operation; if (value.disabled) value.value = '1'; const random = operation.startsWith('random_'); row.classList.toggle('is-random', random); row.classList.toggle('is-timed', ['add','subtract'].includes(operation) || random); value.title = random ? '最少是多少' : ''; row.querySelector('.rule-value-max').required = random; };
   row.querySelector('select').addEventListener('change', sync); sync(); ruleList.append(row); giftButton(row);
   mediaControls(row);
 }
@@ -72,7 +72,7 @@ function clock(next) {
   $('#overtime-lock').textContent = machine.clear_locked ? '🔒 清空已锁定' : '🔓 清空未锁定';
 }
 function render(next) {
-  machine = next; clock(next);
+  machine = next; clock(next); renderLook();
   if (!volumePending) {$('#overtime-volume').value=machine.config.media_volume;$('#overtime-volume-value').textContent=`${machine.config.media_volume}%`;}
   const stamp = JSON.stringify([machine.config.initial_text,machine.config.time_unit,machine.config.clear_lock_default_unlocked]);
   if (!timeDirty && stamp !== timeStamp) {
@@ -118,7 +118,7 @@ function config(settingsForm) {
   return { ...machine.config, gift_rules:Array.from(ruleList.children).map(row => {
     if (!row.dataset.giftName) throw new Error('请从礼物库选择每条规则的礼物');
     const media = rowMedia(row);
-    return { gift_name:row.dataset.giftName, gift_id:Number(row.dataset.giftId), operation:row.querySelector('select').value, value:Number(row.querySelector('.rule-value').value), ...(row.classList.contains('is-random') ? {value_max:Number(row.querySelector('.rule-value-max').value)} : {}), ...(media ? {media} : {}) };
+    return { gift_name:row.dataset.giftName, gift_id:Number(row.dataset.giftId), operation:row.querySelector('select').value, value:Number(row.querySelector('.rule-value').value), ...(row.classList.contains('is-random') ? {value_max:Number(row.querySelector('.rule-value-max').value)} : {}), ...(row.classList.contains('is-timed') ? {unit:row.querySelector('.rule-unit').value} : {}), ...(media ? {media} : {}) };
   }) };
 }
 for (const settingsForm of [form,$('#overtime-gift-settings')]) {
@@ -150,6 +150,27 @@ window.addEventListener('gift-picked', event => {
 });
 window.addEventListener('view-changed', event => { if (event.detail !== 'gifts') { pickingRow = null; $('#overtime-pick-note').hidden = true; } });
 $('#overtime-add-rule').addEventListener('click', () => { addRule(); rulesDirty = true; });
+// 外观设置：改了自动保存（停手 0.4 秒后），保存中途收到的推送不覆盖正在改的内容。
+let lookTimer, lookRevision = 0, lookPending = false;
+const lookForm = $('#overtime-look');
+function renderLook() {
+  const look = machine?.config.look; if (!look || lookPending) return;
+  lookForm.elements.background.value = look.background; lookForm.elements.text_color.value = look.text_color;
+  lookForm.elements.opacity.value = look.opacity; $('#overtime-look-opacity-value').textContent = `${look.opacity}%`;
+  if (document.activeElement !== lookForm.elements.done_text) lookForm.elements.done_text.value = look.done_text;
+}
+lookForm.addEventListener('submit', event => event.preventDefault());
+lookForm.addEventListener('input', () => {
+  const f = lookForm.elements, look = { background:f.background.value, text_color:f.text_color.value, opacity:Number(f.opacity.value), done_text:f.done_text.value.trim() };
+  $('#overtime-look-opacity-value').textContent = `${look.opacity}%`;
+  const revision = ++lookRevision; lookPending = true; clearTimeout(lookTimer);
+  if (!look.done_text) return;
+  lookTimer = setTimeout(async () => {
+    try { const result = await api('/api/overtime/action',{action:'look',look}); if (revision === lookRevision) { lookPending = false; render(result.state); } }
+    catch (error) { if (revision === lookRevision) { lookPending = false; toast(error.message,true); renderLook(); } }
+  }, 400);
+});
+lookForm.elements.done_text.addEventListener('blur', () => { if (!lookForm.elements.done_text.value.trim()) { lookPending = false; renderLook(); } });
 $('#overtime-volume').addEventListener('input',event=>{
   const volume = Number(event.target.value), revision = ++volumeRevision; volumePending=true; $('#overtime-volume-value').textContent=`${volume}%`; clearTimeout(volumeTimer);
   volumeTimer=setTimeout(async()=>{
@@ -163,7 +184,7 @@ for (const kind of ['reset','clear','lock','clear_stats']) $(`#overtime-${kind.r
   if (kind === 'clear_stats' && !confirm('清空所有观众统计和最近明细？剩余加班时间不变。')) return;
   try { await action({ action:kind }); } catch (error) { toast(error.message,true); }
 });
-for (const operation of ['add','subtract']) $(`#overtime-manual-${operation}`).addEventListener('click', async () => { try { await action({ action:'manual', operation, minutes:$('#overtime-manual-minutes').value }); } catch (error) { toast(error.message,true); } });
+for (const operation of ['add','subtract']) $(`#overtime-manual-${operation}`).addEventListener('click', async () => { try { await action({ action:'manual', operation, minutes:$('#overtime-manual-minutes').value, unit:$('#overtime-manual-unit').value }); } catch (error) { toast(error.message,true); } });
 $('#overtime-test').addEventListener('submit', async event => {
   event.preventDefault();
   try { if (!machine || machine.mode === 'idle') throw new Error('请先开机加班，再模拟礼物'); await action({ action:'simulate', rule:Number($('#overtime-test-rule').value), user:$('#overtime-test-user').value.trim(), count:Number($('#overtime-test-count').value) }); toast('模拟礼物已结算，统计标记为测试'); } catch (error) { toast(error.message,true); }

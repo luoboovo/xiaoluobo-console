@@ -3,12 +3,21 @@
 (function () {
   const params = new URLSearchParams(location.search), preview = params.has('preview');
   const chat = document.getElementById('chat'), backdrop = document.getElementById('backdrop'), more = document.getElementById('more'), off = document.getElementById('off');
-  let config = { theme: 'wechat', bg: true, size: 15, max: 40, fade: 0, big: 50, enter: false, social: true, like: false };
-  let bubbles = new Map(), enabled = true, demoing = false;
+  let config = { theme: 'wechat', bg: true, size: 15, max: 40, fade: 0, big: 50, enter: false, social: true, like: false, device: 'iphone', group: '', badges: true };
+  let bubbles = new Map(), enabled = true, demoing = false, liveTitle = '';
 
+  // 微信群名：控制台填了就用填的，没填用直播间标题。
+  function applyGroupName() { document.getElementById('group-name').textContent = config.group || liveTitle || '直播间'; }
+  // 状态栏时间跟着电脑时间走。
+  function tick() { const now = new Date(); document.getElementById('phone-clock').textContent = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`; }
+  tick(); setInterval(tick, 15000);
   function applySettings(next) {
+    const badgesChanged = next && 'badges' in next && next.badges !== config.badges;
     config = { ...config, ...next };
     document.body.dataset.theme = config.theme;
+    document.body.dataset.device = config.device || 'iphone';
+    applyGroupName();
+    if (badgesChanged) rerender();
     document.body.classList.toggle('transparent', !config.bg);
     document.documentElement.style.setProperty('--font-size', config.size + 'px');
     for (const skin of chat.querySelectorAll('.skin[data-bubble]')) { const bubble = bubbles.get(skin.dataset.bubble); if (bubble) styleSkin(skin, bubble); }
@@ -34,6 +43,7 @@
   }
   function applyState(state) {
     if (!state) return;
+    if (typeof state.liveTitle === 'string') { liveTitle = state.liveTitle; applyGroupName(); }
     if (state.settings) applySettings(state.settings);
     if ('background' in state) applyBackground(state.background);
     if (state.bubbles) applyBubbles(state.bubbles);
@@ -58,11 +68,23 @@
     const unit = Number(event.giftUnit) || 0;
     return event.giftCoin === 'douyin' ? unit / 10 * (event.count || 1) : unit / 1000 * (event.count || 1);
   }
+  // 身份标签：默认全部显示（房管、大航海、粉丝牌 / 星守护、消费等级、会员）；在控制台关掉就只显示最高的一个。
+  const GUARD = { 1: '总督', 2: '提督', 3: '舰长' };
   function header(event, tier) {
     const badges = [];
-    if (tier.label) badges.push(`<span class="badge badge-${tier.key}">${escapeHtml(tier.label)}</span>`);
-    if (event.admin) badges.push('<span class="badge badge-admin">房管</span>');
-    return `<div class="name-line">${badges.join('')}<span class="name">${escapeHtml(event.user || '观众')}</span></div>`;
+    if (!config.badges) {
+      if (tier.label) badges.push(`<span class="badge badge-${tier.key}">${escapeHtml(tier.label)}</span>`);
+      if (event.admin) badges.push('<span class="badge badge-admin">房管</span>');
+    } else {
+      if (event.admin) badges.push('<span class="badge badge-admin">房管</span>');
+      if (GUARD[event.guard]) badges.push(`<span class="badge badge-guard${event.guard}">${GUARD[event.guard]}</span>`);
+      if (event.fansLevel > 0) badges.push(`<span class="badge badge-star">星守护${event.fansClub ? ' · ' + escapeHtml(event.fansClub) : ''} ${Number(event.fansLevel)}</span>`);
+      if (event.medalLevel > 0) badges.push(`<span class="badge badge-medal"><b>${escapeHtml(event.medalName || '粉丝')}</b><i>${Number(event.medalLevel)}</i></span>`);
+      const wealth = Number(event.wealthLevel) || 0;
+      if (wealth > 0) badges.push(`<span class="badge badge-wealth w${Math.min(5, Math.floor(wealth / 10) + 1)}" title="消费等级">💎 ${wealth}</span>`);
+      if (event.vip) badges.push(`<span class="badge badge-vip">${event.vip === 2 ? '年费会员' : '会员'}</span>`);
+    }
+    return `<div class="name-line">${badges.length ? `<span class="badges">${badges.join('')}</span>` : ''}<span class="name">${escapeHtml(event.user || '观众')}</span></div>`;
   }
   function giftIcon(event) {
     if (!event.giftId) return '';
@@ -82,10 +104,29 @@
       return card('packet', `${name} ${countText}`, value > 0 ? yuan(value) : '免费礼物', '直播红包', event);
     }
     if (event.superChat) return card('packet sc', escapeHtml(event.text), yuan(Number(event.price) || 0), '醒目留言 · 红包', {});
+    // 表情包：像微信一样只显示图片，不套气泡（图片加载不出来时退回成文字气泡）。
+    const sticker = imageUrl(event.sticker?.url);
+    if (sticker) return `<div class="sticker" data-alt="${escapeHtml(event.sticker.alt || event.text)}"><img src="${escapeHtml(sticker)}" alt="${escapeHtml(event.sticker.alt || event.text)}" referrerpolicy="no-referrer"></div>`;
     const mention = event.mention?.name && !/^\s*[@＠]/.test(event.text) ? `<span class="mention">@${escapeHtml(event.mention.name)}</span> ` : '';
     const bubble = bubbles.get(event.bubble);
-    if (bubble) return `<div class="skin" data-bubble="${escapeHtml(bubble.id)}"><div class="skin-text"><span>${mention}${escapeHtml(event.text)}</span></div></div>`;
-    return `<div class="bubble">${mention}${escapeHtml(event.text)}</div>`;
+    if (bubble) return `<div class="skin" data-bubble="${escapeHtml(bubble.id)}"><div class="skin-text"><span>${mention}${richText(event)}</span></div></div>`;
+    return `<div class="bubble">${mention}${richText(event)}</div>`;
+  }
+  // 只放行 B站 / 抖音图床的 https 图片（和服务器那边的检查一致）。
+  function imageUrl(input) {
+    try {
+      const url = new URL(String(input || ''));
+      if (url.protocol === 'https:' && ['hdslb.com', 'biliimg.com', 'douyinpic.com', 'byteimg.com'].some(host => url.hostname === host || url.hostname.endsWith('.' + host))) return url.href;
+    } catch {}
+    return '';
+  }
+  // 文字里的小表情（[dog]、[微笑]…）换成小图，跟文字排在一行。
+  function richText(event) {
+    if (!Array.isArray(event.rich)) return escapeHtml(event.text);
+    return event.rich.map(part => {
+      const src = imageUrl(part.img);
+      return src ? `<img class="emo" src="${escapeHtml(src)}" alt="${escapeHtml(part.alt || '')}" referrerpolicy="no-referrer">` : escapeHtml(part.text ?? part.alt ?? '');
+    }).join('');
   }
   // 定制气泡：整张图按比例缩放，文字放进图里框好的那一块，字多了自动缩小。
   // 定制气泡像普通气泡一样按字数伸缩：高度和两行字的普通气泡差不多，左右两头（人物、装饰）原样不变形，只拉长中间那段。
@@ -130,6 +171,11 @@
     row.className = `msg tier-${tier.key} type-${event.type}${event.superChat ? ' type-sc' : ''}${bubbles.has(event.bubble) ? ' has-skin' : ''}`;
     row.innerHTML = `${avatar(event)}<div class="content">${header(event, tier)}${body(event)}</div>`;
     for (const img of row.querySelectorAll('.avatar img, .card-gift')) img.addEventListener('error', () => img.remove(), { once: true });
+    // 表情图加载失败：小表情换回 [dog] 这样的文字，表情包换回普通文字气泡。
+    for (const img of row.querySelectorAll('.emo')) img.addEventListener('error', () => img.replaceWith(img.alt), { once: true });
+    const stickerImg = row.querySelector('.sticker img');
+    if (stickerImg) stickerImg.addEventListener('error', () => { const bubble = document.createElement('div'); bubble.className = 'bubble'; bubble.textContent = stickerImg.alt; stickerImg.parentElement.replaceWith(bubble); }, { once: true });
+    if (stickerImg || row.querySelector('.emo')) for (const img of row.querySelectorAll('.sticker img, .emo')) img.addEventListener('load', () => stick(false), { once: true });
     return row;
   }
 
@@ -153,7 +199,7 @@
     const fresh = render(prev.event);
     if (!fresh) return false;
     fresh.classList.add('bump');
-    prev.row.replaceWith(fresh); prev.row = fresh; schedule(fresh);
+    fresh.event = prev.event; prev.row.replaceWith(fresh); prev.row = fresh; schedule(fresh);
     return true;
   }
   function add(event, animate = true) {
@@ -162,6 +208,7 @@
     const row = render(event);
     if (!row) return;
     if (!animate) row.classList.add('still');
+    row.event = event;
     chat.append(row);
     const skin = row.querySelector('.skin');
     if (skin) styleSkin(skin, bubbles.get(skin.dataset.bubble));
@@ -176,6 +223,18 @@
     row.fadeTimer = setTimeout(() => { row.classList.add('leaving'); setTimeout(() => row.remove(), 600); }, config.fade * 1000);
   }
   function trim() { while (chat.children.length > config.max) chat.firstElementChild.remove(); }
+  // 开关「显示身份标签」后，把已经在屏幕上的消息按新设置重画一遍。
+  function rerender() {
+    for (const row of [...chat.children]) {
+      if (!row.event) continue;
+      const fresh = render(row.event);
+      if (!fresh) continue;
+      fresh.classList.add('still'); fresh.event = row.event;
+      if (lastGift?.row === row) lastGift.row = fresh;
+      row.replaceWith(fresh);
+      const skin = fresh.querySelector('.skin'); if (skin) styleSkin(skin, bubbles.get(skin.dataset.bubble));
+    }
+  }
   function clear() { chat.replaceChildren(); lastGift = null; unread = 0; more.hidden = true; follow = true; }
   new ResizeObserver(() => { for (const skin of chat.querySelectorAll('.skin')) { const b = bubbles.get(skin.dataset.bubble); if (b) fitText(skin, b); } if (follow) chat.scrollTop = chat.scrollHeight; }).observe(chat);
 

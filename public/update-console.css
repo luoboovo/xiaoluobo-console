@@ -15,3 +15,9 @@
 body.dark .update-banner{background:linear-gradient(120deg,#3d3a2c,#2c3d33);border-color:#ffffff14}
 body.dark .update-banner.error{background:#4a3331}
 body.dark .update-notes div{background:#00000033}
+/* 打开控制台发现新版本时的弹窗 */
+.update-popup{width:440px;text-align:center}
+.update-popup-tile{width:56px;height:56px;margin:2px auto 12px;display:grid;place-items:center;border-radius:18px;font-size:28px;background:linear-gradient(140deg,#fff3d6,#e3f5e6)}
+.update-popup>p{margin:6px 0 12px}
+.update-popup-notes{max-height:220px;overflow:auto;margin:0 0 12px;padding:12px 14px;border-radius:12px;background:var(--surface-soft);text-align:left;font-size:12px;line-height:1.8}
+.update-popup .update-popup-warn{font-size:11px;color:#a67a3a}

@@ -23,8 +23,20 @@
       region.addEventListener('pointerup',end); region.addEventListener('pointercancel',end); region.addEventListener('lostpointercapture',end);
     }
   }
-  // 下班画面：彩纸 + 大字「下班！」，字号按浮窗大小自动适配。
-  const DONE = `<div class="done"><div class="confetti" aria-hidden="true">${'<i></i>'.repeat(18)}</div><div class="done-badge" aria-hidden="true">🎉</div><div class="done-text"><strong>下班！</strong></div></div>`;
+  // 下班画面：彩纸 + 大字（默认「下班！」，可在控制台改），字号按浮窗大小自动适配。
+  let doneText = '下班！';
+  const done = () => `<div class="done"><div class="confetti" aria-hidden="true">${'<i></i>'.repeat(18)}</div><div class="done-badge" aria-hidden="true">🎉</div><div class="done-text"><strong>${escape(doneText)}</strong></div></div>`;
+  // 外观：背景颜色 + 不透明度（0 = 完全透明，连边框阴影一起去掉）+ 文字颜色。
+  function applyLook(look) {
+    if (!look) return;
+    const surface = $('.overtime-overlay'), hex = look.background, alpha = look.opacity / 100;
+    const rgb = [1,3,5].map(i => parseInt(hex.slice(i,i+2),16)), mix = (t,c) => rgb.map(v => Math.round(v + (c - v) * t));
+    const rgba = c => `rgba(${c.join(',')},${alpha})`;
+    surface.style.setProperty('--overtime-background', `linear-gradient(135deg,${rgba(mix(.28,255))},${rgba(mix(.32,0))})`);
+    surface.style.setProperty('--overtime-text', look.text_color);
+    surface.dataset.transparent = String(look.opacity === 0);
+    if (look.done_text !== doneText) { doneText = look.done_text; const time = $('#time'); if (time.classList.contains('finished')) { time.innerHTML = done(); fit(); } }
+  }
   function fitDone() {
     const box = $('#time'), done = box.querySelector('.done'); if (!done) return;
     let low = 12, high = 160;
@@ -44,7 +56,7 @@
     const finished = state.mode !== 'idle' && state.remaining === '0', time = $('#time');
     if (finished !== time.classList.contains('finished')) time.innerHTML = '';
     time.classList.toggle('finished', finished);
-    if (finished) { if (!time.firstChild) time.innerHTML = DONE; }
+    if (finished) { if (!time.firstChild) time.innerHTML = done(); }
     else time.textContent = state.mode === 'idle' ? '等待开机' : formatDuration(state.remaining);
     $('#time').classList.toggle('urgent',state.mode === 'running' && BigInt(state.remaining) <= 60n);
     fit();
@@ -56,7 +68,7 @@
       return;
     }
     state = next;
-    if (!panelId) { clock(next); return; }
+    if (!panelId) { applyLook(next.config.look); clock(next); return; }
     const panel = state.config.gift_panels.find(panel => panel.id === panelId);
     // 送礼高峰每 100ms 推送一次；面板内容不变时不重建，避免 OBS 浏览器源反复请求和解码全部礼物图片。
     const styleStamp = JSON.stringify([panel?.name, panel?.columns, panel?.style]);

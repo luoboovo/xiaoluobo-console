@@ -1,0 +1,83 @@
+/* 弹幕姬手机外壳：body[data-device="iphone" | "android" | "none"]。
+   iphone：圆角 + 灵动岛 + 底部横条；android：挖孔摄像头 + 底部三个导航键；none：没有外壳（全屏聊天）。
+   外壳里是微信群聊：状态栏、标题栏（‹ 群名 ···）、聊天区、底部输入栏。颜色跟着气泡主题变。 */
+:root { --bar: #ededed; --bar-text: #191919; --bar-line: #d6d6d6; --input-bar: #f7f7f7; --field: #fff; --icon: #191919; --frame: #1b1b1d; }
+[data-theme="candy"] { --bar: #fff0f6; --bar-text: #6b3f5a; --bar-line: #f3d2e2; --input-bar: #fff5fa; --field: #fff; --icon: #8a5577; --frame: #f2b8d3; }
+[data-theme="night"] { --bar: #1c1c1c; --bar-text: #e6e6e6; --bar-line: #2c2c2c; --input-bar: #1c1c1c; --field: #2c2c2c; --icon: #cfcfcf; --frame: #0b0b0c; }
+
+/* —— 不要外壳：和原来一样全屏 —— */
+.phone { height: 100%; display: flex; flex-direction: column; }
+.screen { position: relative; flex: 1; min-height: 0; }
+.screen .chat { height: 100%; }
+.screen .backdrop { position: absolute; }
+.screen .more { position: absolute; }
+[data-device="none"] .phone-status, [data-device="none"] .wx-header, [data-device="none"] .wx-input, [data-device="none"] .phone-nav { display: none; }
+
+/* —— 手机外壳共用 —— */
+body:not([data-device="none"]) { background: transparent; }
+body:not([data-device="none"]) .phone {
+  position: fixed; inset: 6px; overflow: hidden;
+  background: var(--bg); border: 9px solid var(--frame); border-radius: 46px;
+  box-shadow: 0 0 0 2px #4a4a4e, 0 16px 40px rgba(0, 0, 0, .35);
+}
+body.transparent:not([data-device="none"]) .phone { background: transparent; }
+body.transparent:not([data-device="none"]) .screen { background: transparent; }
+
+.phone-status { position: relative; flex: none; display: flex; align-items: center; justify-content: space-between; height: 46px; padding: 6px 26px 0 30px; background: var(--bar); color: var(--bar-text); font: 600 15px/1 -apple-system, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif; letter-spacing: .2px; }
+.phone-clock { min-width: 44px; font-variant-numeric: tabular-nums; }
+.phone-icons { display: flex; align-items: center; gap: 6px; }
+.icon-signal { display: flex; align-items: flex-end; gap: 1.5px; height: 11px; }
+.icon-signal b { width: 3px; background: currentColor; border-radius: 1px; }
+.icon-signal b:nth-child(1) { height: 4px; } .icon-signal b:nth-child(2) { height: 6px; } .icon-signal b:nth-child(3) { height: 8.5px; } .icon-signal b:nth-child(4) { height: 11px; }
+.icon-wifi { width: 15px; height: 11px; background: currentColor; -webkit-mask: radial-gradient(circle at 50% 100%, #000 0 2.2px, transparent 2.6px 4.4px, #000 4.8px 6.8px, transparent 7.2px 9px, #000 9.4px 11.4px, transparent 11.8px) ; mask: radial-gradient(circle at 50% 100%, #000 0 2.2px, transparent 2.6px 4.4px, #000 4.8px 6.8px, transparent 7.2px 9px, #000 9.4px 11.4px, transparent 11.8px); clip-path: polygon(0 0, 100% 0, 50% 100%); }
+.icon-battery { position: relative; width: 24px; height: 12px; border: 1.5px solid currentColor; border-radius: 4px; opacity: .95; }
+.icon-battery::after { content: ''; position: absolute; right: -4px; top: 3px; width: 2px; height: 4px; border-radius: 0 2px 2px 0; background: currentColor; opacity: .5; }
+.icon-battery b { position: absolute; inset: 1.5px; right: 4px; border-radius: 2px; background: currentColor; }
+.phone-island, .phone-camera { display: none; }
+
+/* 微信标题栏 */
+.wx-header { flex: none; position: relative; display: flex; align-items: center; justify-content: center; height: 44px; padding: 0 52px; background: var(--bar); color: var(--bar-text); border-bottom: 1px solid var(--bar-line); }
+.wx-header strong { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wx-back { position: absolute; left: 16px; top: 50%; width: 11px; height: 11px; border-left: 2.2px solid var(--icon); border-bottom: 2.2px solid var(--icon); transform: translateY(-50%) rotate(45deg); }
+.wx-more { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); display: flex; gap: 3.5px; }
+.wx-more b { width: 4.5px; height: 4.5px; border-radius: 50%; background: var(--icon); }
+
+/* 微信输入栏 */
+.wx-input { flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 12px 9px; background: var(--input-bar); border-top: 1px solid var(--bar-line); }
+.wx-input span { flex: none; width: 28px; height: 28px; border: 1.8px solid var(--icon); border-radius: 50%; opacity: .85; position: relative; }
+.wx-voice::before { content: ''; position: absolute; left: 6px; top: 7px; width: 7px; height: 11px; border: 1.8px solid var(--icon); border-left: 0; border-radius: 0 9px 9px 0; }
+.wx-input .wx-field { flex: 1; height: 36px; border: 0; border-radius: 6px; background: var(--field); opacity: 1; }
+.wx-emoji::before { content: ''; position: absolute; left: 6px; top: 13px; width: 12px; height: 6px; border: 1.8px solid var(--icon); border-top: 0; border-radius: 0 0 8px 8px; }
+.wx-emoji::after { content: ''; position: absolute; left: 7px; top: 7px; width: 2.5px; height: 2.5px; border-radius: 50%; background: var(--icon); box-shadow: 8px 0 var(--icon); }
+.wx-plus::before, .wx-plus::after { content: ''; position: absolute; left: 50%; top: 50%; width: 13px; height: 1.8px; background: var(--icon); transform: translate(-50%, -50%); }
+.wx-plus::after { transform: translate(-50%, -50%) rotate(90deg); }
+
+/* —— iPhone：灵动岛 + 底部横条 —— */
+[data-device="iphone"] .phone-island { display: block; position: absolute; left: 50%; top: 9px; width: 31%; max-width: 124px; height: 32px; border-radius: 20px; background: #000; transform: translateX(-50%); box-shadow: inset 0 0 0 1px #1a1a1a; }
+[data-device="iphone"] .phone-island::after { content: ''; position: absolute; right: 12px; top: 50%; width: 11px; height: 11px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #3a4a6a, #0d1018 60%); transform: translateY(-50%); }
+[data-device="iphone"] .phone-nav { flex: none; display: flex; justify-content: center; align-items: center; height: 22px; background: var(--input-bar); }
+[data-device="iphone"] .phone-nav span { display: none; }
+[data-device="iphone"] .phone-nav .nav-home { display: block; width: 36%; height: 5px; border-radius: 3px; background: var(--bar-text); opacity: .85; }
+
+/* —— 安卓：小圆角、挖孔摄像头、底部三个导航键 —— */
+[data-device="android"] .phone { border-radius: 30px; border-width: 8px; }
+[data-device="android"] .phone-status { height: 32px; padding: 2px 20px 0; font: 600 13px/1 Roboto, "Microsoft YaHei", sans-serif; }
+[data-device="android"] .phone-camera { display: block; position: absolute; left: 50%; top: 9px; width: 15px; height: 15px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #3a4a6a, #000 62%); transform: translateX(-50%); box-shadow: 0 0 0 2px #00000022; }
+[data-device="android"] .icon-battery { width: 14px; height: 22px; transform: rotate(90deg) scale(.6); margin: 0 -2px; }
+[data-device="android"] .phone-nav { flex: none; display: flex; justify-content: space-around; align-items: center; height: 40px; padding: 0 22%; background: var(--input-bar); }
+[data-device="android"] .nav-back { width: 0; height: 0; border-top: 7px solid transparent; border-bottom: 7px solid transparent; border-right: 11px solid var(--bar-text); opacity: .75; }
+[data-device="android"] .nav-home { width: 15px; height: 15px; border: 2px solid var(--bar-text); border-radius: 50%; opacity: .75; }
+[data-device="android"] .nav-recent { width: 13px; height: 13px; border: 2px solid var(--bar-text); border-radius: 3px; opacity: .75; }
+
+/* —— 身份标签：粉丝牌、星守护、大航海、消费等级、会员 —— */
+.badges { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; min-width: 0; }
+.badge-medal { display: inline-flex; padding: 0; overflow: hidden; border: 1px solid #6cbf8d; background: #fff; color: #3f9a64; }
+.badge-medal b, .badge-medal i { padding: 2px 4px; font-style: normal; }
+.badge-medal b { background: #6cbf8d; color: #fff; font-weight: 600; }
+.badge-wealth { background: linear-gradient(90deg, #8fa3bd, #6f84a3); }
+.badge-wealth.w2 { background: linear-gradient(90deg, #5ec08a, #2f9c66); }
+.badge-wealth.w3 { background: linear-gradient(90deg, #5aa7ff, #3b6dfb); }
+.badge-wealth.w4 { background: linear-gradient(90deg, #c27cff, #8a4cf0); }
+.badge-wealth.w5 { background: linear-gradient(90deg, #ffb340, #f0612a); }
+.badge-vip { background: linear-gradient(90deg, #ff8fb1, #fb5a8a); }
+[data-theme="night"] .badge-medal { background: #1f2a24; }

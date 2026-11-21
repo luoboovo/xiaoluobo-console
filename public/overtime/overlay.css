@@ -23,3 +23,10 @@
 @keyframes done-wiggle{0%,100%{transform:rotate(0)}10%{transform:rotate(-10deg)}20%{transform:rotate(8deg)}30%{transform:rotate(0)}}
 @keyframes done-rise{0%{transform:translateY(30%);opacity:0}100%{transform:none;opacity:1}}
 @media(prefers-reduced-motion:reduce){.done-badge,.done-text strong,.done-text small,.confetti i{animation:none}.confetti{display:none}}
+/* 外观：控制台可改背景颜色、不透明度（0 = 完全透明）、文字颜色 */
+.overtime-overlay:not(.gift-panel-surface){background:var(--overtime-background,linear-gradient(135deg,#7691a4ed,#314d63ed))}
+.overtime-overlay:not(.gift-panel-surface) .countdown:not(.urgent),.overtime-overlay:not(.gift-panel-surface) .done-text strong{color:var(--overtime-text,#fff8e7)}
+.overtime-overlay[data-transparent="true"]:not(.gift-panel-surface){border-color:transparent;box-shadow:none}
+/* 不显示标题时：标题位置不占地方；网页预览、OBS 里连整个标题栏都不要 */
+.overlay-header strong:empty{display:none}
+.preview .overlay-header:has(strong:empty),.capture .overlay-header:has(strong:empty){display:none}

@@ -4,13 +4,27 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>小萝卜弹幕姬</title>
   <link rel="stylesheet" href="/danmaku/overlay.css">
+  <link rel="stylesheet" href="/danmaku/phone.css">
   <script src="/danmaku/skins.js" defer></script>
   <script src="/danmaku/overlay.js" defer></script>
 </head>
-<body>
-  <div id="backdrop" class="backdrop" hidden></div>
-  <main id="chat" class="chat" aria-live="polite" aria-label="直播弹幕"></main>
-  <button id="more" class="more" type="button" hidden></button>
+<body data-device="iphone">
+  <!-- 手机外壳：iPhone（灵动岛）/ 安卓（挖孔屏）/ 不要外壳，在控制台「画面设置」里切换 -->
+  <div id="phone" class="phone">
+    <div class="phone-status" aria-hidden="true">
+      <span id="phone-clock" class="phone-clock">9:41</span>
+      <span class="phone-island"></span><span class="phone-camera"></span>
+      <span class="phone-icons"><i class="icon-signal"><b></b><b></b><b></b><b></b></i><i class="icon-wifi"></i><i class="icon-battery"><b></b></i></span>
+    </div>
+    <header class="wx-header"><span class="wx-back" aria-hidden="true"></span><strong id="group-name">直播间</strong><span class="wx-more" aria-hidden="true"><b></b><b></b><b></b></span></header>
+    <div class="screen">
+      <div id="backdrop" class="backdrop" hidden></div>
+      <main id="chat" class="chat" aria-live="polite" aria-label="直播弹幕"></main>
+      <button id="more" class="more" type="button" hidden></button>
+    </div>
+    <footer class="wx-input" aria-hidden="true"><span class="wx-voice"></span><span class="wx-field"></span><span class="wx-emoji"></span><span class="wx-plus"></span></footer>
+    <div class="phone-nav" aria-hidden="true"><span class="nav-back"></span><span class="nav-home"></span><span class="nav-recent"></span></div>
+  </div>
   <div id="off" class="off" hidden>弹幕姬已关闭 · 在控制台打开总开关后才接直播间消息</div>
   <div id="connection" class="connection" hidden>连接中…</div>
 </body>

@@ -1,0 +1,17 @@
+.brand-wrap{display:flex;align-items:center;gap:12px;min-width:0}
+/* 「联系我」：渐变色 + 呼吸光晕，一眼就能看到 */
+.contact-button{position:relative;display:flex;align-items:center;gap:5px;border:0;border-radius:999px;padding:7px 13px;font-size:12px;font-weight:700;color:#fff;white-space:nowrap;background:linear-gradient(120deg,#ff7a59,#ff4f8b 55%,#b36bff);box-shadow:0 4px 14px -4px #ff4f8bcc;animation:contact-glow 2.4s ease-in-out infinite}
+.contact-button span{font-size:13px}
+.contact-button:hover:not(:disabled){box-shadow:0 6px 18px -4px #ff4f8b;transform:translateY(-1px) scale(1.03)}
+.contact-button::after{content:'';position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;background:#ffe35a;box-shadow:0 0 0 2px #fff;animation:contact-dot 1.6s ease-in-out infinite}
+@keyframes contact-glow{0%,100%{box-shadow:0 4px 14px -4px #ff4f8bcc}50%{box-shadow:0 4px 22px 0 #ff4f8b99}}
+@keyframes contact-dot{0%,100%{transform:scale(1)}50%{transform:scale(1.35)}}
+@media(prefers-reduced-motion:reduce){.contact-button,.contact-button::after{animation:none}}
+.contact-dialog{width:400px}
+.contact-tile{width:56px;height:56px;margin:2px auto 14px;display:grid;place-items:center;border-radius:18px;font-size:28px;background:linear-gradient(140deg,#ffe4dc,#ffd5e6 55%,#ecdcff)}
+.contact-list{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.contact-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:var(--surface-soft);text-align:left}
+.contact-label{flex:0 0 52px;font-size:11px;color:var(--muted)}
+.contact-row strong{flex:1;min-width:0;font-size:17px;font-weight:650;letter-spacing:.5px;overflow-wrap:anywhere;user-select:all}
+.contact-row .button{min-height:32px;padding:7px 14px}
+@media(max-width:760px){.contact-button{padding:6px 10px;font-size:11px}}

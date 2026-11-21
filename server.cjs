@@ -45,7 +45,8 @@ async function startServer(options = {}) {
   games.bilibili=await createPlatformGames({...common,platform:'bilibili',catalog:services.biliGifts.length>=12?services.biliGifts:require('./data/gifts.json').list,legacyFiles:options.overtimeLegacyFiles||[]});
   games.douyin=await createPlatformGames({...common,platform:'douyin',catalog:services.dyGifts.length>=12?services.dyGifts:require('./data/douyin-gifts.json').list,source:games.bilibili.noodle});
   let {noodle,overtime,feeding,lottery,numberBomb,mower,danmaku}=games[services.platform];
-  const danmakuState=()=>({...danmaku.snapshot(),enabled:features.isOn('danmaku')});
+  // 弹幕姬的微信群名默认用直播间标题。
+  const danmakuState=()=>({...danmaku.snapshot(),enabled:features.isOn('danmaku'),liveTitle:String(services.state.live?.title||'').slice(0,60)});
   // 机器人设置跨平台共用；DeepSeek Key 和登录凭证一起加密保存。
   // 每个 AI 服务商一个 Key；旧版只存了 DeepSeek 的 deepseekKey，读取时沿用。
   const aiKeys=()=>services.secretData.aiKeys&&typeof services.secretData.aiKeys==='object'?services.secretData.aiKeys:{};
@@ -162,8 +163,11 @@ async function startServer(options = {}) {
       }
     }, 100);
   };
+  let danmakuTitle='';
   services.on('state', state => {
     broadcast('state',state);robotRooms.changed();
+    // 直播间标题变了（连上 / 换房间 / 断开），弹幕姬的默认群名跟着变。
+    if((state.live?.title||'')!==danmakuTitle){danmakuTitle=state.live?.title||'';broadcast('danmaku',danmakuState());}
     if(diagnostics){
       const live={platform:services.platform,status:state.live.status,liveStatus:state.live.liveStatus,error:state.live.error};
       const stamp=JSON.stringify(live);

@@ -144,7 +144,8 @@ else {
     await window.loadURL(runtime.url);
     window.on('closed',quitIfOnlyMedia);
     window.show();
-    if (updater) { setTimeout(() => updater.check(), 20000); setInterval(() => updater.check(), 6 * 3600 * 1000); }
+    // 每次打开控制台都检查一次更新（3 秒后，等界面先出来），之后每 6 小时再查一次；有新版本控制台会弹窗。
+    if (updater) { setTimeout(() => updater.check(), 3000); setInterval(() => updater.check(), 6 * 3600 * 1000); }
   }).catch(async error => {showError('控制台启动失败',error,{blocking:true});stopDiagnostics?.();await diagnostics?.close().catch(()=>{});app.quit();});
   app.on('window-all-closed', () => app.quit());
   app.on('before-quit', event => {

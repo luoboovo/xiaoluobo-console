@@ -1,14 +1,20 @@
 (function (root) {
   const numbers = [['古戈尔',100],['大数',72],['无量',68],['不可思议',64],['那由他',60],['阿僧祗',56],['恒河沙',52],['极',48],['载',44],['正',40],['涧',36],['沟',32],['穰',28],['秭',24],['垓',20],['京',16],['兆',12],['亿',8],['万',4],['千',3]].map(([name, power]) => [name, 10n ** BigInt(power)]);
   const timeUnits = { 星期:10080n, 分钟:1n, 小时:60n, 周:10080n, 年:525600n, 月:43200n, 天:1440n, 日:1440n, 时:60n, 分:1n };
-  function parseMinutes(input, unit = '分钟') {
+  // 秒为最小单位：礼物规则和手动加减可以选 秒 / 分钟 / 小时（/ 天）。
+  const secondUnits = { 星期:604800n, 分钟:60n, 小时:3600n, 秒:1n, 周:604800n, 年:31536000n, 月:2592000n, 天:86400n, 日:86400n, 时:3600n, 分:60n };
+  const RULE_UNITS = ['秒','分钟','小时'];
+  function parseMinutes(input, unit = '分钟') { return parseUnits(input, unit, timeUnits, ['分钟','小时','天','周','月','年'], '初始时间最多为1古戈尔分钟'); }
+  // 返回秒数：手动加减时间用，例如 parseSeconds('30','秒')、parseSeconds('1.5小时')。
+  function parseSeconds(input, unit = '分钟') { return parseUnits(input, unit, secondUnits, ['秒','分钟','小时','天'], '时间太大了'); }
+  function parseUnits(input, unit, table, allowed, tooBig) {
     const raw = String(input ?? '').trim().replace(/[,，]/g, '');
     const match = raw.length <= 160 && raw.match(/^(\d+(?:\.\d+)?)(?:[eE]([+-]?\d+))?(.*)$/);
-    if (!match || !['分钟','小时','天','周','月','年'].includes(unit)) throw new Error('请输入有效时间，例如 60、1.5小时、1亿或1e16');
-    let suffix = match[3], multiplier = suffix ? 1n : timeUnits[unit];
+    if (!match || !allowed.includes(unit)) throw new Error('请输入有效时间，例如 60、1.5小时、1亿或1e16');
+    let suffix = match[3], multiplier = suffix ? 1n : table[unit];
     if (suffix) {
-      const time = Object.keys(timeUnits).find(name => suffix.endsWith(name));
-      if (time) { multiplier *= timeUnits[time]; suffix = suffix.slice(0, -time.length); }
+      const time = Object.keys(table).find(name => suffix.endsWith(name));
+      if (time) { multiplier *= table[time]; suffix = suffix.slice(0, -time.length); }
       if (suffix) {
         const number = numbers.find(([name]) => suffix === name);
         if (!number) throw new Error('时间单位无法识别');
@@ -20,7 +26,7 @@
     const numerator = BigInt(match[1].replace('.', '')) * multiplier * 10n ** BigInt(Math.max(0, exponent));
     const divisor = 10n ** BigInt(Math.max(0, -exponent));
     const result = (numerator + divisor / 2n) / divisor;
-    if (result <= 0n || result > 10n ** 100n) throw new Error('时间须大于零，初始时间最多为1古戈尔分钟');
+    if (result <= 0n || result > 10n ** 100n) throw new Error(`时间须大于零，${tooBig}`);
     return result;
   }
   function formatDuration(input, compact = false) {
@@ -52,7 +58,8 @@
   const operations = { add:'加时间', subtract:'减时间', random_add:'随机加时间', random_subtract:'随机减时间', random_both:'随机加减时间', multiply:'倍增加班', divide:'缩短加班', clear:'立即下班', lock_toggle:'切换清空锁', media:'只播放素材' };
   const signed = n => n > 0 ? `＋${n}` : n < 0 ? `−${-n}` : '0';
   function ruleText(rule) {
-    return ({ add:`＋${rule.value} 分钟`, subtract:`−${rule.value} 分钟`, random_add:`随机＋${rule.value}～${rule.value_max} 分钟`, random_subtract:`随机−${rule.value}～${rule.value_max} 分钟`, random_both:`随机 ${signed(rule.value)}～${signed(rule.value_max)} 分钟`, multiply:`时间 ×${rule.value}`, divide:`时间 ÷${rule.value}`, clear:'立即下班', lock_toggle:'切换清空锁', media:'播放素材' })[rule.operation];
+    const unit = rule.unit || '分钟';
+    return ({ add:`＋${rule.value} ${unit}`, subtract:`−${rule.value} ${unit}`, random_add:`随机＋${rule.value}～${rule.value_max} ${unit}`, random_subtract:`随机−${rule.value}～${rule.value_max} ${unit}`, random_both:`随机 ${signed(rule.value)}～${signed(rule.value_max)} ${unit}`, multiply:`时间 ×${rule.value}`, divide:`时间 ÷${rule.value}`, clear:'立即下班', lock_toggle:'切换清空锁', media:'播放素材' })[rule.operation];
   }
   const avatarUrl = face => face ? `/api/avatar?url=${encodeURIComponent(face)}` : '/overtime/radish.svg';
   const ruleKey = rule => rule.gift_id ? `id:${rule.gift_id}` : `name:${rule.gift_name}`;
@@ -103,7 +110,7 @@
       element.style.setProperty(`--${key}-text-shadow`,shadow);
     }
   }
-  const api = { parseMinutes, formatDuration, operations, ruleText, avatarUrl, ruleKey, panelRules, panelEntries, textGroups, normalizePanelStyle, applyPanelStyle };
+  const api = { parseMinutes, parseSeconds, RULE_UNITS, formatDuration, operations, ruleText, avatarUrl, ruleKey, panelRules, panelEntries, textGroups, normalizePanelStyle, applyPanelStyle };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Overtime = api;
 })(globalThis);
