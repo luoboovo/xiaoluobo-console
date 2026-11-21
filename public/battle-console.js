@@ -3,7 +3,7 @@ import {switchView,state as consoleState} from './app.js';
 
 // 泽小酱闯关的控制台页面：开始/暂停/重开、弹幕口令、礼物规则（试送）、战绩。
 const settings=$('#battle-settings'),rulesForm=$('#battle-rules-form'),ruleList=$('#battle-rules');
-const TEXTS=['chat_left_keyword','chat_right_keyword','chat_match_mode'],NUMBERS=['user_cooldown_seconds'];
+const TEXTS=['chat_left_keyword','chat_right_keyword','chat_match_mode'],NUMBERS=['user_cooldown_seconds','legend_scale'];
 const SKILLS=new Set(['giant','whip','spray']);
 let effectsStamp='',game,pending=false,settingsDirty=false,rulesDirty=false,settingsStamp='',rulesStamp='',historyStamp='',picking=null;
 const note=document.createElement('div');note.className='feeding-pick-note';note.hidden=true;note.innerHTML='正在为泽小酱闯关选择礼物。<button class="text-button" data-view="battle">返回泽小酱闯关</button>';$('#gifts-view').prepend(note);

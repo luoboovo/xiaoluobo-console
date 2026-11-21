@@ -21,6 +21,8 @@ test('设置校验：默认口令、范围和礼物规则',()=>{
     {gift_rules:[{...WEB,effect:'explode'}]},{gift_rules:[{...WEB,value:0}]},{gift_rules:[{...WEB,value:11}]},{gift_rules:[{...WEB,gift_name:''}]},{gift_rules:Array(51).fill(WEB)},null,[]])
     assert.throws(()=>normalizeConfig(input),JSON.stringify(input));
   assert.equal(normalizeConfig({gift_rules:[{...WEB,effect:'spray',value:9}]}).gift_rules[0].value,1,'技能不需要数量');
+  assert.equal(c.legend_scale,100,'礼物说明默认100%');assert.equal(normalizeConfig({legend_scale:150}).legend_scale,150);
+  for(const legend_scale of [49,201,1.5,'x'])assert.throws(()=>normalizeConfig({legend_scale}),String(legend_scale));
 });
 
 test('兵种名字可以改：没填用默认，最多8个字，礼物作用和面板跟着换',async t=>{

@@ -708,13 +708,31 @@ function drawHUD() {
   text('发弹幕「1」加入泽小酱军团', W * 0.29, 228, 32, '#d4ecff', 'center', TEAM.L.dark, 8);
   text('发弹幕「2」加入鱼僵军', W * 0.73, 228, 32, '#ffd0cb', 'center', TEAM.R.dark, 8);
   if (!legendCache) {
-    legendCache = document.createElement('canvas'); legendCache.width = W; legendCache.height = 150;
-    const main = ctx; ctx = legendCache.getContext('2d'); ctx.translate(0, -260);
-    drawLegend();
+    // 礼物说明栏只在规则、名字或大小变了时重画一次，平时直接贴图
+    const L = giftRules.length ? legendLayout(Math.min(giftRules.length, LEGEND_MAX)) : null;
+    legendH = L ? L.h : 150;
+    legendCache = document.createElement('canvas'); legendCache.width = W; legendCache.height = Math.max(1, Math.ceil(legendH));
+    const main = ctx; ctx = legendCache.getContext('2d');
+    if (L) drawLegend(L); else { ctx.translate(0, -260); drawTierLegend(); }
     ctx = main;
   }
-  ctx.drawImage(legendCache, 0, 260);
+  ctx.drawImage(legendCache, 0, LEGEND_Y);
   drawFeedAndBanner();
+}
+// 礼物说明卡片：大小可在控制台调（legend_scale，默认 100%）；一行放不下就自动换行
+const LEGEND_Y = 255, LEGEND_MAX = 16;
+let legendScale = 1, legendH = 150;
+function legendLayout(n) {
+  const k = legendScale, cw = Math.round(150 * k), ch = Math.round(150 * k), gap = Math.round(12 * k);
+  const maxPerRow = Math.max(1, Math.min(n, Math.floor((W - 40 + gap) / (cw + gap))));
+  const rows = Math.ceil(n / maxPerRow), perRow = Math.ceil(n / rows); // 每行平均分，不出现最后一行只剩一两个
+  return { k, cw, ch, gap, perRow, rows, n, h: rows * ch + (rows - 1) * gap + 8 };
+}
+// 文字太长就缩小字号，保证放得进卡片
+function fitSize(str, size, maxW) {
+  ctx.font = `bold ${size}px ${FONT}`;
+  const w = ctx.measureText(str).width;
+  return w > maxW ? Math.max(11, Math.floor(size * maxW / w)) : size;
 }
 // 控制台绑定的礼物规则：说明栏逐条显示「礼物图标 + 礼物名 + 召唤谁」
 let giftRules = [], rulesStamp = '';
@@ -737,22 +755,23 @@ function ruleLabel(r) {
   if (r.effect === 'whip' || r.effect === 'spray' || r.effect === 'giant') return name;
   return '召唤' + name + (r.value > 1 ? '×' + r.value : '');
 }
-function drawLegend() {
-  if (!giftRules.length) return drawTierLegend();
-  const MAX = 12, list = giftRules.slice(0, MAX), n = list.length;
-  const step = Math.min(236, Math.floor((W - 80) / n)), cw = step - 14, x0 = (W - step * n) / 2 + step / 2;
+function drawLegend(L) {
+  const { k, cw, ch, gap, perRow, n } = L, list = giftRules.slice(0, n), pad = Math.round(8 * k);
   list.forEach((r, i) => {
-    const cx = x0 + i * step, left = SIDE_OF[r.effect] === 'L';
-    rr(cx - cw / 2, 268, cw, 122, 18, left ? 'rgba(70,140,230,0.4)' : 'rgba(230,60,60,0.4)');
-    const icon = r.gift_id && giftIcons.get(r.gift_id);
-    if (icon && icon.complete && icon.naturalWidth) ctx.drawImage(icon, cx - 26, 274, 52, 52);
-    else text('礼', cx, 300, 30, '#fff', 'center', '#333', 5);
-    const gift = r.gift_name.length > 7 ? r.gift_name.slice(0, 7) + '…' : r.gift_name;
-    text('送「' + gift + '」', cx, 342, cw < 160 ? 16 : 19, '#ffe07a', 'center', '#333', 5);
+    const row = Math.floor(i / perRow), inRow = Math.min(perRow, n - row * perRow), col = i % perRow;
+    const x = (W - (inRow * cw + (inRow - 1) * gap)) / 2 + col * (cw + gap), y = row * (ch + gap) + 4, cx = x + cw / 2, left = SIDE_OF[r.effect] === 'L';
+    // 深色半透明底 + 白边，文字在任何背景上都清楚
+    rr(x, y, cw, ch, Math.round(18 * k), left ? 'rgba(18,58,130,0.82)' : 'rgba(130,20,32,0.82)');
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = Math.max(2, 3 * k); ctx.beginPath(); ctx.roundRect(x, y, cw, ch, Math.round(18 * k)); ctx.stroke();
+    const icon = r.gift_id && giftIcons.get(r.gift_id), is = Math.round(68 * k);
+    if (icon && icon.complete && icon.naturalWidth) ctx.drawImage(icon, cx - is / 2, y + pad, is, is);
+    else text('礼', cx, y + pad + is / 2, Math.round(40 * k), '#fff', 'center', '#222', Math.round(6 * k));
+    const gift = '送「' + (r.gift_name.length > 8 ? r.gift_name.slice(0, 8) + '…' : r.gift_name) + '」';
+    text(gift, cx, y + pad + is + Math.round(20 * k), fitSize(gift, Math.round(24 * k), cw - 2 * pad), '#ffe14d', 'center', '#111', Math.max(4, Math.round(6 * k)));
     const label = ruleLabel(r);
-    text(label, cx, 370, label.length > 8 || cw < 160 ? 15 : 19, '#fff', 'center', left ? '#123a6b' : '#5a1014', 5);
+    text(label, cx, y + ch - Math.round(24 * k), fitSize(label, Math.round(24 * k), cw - 2 * pad), '#ffffff', 'center', '#111', Math.max(4, Math.round(6 * k)));
   });
-  if (giftRules.length > MAX) text(`还有 ${giftRules.length - MAX} 个礼物…`, W - 40, 396, 16, '#fff', 'right', '#333', 4);
+  if (giftRules.length > n) text(`还有 ${giftRules.length - n} 个礼物…`, W - 30, L.h - 14, Math.round(18 * k), '#fff', 'right', '#111', 5);
 }
 function drawTierLegend() {
   // 单机演示没有礼物规则时：按小/中/大礼物分档显示
@@ -786,7 +805,7 @@ function drawBottle(x, y, dir, sc) {
 function drawFeedAndBanner() {
   S.feed.forEach((f, i) => {
     const a = clamp(1 - (f.t - 5), 0, 1); if (!a) return;
-    ctx.globalAlpha = a; text(f.text, 40, 450 + i * 36, 26, f.team === 'L' ? '#d4ecff' : '#ffd0cb', 'left', 'rgba(0,0,0,0.7)', 5); ctx.globalAlpha = 1;
+    ctx.globalAlpha = a; text(f.text, 40, LEGEND_Y + legendH + 36 + i * 36, 26, f.team === 'L' ? '#d4ecff' : '#ffd0cb', 'left', 'rgba(0,0,0,0.7)', 5); ctx.globalAlpha = 1;
   });
   if (S.banner && S.banner.t < 2.2) {
     const b = S.banner, sc = b.t < 0.25 ? b.t / 0.25 * 1.3 : 1.3 - Math.min(0.3, (b.t - 0.25)), a = b.t > 1.7 ? 1 - (b.t - 1.7) / 0.5 : 1;
@@ -1035,6 +1054,8 @@ function receive(next) {
   srv.mode = next.mode; srv.platform = next.platform || srv.platform;
   applyNames(next.config && next.config.names);
   applyRules(next.config && next.config.gift_rules);
+  const scale = clamp(Number(next.config && next.config.legend_scale) || 100, 50, 200) / 100;
+  if (scale !== legendScale) { legendScale = scale; legendCache = null; }
   if (lastSeq === null) lastSeq = next.seq;
   for (const c of next.cues) {
     if (c.seq <= lastSeq || c.round !== next.round) continue;
