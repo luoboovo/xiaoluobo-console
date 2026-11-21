@@ -85,7 +85,7 @@ test('本地API、直播消息入口、独立画面频道与平台隔离',async 
   const runtime=await startServer({featuresOn:true,dataDir:dir,seedDir:path.join(__dirname,'../data')});
   t.after(async()=>{await runtime.close();await fs.rm(dir,{recursive:true,force:true});});
   const get=route=>fetch(runtime.url+route),post=(route,body,platform)=>fetch(runtime.url+route,{method:'POST',headers:{'Content-Type':'application/json',...(platform?{'X-Luobo-Platform':platform}:{})},body:JSON.stringify(body)});
-  for(const route of ['/battle/','/battle/game.js','/battle/chars.js','/battle/assets/chars.json','/battle/assets/ze_idle.png','/battle-console.js'])assert.equal((await get(route)).status,200,route);
+  for(const route of ['/battle/','/battle/game.js','/battle/chars.js','/battle/ticker.js','/battle/assets/chars.json','/battle/assets/ze_idle.png','/battle-console.js'])assert.equal((await get(route)).status,200,route);
   const socket=new WebSocket(runtime.url.replace('http:','ws:')+'/api/events/socket?battle=1',{origin:runtime.url}),frames=[];
   socket.on('message',message=>frames.push(String(message)));t.after(()=>socket.terminate());
   await new Promise((resolve,reject)=>{socket.once('message',resolve);socket.once('error',reject);});

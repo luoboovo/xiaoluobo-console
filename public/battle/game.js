@@ -875,10 +875,28 @@ function frame(now) {
   acc += now - last; last = now;
   if (acc < 1000 / FPS - 1) return;
   const dt = Math.min(0.05, acc / 1000); acc = 0;
-  if (leader) { update(dt); sendFrame(now); }
-  else if (mirror) showMirror(now, dt);
+  if (!leader && mirror) showMirror(now, dt);
   draw();
 }
+
+// 战斗计算和动画循环分开：计算由后台计时器驱动，窗口在后台、最小化或被挡住也照常打（挂机用）；
+// 动画循环只负责画。后台时浏览器可能把计时器放慢到每秒一次，这里按真实经过的时间分小步补算，节奏不变。
+let simAt = performance.now();
+function tick() {
+  const now = performance.now();
+  let dt = Math.min(10, (now - simAt) / 1000); simAt = now;
+  if (!leader) return;
+  while (dt > 0) { const step = Math.min(dt, 0.05); update(step); dt -= step; }
+  sendFrame(now);
+}
+(function startTicker() {
+  try {
+    const worker = new Worker('ticker.js');
+    worker.onmessage = tick;
+    worker.onerror = () => { worker.terminate(); setInterval(tick, 1000 / FPS); };
+    worker.postMessage(1000 / FPS);
+  } catch { setInterval(tick, 1000 / FPS); }
+})();
 
 // ---------- 模拟面板 ----------
 let seq = 1;
