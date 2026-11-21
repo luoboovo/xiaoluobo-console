@@ -209,6 +209,15 @@ $('#settings-button').addEventListener('click', async () => {
     $('#diagnostics-export').hidden=!info.enabled;
   }catch(error){$('#diagnostics-status').textContent='无法读取日志状态：'+error.message;}
 });
+const renderPublicView=info=>{
+  $('#public-view-enabled').checked=info.enabled;$('#public-view-port').value=info.port;
+  $('#public-view-status').textContent=!info.enabled?'未开启：外面无法访问':info.running?`已开启，监听端口 ${info.port}`:`开启失败：${info.error||'未知错误'}`;
+  $('#public-view-links').replaceChildren(...(info.enabled&&info.running?info.links:[]).map(link=>{const row=document.createElement('p'),code=document.createElement('code'),copy=document.createElement('button');code.textContent=link;copy.type='button';copy.className='text-button';copy.textContent='复制';copy.onclick=async()=>{try{await navigator.clipboard.writeText(link);toast('只读地址已复制');}catch(error){toast(error.message,true);}};row.append(code,' ',copy);return row;}));
+};
+const savePublicView=async body=>{try{renderPublicView(await api('/api/public-view',body));}catch(error){toast(error.message,true);}};
+$('#settings-button').addEventListener('click',async()=>{try{renderPublicView(await api('/api/public-view'));}catch(error){$('#public-view-status').textContent='无法读取：'+error.message;}});
+$('#public-view-save').addEventListener('click',()=>savePublicView({enabled:$('#public-view-enabled').checked,port:Number($('#public-view-port').value)}));
+$('#public-view-reset').addEventListener('click',()=>{if(confirm('更换后旧地址立即失效，确定吗？'))savePublicView({resetToken:true});});
 $('#diagnostics-open').addEventListener('click', async () => {try{await api('/api/diagnostics/open',{});}catch(error){toast(error.message,true);}});
 $('#import-config').addEventListener('click', () => $('#import-file').click());
 $('#import-file').addEventListener('change', async event => {
