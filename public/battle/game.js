@@ -60,7 +60,7 @@ function newState() {
   const s = {
     t: 0, intro: 0, wave: -1, queue: [], waveT: 0, nextWaveT: 0,
     units: [], bullets: [], parts: [], texts: [], rings: [], feed: [], bubbles: [], domains: [], vortex: [], ults: [], giants: [], whips: [], sprays: [],
-    viewers: {}, shake: 0, banner: null, over: null, endT: 0, autoT: 1, ze: null, boss: null, pendingCues: [], delayed: []
+    viewers: {}, shake: 0, banner: null, over: null, endT: 0, autoT: 1, ze: null, boss: null, pendingCues: [], delayed: [], uid: 0
   };
   S = s;
   s.ze = addUnit('ze', 230, 925, '泽小酱');
@@ -114,7 +114,7 @@ function bubble(u, text, dur = 2.2) { S.bubbles = S.bubbles.filter(b => b.u !== 
 
 function addUnit(type, x, y, owner) {
   const T = TYPES[type], dir = TEAM[T.team].dir;
-  const u = { type, T, team: T.team, dir, owner, x, y, hp: T.hp, max: T.hp, cd: rand(0, 0.5), atk: -1, hitDone: false, age: 0, walk: rand(0, 6), flash: 0, knock: 0, dead: false, deadT: 0, vx: 0, vy: 0, rot: 0, dy: 0, slowT: 0, frozenT: 0, forcedT: 0, forced: null, spT: T.spCd ? T.spCd * 0.5 : 0, moved: false };
+  const u = { id: ++S.uid, type, T, team: T.team, dir, owner, x, y, hp: T.hp, max: T.hp, cd: rand(0, 0.5), atk: -1, hitDone: false, age: 0, walk: rand(0, 6), flash: 0, knock: 0, dead: false, deadT: 0, vx: 0, vy: 0, rot: 0, dy: 0, slowT: 0, frozenT: 0, forcedT: 0, forced: null, spT: T.spCd ? T.spCd * 0.5 : 0, moved: false };
   S.units.push(u);
   return u;
 }
@@ -455,7 +455,7 @@ function finish(win) {
   const top = Object.values(S.viewers).filter(v => v.team === (win ? 'L' : 'R')).sort((a, b) => b.dmg - a.dmg).slice(0, 3);
   S.over = { win, t: 0, top };
   // 战绩回报给控制台（预览和单机演示不报；同一局开着多个画面时控制台只记第一次）
-  if (!DEMO && !PREVIEW) fetch('/api/battle/action', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Luobo-Platform': srv.platform }, body: JSON.stringify({ action: 'report', match: matchNo, result: win ? 'win' : 'lose', mvp: top.map(v => ({ name: v.name, dmg: v.dmg })) }) }).catch(() => {});
+  if (!DEMO && leader) fetch('/api/battle/action', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Luobo-Platform': srv.platform }, body: JSON.stringify({ action: 'report', match: matchNo, result: win ? 'win' : 'lose', mvp: top.map(v => ({ name: v.name, dmg: v.dmg })) }) }).catch(() => {});
 }
 
 // ---------- 绘制 ----------
@@ -872,7 +872,9 @@ function frame(now) {
   acc += now - last; last = now;
   if (acc < 1000 / FPS - 1) return;
   const dt = Math.min(0.05, acc / 1000); acc = 0;
-  update(dt); draw();
+  if (leader) { update(dt); sendFrame(now); }
+  else if (mirror) showMirror(now, dt);
+  draw();
 }
 
 // ---------- 模拟面板 ----------
@@ -891,6 +893,89 @@ addEventListener('keydown', e => {
   if (e.key === '2') spawnViewerR('thug', '测试观众' + (seq++));
 });
 if (!DEMO || QS.has('obs')) document.getElementById('panel').classList.add('hide');
+
+// ---------- 多个画面同步（主画面算，其他画面照着显示） ----------
+// 服务端只选一个主画面算战斗，它每 50ms 把这一局的状态发出来；独立窗口、OBS、控制台预览里的其他画面
+// 收到后照着画（位置在两帧之间平滑过渡），所以三个画面永远是同一局。主画面关掉或卡住，别的画面从最后一帧接着算。
+let leader = DEMO, lastGame = null, mirror = null, sentAt = 0, sendSocket = null;
+const UNIT_KEYS = ['id', 'type', 'owner', 'x', 'y', 'hp', 'max', 'atk', 'age', 'walk', 'flash', 'knock', 'dead', 'deadT', 'vx', 'vy', 'rot', 'dy', 'slowT', 'frozenT', 'forcedT', 'rage', 'kneel', 'flee', 'moved', 'cd', 'spT', 'tauntT', 'skillT', 'ultT', 'skillN'];
+const LERP_KEYS = ['x', 'y', 'walk', 'atk', 'age', 'deadT', 'dy', 'rot', 'knock'];
+const round2 = (k, v) => typeof v === 'number' && !Number.isInteger(v) ? Math.round(v * 100) / 100 : v;
+function frameOfState() {
+  const pick = (o, keys) => { const r = {}; for (const k of keys) if (o[k] !== undefined && o[k] !== null && o[k] !== false) r[k] = o[k]; return r; };
+  return {
+    round: srv.round, seq: lastSeq, match: matchNo,
+    t: S.t, intro: S.intro, wave: S.wave, queue: S.queue, waveT: S.waveT, nextWaveT: S.nextWaveT, endT: S.endT, ending: S.ending, shake: S.shake, lodOn: S.lodOn, uid: S.uid,
+    ze: S.ze && S.ze.id, boss: S.boss && S.boss.id,
+    units: S.units.map(u => pick(u, UNIT_KEYS)),
+    bullets: S.bullets.map(b => ({ kind: b.kind, team: b.team, x: b.x, y: b.y, ang: b.ang || 0 })),
+    parts: S.parts, texts: S.texts, rings: S.rings, feed: S.feed, domains: S.domains, vortex: S.vortex, ults: S.ults, giants: S.giants,
+    whips: S.whips.map(w => ({ x: w.x, y: w.y, dir: w.dir, len: w.len, t: w.t })),
+    sprays: S.sprays.map(w => ({ x: w.x, y: w.y, dir: w.dir, t: w.t })),
+    bubbles: S.bubbles.map(b => ({ id: b.u.id, text: b.text, t: b.t, dur: b.dur })),
+    banner: S.banner, over: S.over, viewers: S.viewers
+  };
+}
+function sendFrame(now) {
+  if (DEMO || !sendSocket || now - sentAt < 50) return;
+  sentAt = now;
+  sendSocket(JSON.stringify({ type: 'battle-frame', platform: srv.platform, frame: frameOfState() }, round2));
+}
+function stateFromFrame(f, prev) {
+  const before = new Map(prev ? prev.units.map(u => [u.id, u]) : []);
+  const s = {
+    ...f, queue: f.queue || [], pendingCues: [], delayed: [], autoT: 1,
+    units: f.units.map(d => {
+      const T = TYPES[d.type], u = { atk: -1, dead: false, flee: false, rage: false, kneel: false, moved: false, flash: 0, knock: 0, slowT: 0, frozenT: 0, forcedT: 0, vx: 0, vy: 0, rot: 0, dy: 0, cd: 0, spT: 0, ...d, T, team: T.team, dir: TEAM[T.team].dir, hitDone: true };
+      const p = before.get(d.id);
+      u._c = Object.fromEntries(LERP_KEYS.map(k => [k, u[k]]));
+      u._p = p ? Object.fromEntries(LERP_KEYS.map(k => [k, p[k]])) : u._c;
+      return u;
+    })
+  };
+  const byId = new Map(s.units.map(u => [u.id, u]));
+  s.ze = byId.get(f.ze) || s.units.find(u => u.type === 'ze') || null;
+  s.boss = byId.get(f.boss) || null;
+  s.bubbles = (f.bubbles || []).map(b => ({ ...b, u: byId.get(b.id) })).filter(b => b.u);
+  for (const k of ['texts', 'rings', 'feed', 'domains', 'vortex', 'ults', 'giants', 'whips', 'sprays']) s[k] = (f[k] || []).map(o => ({ ...o, _t: o.t }));
+  if (s.banner) s.banner._t = s.banner.t;
+  if (s.over) s.over._t = s.over.t;
+  s._t = f.t; s._intro = f.intro;
+  return s;
+}
+function receiveFrame(f) {
+  if (f.round !== srv.round) return;
+  lastFrameSeq = f.seq; lastFrameMatch = f.match || 1;
+  const now = performance.now();
+  S = stateFromFrame(f, S);
+  mirror = { at: now, span: mirror ? Math.min(200, Math.max(16, now - mirror.at)) : 50 };
+}
+// 两帧之间：单位位置和动作平滑过渡，特效的计时往前推，粒子自己飞
+function showMirror(now, dt) {
+  const a = clamp((now - mirror.at) / mirror.span, 0, 1), e = Math.min(0.2, (now - mirror.at) / 1000);
+  for (const u of S.units) for (const k of LERP_KEYS) { const p = u._p[k], c = u._c[k]; u[k] = typeof p === 'number' && typeof c === 'number' ? p + (c - p) * a : c; }
+  for (const k of ['texts', 'rings', 'feed', 'domains', 'vortex', 'ults', 'giants', 'whips', 'sprays']) for (const o of S[k]) o.t = o._t + e;
+  for (const b of S.bubbles) if (b._t === undefined) b._t = b.t; else b.t = b._t + e;
+  if (S.banner) S.banner.t = S.banner._t + e;
+  if (S.over) S.over.t = S.over._t + e;
+  S.t = S._t + e;
+  if (S._intro < INTRO_LEN) S.intro = Math.min(INTRO_LEN, S._intro + e);
+  for (const p of S.parts) { p.life -= dt; p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; if (p.rect) p.rot += dt * 8; }
+}
+// 成为主画面：从最后一帧接着算，再补上交接空档里到的弹幕和礼物
+function takeOver() {
+  if (mirror && S && S._t !== undefined) {
+    for (const u of S.units) { delete u._p; delete u._c; u.atk = -1; }
+    S.t = S._t; S.intro = S._intro; delete S._t; delete S._intro;
+    matchNo = Math.max(matchNo, lastFrameMatch || 1);
+    if (lastGame) for (const c of lastGame.cues) {
+      if (c.seq <= (lastFrameSeq ?? lastSeq) || c.round !== srv.round) continue;
+      if (lastGame.mode === 'running' && lastGame.now - c.time < 20000) applyCue(c);
+    }
+  }
+  mirror = null;
+}
+let lastFrameSeq = null, lastFrameMatch = 1;
 
 // ---------- 接小萝卜控制台 ----------
 // 一条指令 = 一条弹幕加入或一份礼物效果。开场动画期间到的指令先攒着，开打后再放。
@@ -917,6 +1002,7 @@ function applyNames(names) {
   legendCache = null; // 礼物说明栏重画
 }
 function receive(next) {
+  lastGame = next;
   const restarted = lastSeq !== null && next.seq < lastSeq;
   if (srv.round !== next.round || restarted) {
     // 刚打开画面时跳过旧指令；控制台点了「重新开局」就整局重来
@@ -932,12 +1018,15 @@ function receive(next) {
   for (const c of next.cues) {
     if (c.seq <= lastSeq || c.round !== next.round) continue;
     lastSeq = c.seq;
-    if (next.mode === 'running' && next.now - c.time < 20000) applyCue(c);
+    if (leader && next.mode === 'running' && next.now - c.time < 20000) applyCue(c);
   }
 }
 if (!DEMO && typeof LuoboEvents === 'function') {
   const source = new LuoboEvents('/api/events?battle=1');
   source.addEventListener('battle', event => receive(JSON.parse(event.data)));
+  source.addEventListener('battle-role', event => { const was = leader; leader = JSON.parse(event.data).leader === true; if (leader && !was) takeOver(); });
+  source.addEventListener('battle-frame', event => { if (!leader) receiveFrame(JSON.parse(event.data)); });
+  sendSocket = data => { if (source.socket && source.socket.readyState === 1) source.socket.send(data); };
 }
 
 newState();

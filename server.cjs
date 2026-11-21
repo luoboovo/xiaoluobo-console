@@ -282,7 +282,14 @@ async function startServer(options = {}) {
       return;
     }
     // 弹幕姬：刚打开时补上最近 30 条，免得画面空着。
-    if(client.channel==='battle')return send(client,'battle',battle.snapshot());
+    if(client.channel==='battle'){
+      client.battlePreview=url.searchParams.has('preview');
+      send(client,'battle',battle.snapshot());
+      if(battleLastFrame&&battleLastPlatform===services.platform)write(client,battleLastFrame);
+      // 已有主画面就只跟着显示；但主画面是控制台预览、新来的是独立窗口或 OBS 时，换新来的当主画面。
+      if(!battleLeader||battleLeader.battlePreview&&!client.battlePreview)pickBattleLeader();else send(client,'battle-role',{leader:false});
+      return;
+    }
     if(client.channel==='danmaku'){send(client,'danmaku',danmakuState());return send(client,'danmaku-history',services.events.slice(0,100));}
     if(client.channel==='feeding')return send(client,'feeding',feeding.snapshot());
     if(client.channel==='lottery'){
@@ -544,6 +551,36 @@ async function startServer(options = {}) {
     const frame=mowerLastFrame=frameOf('mower-frame',message.frame);mowerLastPlatform=message.platform;
     for(const other of clients)if(other!==client&&other.channel==='mower')write(other,frame);
   };
+  // 泽小酱闯关：和萝卜割草一样只让一个主画面算战斗，它的每帧转给其他闯关画面，
+  // 所以独立窗口、OBS 里复制的地址和控制台预览永远是同一局。主画面优先选最早打开的非预览画面。
+  let battleLeader=null,battleLeaderAt=0,battleFrameAt=0,battleLastFrame=null,battleLastPlatform='';
+  const battleClients=()=>[...clients].filter(client=>client.channel==='battle'&&!client.destroyed);
+  const setBattleLeader=next=>{
+    const changed=next!==battleLeader;
+    battleLeader=next;battleLeaderAt=Date.now();
+    if(changed)for(const client of battleClients())send(client,'battle-role',{leader:client===next});
+  };
+  const pickBattleLeader=()=>{
+    const now=Date.now(),all=battleClients().filter(client=>!client.readonly),fresh=all.filter(client=>!(client.battleStaleAt&&now-client.battleStaleAt<5000)),pool=fresh.length?fresh:all;
+    setBattleLeader(pool.find(client=>!client.battlePreview)||pool[0]||null);
+  };
+  const leaveBattle=client=>{if(client===battleLeader){battleLeader=null;pickBattleLeader();}};
+  const battleWatchdog=setInterval(()=>{
+    if(!battleLeader)return;
+    if(battleLeader.destroyed||!clients.has(battleLeader)){leaveBattle(battleLeader);return;}
+    if(Date.now()-Math.max(battleLeaderAt,battleFrameAt)<1500)return;
+    const stalled=battleLeader;stalled.battleStaleAt=Date.now();battleLeader=null;pickBattleLeader();
+    if(battleLeader!==stalled)send(stalled,'battle-role',{leader:false});
+  },500);
+  battleWatchdog.unref?.();
+  const relayBattle=(client,raw)=>{
+    if(client.channel!=='battle'||client!==battleLeader)return;
+    let message;try{message=JSON.parse(raw);}catch{return;}
+    if(message?.type!=='battle-frame'||message.platform!==services.platform||!message.frame||typeof message.frame!=='object')return;
+    battleFrameAt=Date.now();client.battleStaleAt=0;
+    const frame=battleLastFrame=frameOf('battle-frame',message.frame);battleLastPlatform=message.platform;
+    for(const other of clients)if(other!==client&&other.channel==='battle')write(other,frame);
+  };
   const sockets=new WebSocketServer({noServer:true,maxPayload:512*1024});
   const upgrade=readonly=>(req,socket,head)=>{
     if(req.url?.split('?')[0]!=='/api/events/socket'){socket.destroy();return;}
@@ -554,8 +591,8 @@ async function startServer(options = {}) {
     }else if(`http://${req.headers.host}`!==origin||req.headers.origin!==origin){socket.destroy();return;}
     sockets.handleUpgrade(req,socket,head,ws=>{
       const client={readonly,get destroyed(){return ws.readyState!==1;},get writableLength(){return ws.bufferedAmount;},write(frame){if(ws.readyState===1)ws.send(frame);},destroy(){ws.terminate();},end(){ws.terminate();}};
-      ws.on('message',raw=>{if(!readonly)relayMower(client,String(raw));});
-      ws.on('close',()=>{clients.delete(client);leaveMower(client);});ws.on('error',()=>{clients.delete(client);leaveMower(client);ws.terminate();});subscribe(client,new URL(req.url,origin));
+      ws.on('message',raw=>{if(readonly)return;const text=String(raw);relayMower(client,text);relayBattle(client,text);});
+      ws.on('close',()=>{clients.delete(client);leaveMower(client);leaveBattle(client);});ws.on('error',()=>{clients.delete(client);leaveMower(client);leaveBattle(client);ws.terminate();});subscribe(client,new URL(req.url,origin));
     });
   };
   server.on('upgrade',upgrade(false));
@@ -576,7 +613,7 @@ async function startServer(options = {}) {
   try{
     await new Promise((resolve,reject)=>{const failed=error=>reject(error);server.once('error',failed);server.listen(options.port??0,'127.0.0.1',()=>{server.removeListener('error',failed);resolve();});});
   }catch(error){
-    clearInterval(mowerWatchdog);diagnostics?.log('error','server.bind_failed',{host:'127.0.0.1',port:options.port??0,error});services.close();
+    clearInterval(mowerWatchdog);clearInterval(battleWatchdog);diagnostics?.log('error','server.bind_failed',{host:'127.0.0.1',port:options.port??0,error});services.close();
     if(error.code==='EADDRINUSE')error.message=`本地端口 ${options.port} 已被其他程序占用，请退出重复启动的控制台或调整占用该端口的软件。`;
     throw error;
   }
@@ -642,7 +679,7 @@ async function startServer(options = {}) {
   }, 15000);
   const close = async () => {
     closed=true;clearTimeout(autoSyncTimer);
-    for (const timer of [mowerWatchdog, lotteryTimer, physicsTimer, keepAlive, sealTimer, cleanupTimer, overtimeTimer, checkpointTimer]) clearInterval(timer);
+    for (const timer of [mowerWatchdog, battleWatchdog, lotteryTimer, physicsTimer, keepAlive, sealTimer, cleanupTimer, overtimeTimer, checkpointTimer]) clearInterval(timer);
     await stopPublic();
     clearTimeout(pruneTimer); liveMemory.close(); services.close(); await robot.close(); await robotRooms.close(); await actions; await pruning;
     for(const game of Object.values(games)){game.overtime.close();await game.overtime.checkpoint();await game.feeding.close();await game.numberBomb.close();await game.mower.close();await game.battle.close();for(const target of Object.values(game.lottery))await target.close();}

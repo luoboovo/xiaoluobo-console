@@ -106,3 +106,30 @@ test('本地API、直播消息入口、独立画面频道与平台隔离',async 
   assert.ok(frames.some(frame=>/^event: battle$/m.test(frame)));
   assert.ok(frames.every(frame=>!/^event: (state|noodle|lottery|feeding|message|number-bomb|mower)$/m.test(frame)),'画面频道只收闯关');
 });
+
+test('只有一个主画面算战斗：非预览画面优先，帧转给其他闯关画面，主画面断开换人接手',async t=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'luobo-battle-relay-'));
+  const runtime=await startServer({dataDir:dir,seedDir:path.join(__dirname,'../data')});
+  t.after(async()=>{await runtime.close();await fs.rm(dir,{recursive:true,force:true});});
+  const wait=(ms=80)=>new Promise(resolve=>setTimeout(resolve,ms));
+  const open=async query=>{
+    const socket=new WebSocket(runtime.url.replace('http:','ws:')+'/api/events/socket?'+query,{origin:runtime.url}),frames=[];
+    socket.on('message',m=>frames.push(String(m)));t.after(()=>socket.terminate());
+    await new Promise((resolve,reject)=>{socket.once('message',resolve);socket.once('error',reject);});
+    await wait();
+    return {socket,frames,role:()=>frames.filter(f=>f.startsWith('event: battle-role')).map(f=>JSON.parse(f.split('data: ')[1]).leader).at(-1),got:tag=>frames.filter(f=>f.startsWith('event: battle-frame')&&f.includes(tag)).length};
+  };
+  const preview=await open('battle=1&preview=1');
+  assert.equal(preview.role(),true,'只有预览时预览当主画面');
+  const obs=await open('battle=1');await wait();
+  assert.equal(obs.role(),true,'独立窗口或 OBS 来了就换它当主画面');assert.equal(preview.role(),false);
+  const frame=tag=>JSON.stringify({type:'battle-frame',platform:'bilibili',frame:{tag}});
+  preview.socket.send(frame('not-leader'));obs.socket.send(frame('from-leader'));await wait();
+  assert.equal(preview.got('from-leader'),1,'主画面的帧转给其他画面');
+  assert.equal(obs.got('not-leader'),0,'不是主画面发的帧不转');
+  const late=await open('battle=1');
+  assert.equal(late.got('from-leader'),1,'新打开的画面先拿到最新一帧');assert.equal(late.role(),false);
+  obs.socket.terminate();await wait(150);
+  assert.ok(late.role()===true||preview.role()===true,'主画面断开后换人接手');
+  assert.equal(late.role(),true,'优先非预览画面');
+});
