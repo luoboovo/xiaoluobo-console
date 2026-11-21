@@ -24,6 +24,8 @@ body {
   overflow: hidden;
 }
 body.transparent { background: transparent; }
+/* ?hd=2：整页按 2 倍放大渲染（文字按放大后的像素重新绘制，不是位图拉伸），排版尺寸不变。 */
+.hd body { width: calc(100vw / var(--hd)); height: calc(100vh / var(--hd)); transform: scale(var(--hd)); transform-origin: 0 0; }
 .chat {
   position: relative; z-index: 1;
   height: 100%; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;

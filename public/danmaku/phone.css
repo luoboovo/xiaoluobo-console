@@ -16,7 +16,7 @@
 /* —— 手机外壳共用 —— */
 body:not([data-device="none"]) { background: transparent; }
 body:not([data-device="none"]) .phone {
-  position: fixed; inset: 6px; overflow: hidden;
+  position: fixed; inset: 6px; height: auto; overflow: hidden;
   background: var(--bg); border: 9px solid var(--frame); border-radius: 46px;
   box-shadow: 0 0 0 2px #4a4a4e, 0 16px 40px rgba(0, 0, 0, .35);
 }
