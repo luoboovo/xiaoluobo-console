@@ -713,7 +713,46 @@ function drawHUD() {
   ctx.drawImage(legendCache, 0, 260);
   drawFeedAndBanner();
 }
+// 控制台绑定的礼物规则：说明栏逐条显示「礼物图标 + 礼物名 + 召唤谁」
+let giftRules = [], rulesStamp = '';
+const giftIcons = new Map();
+const SIDE_OF = { web: 'L', venom: 'L', blue: 'L', spear: 'L', gourd: 'L', white: 'L', giant: 'L', guard: 'R', whip: 'R', spray: 'R' };
+function applyRules(rules) {
+  if (!Array.isArray(rules)) return;
+  const stamp = JSON.stringify(rules); if (stamp === rulesStamp) return;
+  rulesStamp = stamp;
+  // 左边阵营在前，右边在后；同一礼物绑两个作用就各占一张
+  giftRules = rules.filter(r => SIDE_OF[r.effect]).sort((a, b) => (SIDE_OF[a.effect] === 'L' ? 0 : 1) - (SIDE_OF[b.effect] === 'L' ? 0 : 1));
+  for (const r of giftRules) if (r.gift_id && !giftIcons.has(r.gift_id)) {
+    const im = new Image(); im.onload = () => { legendCache = null; }; im.src = `/api/gifts/${r.gift_id}/image?platform=${srv.platform}`;
+    giftIcons.set(r.gift_id, im);
+  }
+  legendCache = null;
+}
+function ruleLabel(r) {
+  const name = UNIT_NAMES[r.effect] || r.effect;
+  if (r.effect === 'whip' || r.effect === 'spray' || r.effect === 'giant') return name;
+  return '召唤' + name + (r.value > 1 ? '×' + r.value : '');
+}
 function drawLegend() {
+  if (!giftRules.length) return drawTierLegend();
+  const MAX = 12, list = giftRules.slice(0, MAX), n = list.length;
+  const step = Math.min(236, Math.floor((W - 80) / n)), cw = step - 14, x0 = (W - step * n) / 2 + step / 2;
+  list.forEach((r, i) => {
+    const cx = x0 + i * step, left = SIDE_OF[r.effect] === 'L';
+    rr(cx - cw / 2, 268, cw, 122, 18, left ? 'rgba(70,140,230,0.4)' : 'rgba(230,60,60,0.4)');
+    const icon = r.gift_id && giftIcons.get(r.gift_id);
+    if (icon && icon.complete && icon.naturalWidth) ctx.drawImage(icon, cx - 26, 274, 52, 52);
+    else text('礼', cx, 300, 30, '#fff', 'center', '#333', 5);
+    const gift = r.gift_name.length > 7 ? r.gift_name.slice(0, 7) + '…' : r.gift_name;
+    text('送「' + gift + '」', cx, 342, cw < 160 ? 16 : 19, '#ffe07a', 'center', '#333', 5);
+    const label = ruleLabel(r);
+    text(label, cx, 370, label.length > 8 || cw < 160 ? 15 : 19, '#fff', 'center', left ? '#123a6b' : '#5a1014', 5);
+  });
+  if (giftRules.length > MAX) text(`还有 ${giftRules.length - MAX} 个礼物…`, W - 40, 396, 16, '#fff', 'right', '#333', 4);
+}
+function drawTierLegend() {
+  // 单机演示没有礼物规则时：按小/中/大礼物分档显示
   // 左边 4 张（泽小酱军团），右边 3 张（鱼僵军阵营）
   const step = 236, x0 = (W - step * 6 - 216) / 2 + 108;
   GIFTS.forEach(([gift, types], i) => {
@@ -888,6 +927,7 @@ function receive(next) {
   }
   srv.mode = next.mode; srv.platform = next.platform || srv.platform;
   applyNames(next.config && next.config.names);
+  applyRules(next.config && next.config.gift_rules);
   if (lastSeq === null) lastSeq = next.seq;
   for (const c of next.cues) {
     if (c.seq <= lastSeq || c.round !== next.round) continue;
