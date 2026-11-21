@@ -1,10 +1,11 @@
 'use strict';
 // 闯关模式 · 第一关：泽小酱军团（观众） vs 鱼僵军（系统）。
 // 角色占位图由 chars.js 生成，正式生图到位后放进 assets/ 并在 SPRITE_FILES 里登记即可替换。
-const W = 1920, H = 1080, SKY_H = 404, GROUND_TOP = 820, GROUND_BOT = 1010;
+// 4:3 画面（1440×1080）；人物整体放大 ZOOM 倍，近战距离跟着放大
+const W = 1440, H = 1080, CX = W / 2, SKY_H = 404, GROUND_TOP = 845, GROUND_BOT = 1035, ZOOM = 1.45;
 const cv = document.getElementById('cv'), mainCtx = cv.getContext('2d', { alpha: false });
 let ctx = mainCtx;
-// 性能参数：?res=720 用 1280x720 渲染（OBS 里再放大），?fps=30 限制帧率
+// 性能参数：?res=720 用 960x720 渲染（OBS 里再放大），?fps=30 限制帧率
 const QS = new URLSearchParams(location.search);
 // 默认接小萝卜控制台：开局/暂停听控制台的，弹幕和礼物变成「指令」送过来。?demo 是不连控制台的单机演示（带模拟面板）。
 const DEMO = QS.has('demo'), PREVIEW = QS.has('preview');
@@ -37,6 +38,7 @@ const TYPES = {
   guard: { team: 'R', name: '抱胸亲卫', sp: 'guard', hp: 220, atk: 12, range: 74, cd: 1.2, speed: 56, scale: 0.68, armor: 0.4 },
   yu: { team: 'R', name: '鱼僵军', sp: 'yu', hp: 5200, atk: 34, range: 125, cd: 1.4, speed: 40, scale: 1.05, splash: 140, boss: true }
 };
+for (const T of Object.values(TYPES)) { T.scale *= ZOOM; if (T.range < 200) T.range = Math.round(T.range * ZOOM); if (T.splash) T.splash = Math.round(T.splash * 1.2); if (T.pierce) T.pierce = Math.round(T.pierce * 1.2); }
 const GIFTS = [['小礼物', ['web', 'venom']], ['中礼物', ['blue', 'spear']], ['大礼物', ['gourd', 'white']], ['超级礼物', ['giant']]];
 // 右边（鱼僵军阵营）观众送礼：小礼物召唤亲卫，中礼物放虾线，大礼物放辣椒水
 const GIFTS_R = [['小礼物', 'guard'], ['中礼物', 'whip'], ['大礼物', 'spray']];
@@ -63,7 +65,7 @@ function newState() {
     viewers: {}, shake: 0, banner: null, over: null, endT: 0, autoT: 1, ze: null, boss: null, pendingCues: [], delayed: [], uid: 0
   };
   S = s;
-  s.ze = addUnit('ze', 230, 925, '泽小酱');
+  s.ze = addUnit('ze', 170, 950, '泽小酱');
   return s;
 }
 
@@ -127,7 +129,7 @@ function spawnL(type, name) {
   if (mine.length >= LIMIT.L) return;
   if (type === 'clown' && mine.filter(u => u.type === 'clown').length >= LIMIT.clown) return;
   viewer(name, 'L');
-  const u = addUnit(type, rand(120, 200), rand(GROUND_TOP + 10, GROUND_BOT - 10), name);
+  const u = addUnit(type, rand(90, 150), rand(GROUND_TOP + 10, GROUND_BOT - 10), name);
   puff(u.x, u.y, type === 'clown' ? 6 : 14);
   if (type !== 'clown') { feed(`${name} 送出礼物，召唤 ${TYPES[type].name}`, 'L'); ring(u.x, u.y, TEAM.L.color, 160); }
   if (type === 'gourd' || type === 'white') { S.shake = Math.max(S.shake, 8); bubble(u, type === 'gourd' ? '葫芦，收！' : '交给我吧'); }
@@ -143,19 +145,19 @@ function spawnViewerR(type, name) {
 // 送礼释放鱼僵军技能：鱼僵军在场就由他放；还没登场时从右边营地放出
 function castGiftSkill(kind, name) {
   viewer(name, 'R');
-  const origin = S.boss && !S.boss.dead ? S.boss : { x: 1830, y: 930, dir: -1, team: 'R', virtual: true };
+  const origin = S.boss && !S.boss.dead ? S.boss : { x: W - 90, y: 950, dir: -1, team: 'R', virtual: true };
   (kind === 'whip' ? castWhip : castSpray)(origin, name);
 }
 function spawnR(type) {
   if (type !== 'yu' && S.units.filter(u => u.team === 'R' && !u.dead).length >= LIMIT.R) return null;
-  const u = addUnit(type, rand(1960, 2020), rand(GROUND_TOP + 10, GROUND_BOT - 10), null);
-  if (type === 'yu') { u.y = 930; S.boss = u; u.tauntT = 6; u.ultT = 0; u.skillT = 4; u.skillN = 0; bubble(u, '谁敢来我的地盘？', 3); }
+  const u = addUnit(type, rand(W + 60, W + 120), rand(GROUND_TOP + 10, GROUND_BOT - 10), null);
+  if (type === 'yu') { u.y = 950; S.boss = u; u.tauntT = 6; u.ultT = 0; u.skillT = 4; u.skillN = 0; bubble(u, '谁敢来我的地盘？', 3); }
   return u;
 }
 
 function castGiant(name) {
   viewer(name, 'L');
-  S.giants.push({ owner: name, t: 0, x: 380, y: 960, hit: false });
+  S.giants.push({ owner: name, t: 0, x: 280, y: 1000, hit: false });
   feed(`${name} 召唤了「${UNIT_NAMES.giant}」！`, 'L');
 }
 
@@ -194,7 +196,7 @@ function enemiesOf(u) { return S.units.filter(e => !e.dead && !e.flee && e.team 
 
 // 鱼僵军技能一：虾线攻击——甩出一根长长的虾线，横扫前方一整排
 function castWhip(u, owner) {
-  S.whips.push({ u, x: u.x, y: u.y - 120, dir: u.dir, len: 760, t: 0, hit: false, src: { owner, team: 'R' } });
+  S.whips.push({ u, x: u.x, y: u.y - 120, dir: u.dir, len: 620, t: 0, hit: false, src: { owner, team: 'R' } });
   if (!u.virtual) { bubble(u, '吃我虾线！', 1.6); u.atk = 0; u.hitDone = true; }
   feed(owner ? `${owner} 送出礼物，鱼僵军使出「${UNIT_NAMES.whip}」！` : `鱼僵军 使出「${UNIT_NAMES.whip}」！`, 'R');
 }
@@ -229,7 +231,7 @@ function updateSpray(s, dt) {
       if (e.dead || e.flee || e.team === s.u.team) continue;
       if (e.type === 'clown') { e.flee = true; e.fleeT = 0; e.atk = -1; if (n++ % 3 === 0) bubble(e, pick(['辣眼睛！', '快跑啊！', '呜呜呜', '扛不住了']), 1.4); continue; }
       const dx = (e.x - s.x) * s.dir;
-      if (dx > 0 && dx < 650) { damage(e, e.type === 'ze' ? 25 : 30, s.src); e.slowT = Math.max(e.slowT, 2.5); }
+      if (dx > 0 && dx < 560) { damage(e, e.type === 'ze' ? 25 : 30, s.src); e.slowT = Math.max(e.slowT, 2.5); }
     }
   }
   if (s.t > 1.4) s.done = true;
@@ -270,7 +272,7 @@ function special(u) {
     bubble(u, '收！', 1.2); u.atk = 0; u.hitDone = true;
   } else if (u.T.special === 'domain') {
     const c = foes.reduce((s, e) => s + e.x, 0) / foes.length;
-    S.domains.push({ x: c, y: 930, r: 290, t: 0, dur: 3 });
+    S.domains.push({ x: c, y: 950, r: 290, t: 0, dur: 3 });
     for (const e of enemiesOf(u)) if (Math.abs(e.x - c) < 290) { e.frozenT = e.T.boss ? 1.5 : 3; damage(e, 15, u); }
     bubble(u, '结界展开', 1.6); S.shake = Math.max(S.shake, 8); u.atk = 0; u.hitDone = true;
   }
@@ -293,8 +295,8 @@ function updateBoss(u, dt) {
   u.tauntT -= dt;
   if (u.tauntT <= 0) {
     u.tauntT = 10; bubble(u, pick(TAUNTS));
-    for (const e of enemiesOf(u)) if (Math.abs(e.x - u.x) < 460 && e.type !== 'ze') { e.forced = u; e.forcedT = 3; }
-    ring(u.x, u.y, '#ff4a4a', 460);
+    for (const e of enemiesOf(u)) if (Math.abs(e.x - u.x) < 400 && e.type !== 'ze') { e.forced = u; e.forcedT = 3; }
+    ring(u.x, u.y, '#ff4a4a', 400);
   }
   if (u.hp < u.max * 0.2) {
     u.ultT -= dt;
@@ -302,7 +304,7 @@ function updateBoss(u, dt) {
       u.ultT = 9;
       const near = enemiesOf(u).filter(e => Math.abs(e.x - u.x) < 1000);
       const x = near.length ? near.reduce((s, e) => s + e.x, 0) / near.length : S.ze.x;
-      S.ults.push({ x: clamp(x, 200, 1700), y: 930, r: 240, t: -1.3, hit: false });
+      S.ults.push({ x: clamp(x, 200, W - 220), y: 950, r: 240, t: -1.3, hit: false });
       bubble(u, '吃我一拳！', 1.8);
     }
   }
@@ -337,7 +339,7 @@ function updateUnit(u, dt) {
   if (u.T.special && u.spT <= 0 && special(u)) { u.spT = u.T.spCd; return; }
   const speed = u.T.speed * (u.slowT > 0 ? 0.4 : 1) * (u.rage ? 1.5 : 1);
   if (!t) {
-    if (u.team === 'L' && u.x < 1300 && speed) { u.x += u.dir * speed * dt; u.walk += dt; u.moved = true; }
+    if (u.team === 'L' && u.x < W - 480 && speed) { u.x += u.dir * speed * dt; u.walk += dt; u.moved = true; }
     return;
   }
   const d = Math.abs(t.x - u.x) - (t.T.boss ? 40 : 15);
@@ -527,10 +529,11 @@ function drawBackground() {
     const b = bgCache.getContext('2d'), g = b.createLinearGradient(0, 0, 0, SKY_H);
     g.addColorStop(0, '#4f98dc'); g.addColorStop(1, '#a9d8f5');
     b.fillStyle = g; b.fillRect(0, 0, W, SKY_H + 4); b.imageSmoothingQuality = 'high';
-    b.drawImage(IMG.bg_battlefield, 0, SKY_H, W, H - SKY_H);
+    const bg = IMG.bg_battlefield, sw = Math.min(bg.width, bg.height * W / (H - SKY_H));
+    b.drawImage(bg, (bg.width - sw) / 2, 0, sw, bg.height, 0, SKY_H, W, H - SKY_H);
   }
   ctx.drawImage(bgCache, 0, 0);
-  flag(70, 940, '泽', TEAM.L.color, 1); flag(1850, 940, '鱼', TEAM.R.color, -1);
+  flag(50, 960, '泽', TEAM.L.color, 1); flag(W - 50, 960, '鱼', TEAM.R.color, -1);
 }
 function flag(x, y, ch, color, dir) {
   ctx.strokeStyle = '#5a3a1a'; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 230); ctx.stroke();
@@ -688,22 +691,22 @@ function drawHUD() {
   const ze = S.ze;
   portrait('ze_idle', 110, 105, 72, TEAM.L.color);
   text('泽小酱', 210, 60, 44, '#fff', 'left', TEAM.L.dark, 8);
-  bar(205, 92, 640, 40, ze.hp / ze.max, '#4fd16a');
-  text(`${Math.max(0, Math.ceil(ze.hp))} / ${ze.max}`, 525, 112, 22, '#fff', 'center', 'rgba(0,0,0,0.6)', 4);
+  bar(205, 92, 420, 40, ze.hp / ze.max, '#4fd16a');
+  text(`${Math.max(0, Math.ceil(ze.hp))} / ${ze.max}`, 415, 112, 22, '#fff', 'center', 'rgba(0,0,0,0.6)', 4);
   text(`军团在场 ${S.units.filter(u => u.team === 'L' && !u.dead && !u.flee && u.type !== 'ze').length} 人`, 210, 160, 26, '#fff', 'left', TEAM.L.dark, 6);
-  text('第一关 · 鱼僵军的地盘', 1700, 40, 30, '#ffe07a', 'right', '#3a1a0a', 6);
+  text('第一关 · 鱼僵军的地盘', CX, 30, 26, '#ffe07a', 'center', '#3a1a0a', 6);
   const boss = S.boss;
   if (boss) {
-    portrait(boss.rage ? 'yu_rage' : 'yu_idle', 1810, 115, 72, TEAM.R.color, true);
-    text(boss.rage ? '鱼僵军 · 狂暴' : '鱼僵军', 1710, 78, 40, boss.rage ? '#ff8a80' : '#fff', 'right', TEAM.R.dark, 8);
-    bar(1075, 104, 640, 40, Math.max(0, boss.hp) / boss.max, boss.rage ? '#ff3b3b' : '#e8553a', true);
-    text(`${Math.max(0, Math.ceil(boss.hp))}`, 1395, 124, 22, '#fff', 'center', 'rgba(0,0,0,0.6)', 4);
+    portrait(boss.rage ? 'yu_rage' : 'yu_idle', W - 110, 105, 72, TEAM.R.color, true);
+    text(boss.rage ? '鱼僵军 · 狂暴' : '鱼僵军', W - 210, 68, 40, boss.rage ? '#ff8a80' : '#fff', 'right', TEAM.R.dark, 8);
+    bar(W - 625, 92, 420, 40, Math.max(0, boss.hp) / boss.max, boss.rage ? '#ff3b3b' : '#e8553a', true);
+    text(`${Math.max(0, Math.ceil(boss.hp))}`, W - 415, 112, 22, '#fff', 'center', 'rgba(0,0,0,0.6)', 4);
   } else if (S.wave >= 0) {
-    text(`第 ${S.wave + 1} / ${WAVES.length} 波`, 1700, 100, 38, '#fff', 'right', TEAM.R.dark, 8);
-    text(`敌人剩余 ${S.units.filter(u => u.team === 'R' && !u.dead && !u.owner).length + S.queue.length}`, 1700, 150, 26, '#fff', 'right', TEAM.R.dark, 6);
+    text(`第 ${S.wave + 1} / ${WAVES.length} 波`, W - 40, 100, 38, '#fff', 'right', TEAM.R.dark, 8);
+    text(`敌人剩余 ${S.units.filter(u => u.team === 'R' && !u.dead && !u.owner).length + S.queue.length}`, W - 40, 150, 26, '#fff', 'right', TEAM.R.dark, 6);
   }
-  text('发弹幕「1」加入泽小酱军团', 620, 230, 34, '#d4ecff', 'center', TEAM.L.dark, 8);
-  text('发弹幕「2」加入鱼僵军', 1300, 230, 34, '#ffd0cb', 'center', TEAM.R.dark, 8);
+  text('发弹幕「1」加入泽小酱军团', W * 0.29, 228, 32, '#d4ecff', 'center', TEAM.L.dark, 8);
+  text('发弹幕「2」加入鱼僵军', W * 0.73, 228, 32, '#ffd0cb', 'center', TEAM.R.dark, 8);
   if (!legendCache) {
     legendCache = document.createElement('canvas'); legendCache.width = W; legendCache.height = 150;
     const main = ctx; ctx = legendCache.getContext('2d'); ctx.translate(0, -260);
@@ -754,18 +757,18 @@ function drawLegend() {
 function drawTierLegend() {
   // 单机演示没有礼物规则时：按小/中/大礼物分档显示
   // 左边 4 张（泽小酱军团），右边 3 张（鱼僵军阵营）
-  const step = 236, x0 = (W - step * 6 - 216) / 2 + 108;
+  const step = 196, x0 = (W - step * 6 - 180) / 2 + 90;
   GIFTS.forEach(([gift, types], i) => {
     const cx = x0 + i * step;
-    rr(cx - 108, 270, 216, 118, 18, 'rgba(70,140,230,0.35)');
+    rr(cx - 90, 270, 180, 118, 18, 'rgba(70,140,230,0.35)');
     text(gift, cx, 292, 22, '#ffe07a', 'center', '#333', 5);
-    types.forEach((t, j) => spr(t + '_idle', cx + (types.length === 1 ? 0 : (j ? 50 : -50)), 392, { scale: 0.3, sx: 1.2, sy: 1.2 }));
+    types.forEach((t, j) => spr(t + '_idle', cx + (types.length === 1 ? 0 : (j ? 42 : -42)), 392, { scale: 0.3, sx: 1.2, sy: 1.2 }));
     text(types.map(t => UNIT_NAMES[t]).join(' / '), cx, 320, 17, '#fff', 'center', '#333', 4);
   });
   GIFTS_R.forEach(([gift, kind], i) => {
     const label = UNIT_NAMES[kind];
     const cx = x0 + (i + 4) * step;
-    rr(cx - 108, 270, 216, 118, 18, 'rgba(230,60,60,0.35)');
+    rr(cx - 90, 270, 180, 118, 18, 'rgba(230,60,60,0.35)');
     text(gift, cx, 292, 22, '#ffe07a', 'center', '#333', 5);
     text(label, cx, 320, 17, '#fff', 'center', '#333', 4);
     if (kind === 'guard') spr('guard_idle', cx, 392, { scale: 0.3, sx: 1.2, sy: 1.2, flip: true });
@@ -789,7 +792,7 @@ function drawFeedAndBanner() {
     const b = S.banner, sc = b.t < 0.25 ? b.t / 0.25 * 1.3 : 1.3 - Math.min(0.3, (b.t - 0.25)), a = b.t > 1.7 ? 1 - (b.t - 1.7) / 0.5 : 1;
     ctx.save(); ctx.globalAlpha = a;
     if (b.boss) { ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 480, W, 160); }
-    ctx.translate(960, 560); ctx.scale(sc, sc);
+    ctx.translate(CX, 560); ctx.scale(sc, sc);
     text(b.text, 0, 0, b.boss ? 96 : 80, b.boss ? '#ff6b6b' : '#fff', 'center', b.boss ? '#3a0a0a' : '#123a6b', 14);
     ctx.restore();
   }
@@ -799,18 +802,18 @@ function drawIntro() {
   const t = S.intro, a = t > INTRO_LEN - 0.5 ? (INTRO_LEN - t) / 0.5 : 1;
   ctx.save(); ctx.globalAlpha = a;
   ctx.fillStyle = 'rgba(10,10,20,0.75)'; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = TEAM.L.color; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(1000, 0); ctx.lineTo(880, H); ctx.lineTo(0, H); ctx.fill();
-  ctx.fillStyle = TEAM.R.color; ctx.beginPath(); ctx.moveTo(1040, 0); ctx.lineTo(W, 0); ctx.lineTo(W, H); ctx.lineTo(920, H); ctx.fill();
+  ctx.fillStyle = TEAM.L.color; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(CX + 40, 0); ctx.lineTo(CX - 80, H); ctx.lineTo(0, H); ctx.fill();
+  ctx.fillStyle = TEAM.R.color; ctx.beginPath(); ctx.moveTo(CX + 80, 0); ctx.lineTo(W, 0); ctx.lineTo(W, H); ctx.lineTo(CX - 40, H); ctx.fill();
   const slide = p => 1 - Math.pow(1 - clamp(p, 0, 1), 3);
-  spr('ze_attack', -400 + 900 * slide(t / 0.6), 1080, { scale: 3.4 });
-  spr('yu_idle', W + 400 - 900 * slide((t - 0.2) / 0.6), 1080, { scale: 3.4, flip: true });
+  spr('ze_attack', -400 + 720 * slide(t / 0.6), 1080, { scale: 2.9 });
+  spr('yu_idle', W + 400 - 720 * slide((t - 0.2) / 0.6), 1080, { scale: 2.9, flip: true });
   const vs = clamp((t - 0.7) / 0.25, 0, 1);
-  if (vs > 0) { ctx.save(); ctx.translate(960, 470); ctx.scale(3 - 2 * vs, 3 - 2 * vs); text('VS', 0, 0, 190, '#ffe14d', 'center', '#222', 18); ctx.restore(); }
-  text('泽小酱', 360, 140, 88, '#fff', 'center', TEAM.L.dark, 14);
-  text('鱼僵军', 1560, 140, 88, '#fff', 'center', TEAM.R.dark, 14);
-  if (t > 1.4) speech(560, 330, '就你？');
-  if (t > 2.3) speech(1360, 330, '来试试');
-  if (t > 3.1) text('第一关 · 鱼僵军的地盘', 960, 980, 64, '#ffe07a', 'center', '#222', 12);
+  if (vs > 0) { ctx.save(); ctx.translate(CX, 470); ctx.scale(3 - 2 * vs, 3 - 2 * vs); text('VS', 0, 0, 190, '#ffe14d', 'center', '#222', 18); ctx.restore(); }
+  text('泽小酱', W * 0.2, 140, 84, '#fff', 'center', TEAM.L.dark, 14);
+  text('鱼僵军', W * 0.8, 140, 84, '#fff', 'center', TEAM.R.dark, 14);
+  if (t > 1.4) speech(W * 0.3, 330, '就你？');
+  if (t > 2.3) speech(W * 0.7, 330, '来试试');
+  if (t > 3.1) text('第一关 · 鱼僵军的地盘', CX, 980, 60, '#ffe07a', 'center', '#222', 12);
   ctx.restore();
 }
 function speech(x, y, s) { ctx.font = `bold 60px ${FONT}`; const w = ctx.measureText(s).width + 70; rr(x - w / 2, y - 55, w, 110, 40, '#fff'); ctx.fillStyle = '#222'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(s, x, y); }
@@ -819,20 +822,20 @@ function drawOver() {
   const o = S.over, a = clamp(o.t / 0.6, 0, 1);
   ctx.fillStyle = `rgba(0,0,0,${0.6 * a})`; ctx.fillRect(0, 0, W, H);
   const sc = o.t < 0.5 ? o.t / 0.5 * 1.2 : 1.2 - Math.min(0.2, o.t - 0.5);
-  ctx.save(); ctx.translate(960, 200); ctx.scale(sc, sc);
+  ctx.save(); ctx.translate(CX, 200); ctx.scale(sc, sc);
   text(o.win ? '第一关 通关！' : '闯关失败', 0, 0, 120, o.win ? '#ffe14d' : '#ff8a80', 'center', '#222', 16);
   ctx.restore();
   if (o.win) {
-    spr('ze_attack', 760, 620 - Math.abs(Math.sin(o.t * 6)) * 24, { scale: 1.5 * a });
-    spr('yu_kneel', 1160, 620, { scale: 1.5 * a, flip: true });
+    spr('ze_attack', CX - 220, 620 - Math.abs(Math.sin(o.t * 6)) * 24, { scale: 1.5 * a });
+    spr('yu_kneel', CX + 220, 620, { scale: 1.5 * a, flip: true });
   } else {
-    spr('yu_rage', 960, 620, { scale: 1.6 * a, flip: true });
-    text('泽小酱倒下了……', 960, 330, 48, '#fff', 'center', '#000', 8);
+    spr('yu_rage', CX, 620, { scale: 1.6 * a, flip: true });
+    text('泽小酱倒下了……', CX, 330, 48, '#fff', 'center', '#000', 8);
   }
-  text(o.win ? '本关 MVP · 泽小酱军团' : '本关 MVP · 鱼僵军阵营', 960, 710, 40, '#ffe07a', 'center', '#333', 8);
-  o.top.forEach((v, i) => text(`${['冠军', '亚军', '季军'][i]} ${v.name}  伤害 ${Math.round(v.dmg)}  击倒 ${v.kills}`, 960, 772 + i * 54, 34, o.win ? '#d4ecff' : '#ffd0cb', 'center', 'rgba(0,0,0,0.8)', 6));
-  if (o.win) { ctx.save(); ctx.globalAlpha = a; spr('yu_idle', 1700, 1020, { scale: 1.1, flip: true, tint: 'black' }); ctx.restore(); text('第二关 ???', 1700, 1040, 34, '#fff', 'center', '#000', 6); }
-  text(`${Math.ceil(12 - o.t)} 秒后${o.win ? '重玩本关（第二关待制作）' : '重新挑战'}`, 960, 1000, 28, '#fff', 'center', '#000', 5);
+  text(o.win ? '本关 MVP · 泽小酱军团' : '本关 MVP · 鱼僵军阵营', CX, 710, 40, '#ffe07a', 'center', '#333', 8);
+  o.top.forEach((v, i) => text(`${['冠军', '亚军', '季军'][i]} ${v.name}  伤害 ${Math.round(v.dmg)}  击倒 ${v.kills}`, CX, 772 + i * 54, 32, o.win ? '#d4ecff' : '#ffd0cb', 'center', 'rgba(0,0,0,0.8)', 6));
+  if (o.win) { ctx.save(); ctx.globalAlpha = a; spr('yu_idle', W - 160, 1020, { scale: 1.1, flip: true, tint: 'black' }); ctx.restore(); text('第二关 ???', W - 160, 1040, 34, '#fff', 'center', '#000', 6); }
+  text(`${Math.ceil(12 - o.t)} 秒后${o.win ? '重玩本关（第二关待制作）' : '重新挑战'}`, CX, 1000, 28, '#fff', 'center', '#000', 5);
 }
 
 function draw() {
@@ -860,8 +863,8 @@ function draw() {
   if (S.over) drawOver();
   if (srv.mode !== 'running') {
     ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, 0, W, H);
-    text(srv.mode === 'paused' ? '已暂停' : '泽小酱闯关', 960, 470, 110, '#ffe14d', 'center', '#222', 14);
-    text(srv.mode === 'paused' ? '主播马上回来' : '等待主播开始 · 发弹幕「1」帮泽小酱，发「2」帮鱼僵军', 960, 600, 40, '#fff', 'center', '#222', 8);
+    text(srv.mode === 'paused' ? '已暂停' : '泽小酱闯关', CX, 470, 110, '#ffe14d', 'center', '#222', 14);
+    text(srv.mode === 'paused' ? '主播马上回来' : '等待主播开始 · 发弹幕「1」帮泽小酱，发「2」帮鱼僵军', CX, 600, 34, '#fff', 'center', '#222', 8);
   }
 }
 

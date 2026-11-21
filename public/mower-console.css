@@ -15,3 +15,4 @@
 #battle-history{list-style:none;padding:0;margin:0;max-height:260px;overflow:auto;scrollbar-width:thin}#battle-history li:not(.lottery-empty){display:flex;align-items:center;gap:10px;border-top:1px solid var(--line);padding:9px 0}#battle-history li>div{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}#battle-history strong{font-size:12px}#battle-history li>div>span{font-size:10px;color:var(--muted);overflow-wrap:anywhere}
 
 .battle-names-group{margin:10px 0 4px;font-size:12px;font-weight:600;color:var(--muted)}.battle-names-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px}.battle-names-grid label{font-size:11px}
+#battle-frame{aspect-ratio:4/3;background:#1d2a1a}

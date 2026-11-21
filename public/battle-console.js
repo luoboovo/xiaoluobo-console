@@ -84,7 +84,7 @@ $('#battle-pause').onclick=run(()=>action({action:'pause'}));
 $('#battle-reset').onclick=run(()=>action({action:'reset'}));
 $('#battle-clear-history').onclick=run(()=>action({action:'clear_history'}));
 $('#battle-open').onclick=()=>window.open('/battle/','_blank');
-$('#battle-copy').onclick=run(async()=>{await navigator.clipboard.writeText(location.origin+'/battle/');toast('泽小酱闯关画面地址已复制：放进 OBS 浏览器源（1920 × 1080）');});
+$('#battle-copy').onclick=run(async()=>{await navigator.clipboard.writeText(location.origin+'/battle/');toast('泽小酱闯关画面地址已复制：放进 OBS 浏览器源（1440 × 1080，4:3）');});
 window.addEventListener('before-generate-panel',event=>{if(event.detail==='battle'&&rulesDirty){event.preventDefault();toast('请先保存礼物规则，再生成面板',true);}});
 addEventListener('battle-state',event=>render(event.detail));
 addEventListener('console-state',liveNote);
