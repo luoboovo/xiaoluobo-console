@@ -23,6 +23,7 @@ const { RobotRooms } = require('./lib/robot-rooms.cjs');
 const { FeatureSwitches } = require('./lib/feature-switches.cjs');
 const { LiveMemory } = require('./lib/live-memory.cjs');
 const { roomId } = require('./lib/protocol.cjs');
+const { PublicView } = require('./lib/public-view.cjs');
 
 // Overlay pages subscribe to one channel; everything else is a console page.
 const CHANNELS = { bomb:new Set(['number-bomb']), mower:new Set(['mower']), battle:new Set(['battle']), lottery:new Set(['lottery']), feeding:new Set(['feeding','feeding-motion','feeding-physics']), overtime:new Set(['overtime','overtime-clock','overtime-media']), scene:new Set(['noodle','noodle-motion']), danmaku:new Set(['message','danmaku-history','danmaku']) };
@@ -66,6 +67,7 @@ async function startServer(options = {}) {
   // 机器人的其他直播间（主直播间就是上面这个 robot），各自一套设置，共用登录账号和 AI Key。
   const robotRooms=await new RobotRooms({services,dataDir:services.dataDir,main:robot,robotOptions:{diagnostics,keyStore,fetchImpl:options.robotFetch||globalThis.fetch},...(options.robotLink?{createLink:options.robotLink}:{})}).init();
   // 各玩法的总开关（默认全关）：关着的玩法不接直播间的礼物和弹幕。
+  const publicView=await new PublicView(services.dataDir).init();
   const features=await new FeatureSwitches(services.dataDir,{defaultOn:options.featuresOn}).init();
   // 主直播间连上就记住，下次打开自动连回去；只有手动点「断开」才不再自动连。
   const liveMemory=await new LiveMemory(services,{diagnostics,...options.liveMemory}).init();
@@ -267,7 +269,7 @@ async function startServer(options = {}) {
     game.overtime.on('state',current(state=>broadcast('overtime',state)));
     game.overtime.on('media',current(cue=>{broadcast('overtime-media',cue);for(const listener of mediaListeners)listener(cue);}));
   }
-  let origin, obs, hime;
+  let origin, obs, hime, closed=false, autoSyncTimer;
   const subscribe=(client,url)=>{
     client.channel=Object.keys(CHANNELS).find(key=>url.searchParams.has(key));client.consoleOnly=url.searchParams.has('console');clients.add(client);
     if(client.channel==='bomb')return send(client,'number-bomb',numberBomb.snapshot());
@@ -299,6 +301,7 @@ async function startServer(options = {}) {
 
   // POST handlers receive the parsed JSON body; `scoped` rejects work queued before a platform switch.
   const postRoutes = {
+    '/api/public-view': async input => {await publicView.update({enabled:input.enabled,port:input.port,resetToken:input.resetToken===true});await applyPublic();return publicState();},
     '/api/diagnostics/client': input => {
       if(!diagnostics)return {ok:true};
       if(!Array.isArray(input.entries)||input.entries.length>10||input.entries.some(entry=>!entry||!CLIENT_EVENTS.includes(entry.event)||!CLIENT_PAGES.includes(entry.page)||typeof entry.message!=='string'||entry.message.length>2000||entry.stack!==undefined&&(typeof entry.stack!=='string'||entry.stack.length>6000)))throw new Error('诊断记录格式无效');
@@ -382,6 +385,7 @@ async function startServer(options = {}) {
   // GET handlers return a JSON body, or write the response themselves and return undefined.
   const getRoutes = {
     '/api/features': () => features.snapshot(),
+    '/api/public-view': () => publicState(),
     '/api/update/state': () => updateState(),
     '/api/diagnostics/info': () => diagnostics?{...diagnostics.info(),canOpen:!!options.openLogs}:{enabled:false},
     '/api/diagnostics/export': async res => {
@@ -448,14 +452,23 @@ async function startServer(options = {}) {
     }]
   ];
 
-  const server = http.createServer(async (req, res) => {
+  // viewer=true 是公网只读端口来的请求：只认访问码、只给 GET，不走本机的 Host/Origin 校验。
+  const handle = async (req, res, viewer) => {
     const requestStarted=performance.now();
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https://*.hdslb.com https://hdslb.com https://*.biliimg.com https://biliimg.com https://*.douyinpic.com https://*.byteimg.com; media-src 'self' blob:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'");
     res.setHeader('Referrer-Policy', 'no-referrer');
     const json = (data, status = res.statusCode) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); };
     // Host and Origin must both be this console, which blocks DNS rebinding and cross-site requests.
-    if (`http://${req.headers.host}` !== origin || (req.headers.origin && req.headers.origin !== origin)) return json({ error: '仅允许本机控制台访问' }, 403);
+    if (viewer) {
+      const asked = new URL(req.url, 'http://viewer');
+      const auth = publicView.authorize(req, asked);
+      if (!auth) return json({ error: '需要访问码：请用控制台「配置 → 公网只读访问」里复制的完整地址打开' }, 401);
+      // 第一次带 ?key= 打开：存进 Cookie 后跳回不带访问码的地址，页面里的脚本、图片和推送都靠 Cookie 通过。
+      if (auth === 'query') { asked.searchParams.delete('key'); res.writeHead(302, { 'Set-Cookie': publicView.cookie(), Location: asked.pathname + asked.search, 'Cache-Control': 'no-store' }); return res.end(); }
+      if (req.method !== 'GET') return json({ error: '公网只读访问，不能修改' }, 403);
+      if (publicView.blocked(asked.pathname)) return json({ error: '公网只读访问不提供此内容' }, 403);
+    } else if (`http://${req.headers.host}` !== origin || (req.headers.origin && req.headers.origin !== origin)) return json({ error: '仅允许本机控制台访问' }, 403);
     try {
       const url = new URL(req.url, origin);
       res.once('finish',()=>{const elapsedMs=Math.round(performance.now()-requestStarted);if(elapsedMs>=1500)diagnostics?.log('warn','http.slow',{method:req.method,path:url.pathname,status:res.statusCode,elapsedMs,pendingGifts});});
@@ -496,7 +509,8 @@ async function startServer(options = {}) {
       }
       if (!await servePublic(res, path.join(__dirname, 'public'), url.pathname,images,path.join(services.dataDir,'render-cache'))) return json({ error: '页面不存在' }, 404);
     } catch (error) { diagnostics?.log('error','http.error',{method:req.method,path:req.url?.split('?')[0],error});if (!res.headersSent) json({ error: error.message }, error.status || 400); else res.end(); }
-  });
+  };
+  const server = http.createServer((req, res) => handle(req, res, false));
   // 萝卜割草：同一时刻只让一个画面（主画面）算战斗，它的每帧经这里转给其他割草画面，所以操作窗口、
   // OBS 里复制的地址和控制台预览永远是同一局。主画面优先选操作窗口（最后打开的那个），没有就选最早的
   // 非预览画面（一般是 OBS），再没有才用控制台预览。主画面断开或 1.5 秒没发帧，马上换一个接手。
@@ -509,7 +523,7 @@ async function startServer(options = {}) {
     if(changed)for(const client of mowerClients())send(client,'mower-role',{leader:client===next});
   };
   const pickMowerLeader=()=>{
-    const now=Date.now(),all=mowerClients(),fresh=all.filter(client=>!(client.mowerStaleAt&&now-client.mowerStaleAt<5000)),pool=fresh.length?fresh:all;
+    const now=Date.now(),all=mowerClients().filter(client=>!client.readonly),fresh=all.filter(client=>!(client.mowerStaleAt&&now-client.mowerStaleAt<5000)),pool=fresh.length?fresh:all;
     setMowerLeader(pool.filter(client=>client.mowerPlay).at(-1)||pool.find(client=>!client.mowerPreview)||pool[0]||null);
   };
   const leaveMower=client=>{if(client===mowerLeader){mowerLeader=null;pickMowerLeader();}};
@@ -531,14 +545,34 @@ async function startServer(options = {}) {
     for(const other of clients)if(other!==client&&other.channel==='mower')write(other,frame);
   };
   const sockets=new WebSocketServer({noServer:true,maxPayload:512*1024});
-  server.on('upgrade',(req,socket,head)=>{
-    if(`http://${req.headers.host}`!==origin||req.headers.origin!==origin||req.url?.split('?')[0]!=='/api/events/socket'){socket.destroy();return;}
+  const upgrade=readonly=>(req,socket,head)=>{
+    if(req.url?.split('?')[0]!=='/api/events/socket'){socket.destroy();return;}
+    if(readonly){
+      // 公网只读：要有访问码（Cookie），来源页面必须是同一个地址，防止别的网站借用浏览器里的 Cookie。
+      let sameSite=!req.headers.origin;try{sameSite||=new URL(req.headers.origin).host===req.headers.host;}catch{}
+      if(!sameSite||!publicView.authorize(req,new URL(req.url,'http://viewer'))){socket.destroy();return;}
+    }else if(`http://${req.headers.host}`!==origin||req.headers.origin!==origin){socket.destroy();return;}
     sockets.handleUpgrade(req,socket,head,ws=>{
-      const client={get destroyed(){return ws.readyState!==1;},get writableLength(){return ws.bufferedAmount;},write(frame){if(ws.readyState===1)ws.send(frame);},destroy(){ws.terminate();},end(){ws.terminate();}};
-      ws.on('message',raw=>relayMower(client,String(raw)));
+      const client={readonly,get destroyed(){return ws.readyState!==1;},get writableLength(){return ws.bufferedAmount;},write(frame){if(ws.readyState===1)ws.send(frame);},destroy(){ws.terminate();},end(){ws.terminate();}};
+      ws.on('message',raw=>{if(!readonly)relayMower(client,String(raw));});
       ws.on('close',()=>{clients.delete(client);leaveMower(client);});ws.on('error',()=>{clients.delete(client);leaveMower(client);ws.terminate();});subscribe(client,new URL(req.url,origin));
     });
-  });
+  };
+  server.on('upgrade',upgrade(false));
+  // 公网只读端口按设置开关；端口被占用等错误记下来显示在控制台里，不影响本机控制台。
+  let publicServer=null,publicError='';
+  const stopPublic=async()=>{const current=publicServer;publicServer=null;if(!current)return;
+    // 升级成 WebSocket 的连接不归 closeAllConnections 管，得自己断开，否则 close 会一直等。
+    for(const client of clients)if(client.readonly){clients.delete(client);client.destroy();}
+    const stopped=new Promise(resolve=>current.close(resolve));current.closeAllConnections();await stopped;};
+  const applyPublic=async()=>{
+    await stopPublic();publicError='';
+    if(!publicView.settings.enabled||closed)return;
+    const next=http.createServer((req,res)=>handle(req,res,true));next.on('upgrade',upgrade(true));
+    try{await new Promise((resolve,reject)=>{next.once('error',reject);next.listen(publicView.settings.port,'0.0.0.0',()=>{next.removeListener('error',reject);resolve();});});publicServer=next;diagnostics?.log('info','public_view.listening',{port:publicView.settings.port});}
+    catch(error){publicError=error.code==='EADDRINUSE'?`端口 ${publicView.settings.port} 已被占用，请换一个端口`:error.message;diagnostics?.log('warn','public_view.bind_failed',{port:publicView.settings.port,error});}
+  };
+  const publicState=()=>publicView.snapshot(!!publicServer,publicError);
   try{
     await new Promise((resolve,reject)=>{const failed=error=>reject(error);server.once('error',failed);server.listen(options.port??0,'127.0.0.1',()=>{server.removeListener('error',failed);resolve();});});
   }catch(error){
@@ -551,9 +585,9 @@ async function startServer(options = {}) {
   hime = new HimeIntegration(origin, options.himeOptions);
   diagnostics?.log('info','server.listening',{origin});
   liveMemory.resume();
+  await applyPublic();
   // 每次打开控制台自动刷新一次礼物库，看看有没有新礼物（B站按上次连的直播间查）；有新的就在实时消息里说一声。
   // B站礼物列表有 1～2 MB，网慢时会超时：失败了隔一会儿再试，最多再试 2 次；都不行就提示手动点刷新。
-  let closed=false,autoSyncTimer;
   if(options.autoSyncGifts){
     const retryMs=options.autoSyncRetryMs??60000;
     const attempt=left=>{
@@ -609,6 +643,7 @@ async function startServer(options = {}) {
   const close = async () => {
     closed=true;clearTimeout(autoSyncTimer);
     for (const timer of [mowerWatchdog, lotteryTimer, physicsTimer, keepAlive, sealTimer, cleanupTimer, overtimeTimer, checkpointTimer]) clearInterval(timer);
+    await stopPublic();
     clearTimeout(pruneTimer); liveMemory.close(); services.close(); await robot.close(); await robotRooms.close(); await actions; await pruning;
     for(const game of Object.values(games)){game.overtime.close();await game.overtime.checkpoint();await game.feeding.close();await game.numberBomb.close();await game.mower.close();await game.battle.close();for(const target of Object.values(game.lottery))await target.close();}
     await services.flush();

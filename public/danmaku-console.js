@@ -154,10 +154,11 @@ $('#danmaku-bubble-new').addEventListener('click', () => openEditor(null));
 new ResizeObserver(() => { if (dialog.open) drawEditor(); }).observe($('#danmaku-bubble-stage'));
 
 // —— 打开 / 复制 / 演示 ——
-const address = () => `${location.origin}/danmaku/`;
-$('#danmaku-open').addEventListener('click', () => window.open(address(), '_blank', 'noopener'));
+// 给直播软件的地址带 ?hd=2：按 2 倍像素渲染，在 OBS 里缩小后文字清晰。
+const address = () => `${location.origin}/danmaku/?hd=2`;
+$('#danmaku-open').addEventListener('click', () => window.open(`${location.origin}/danmaku/`, '_blank', 'noopener'));
 $('#danmaku-copy').addEventListener('click', async () => {
-  try { await navigator.clipboard.writeText(address()); toast('弹幕姬地址已复制，在直播软件里加「浏览器源」，建议 420 × 720'); }
+  try { await navigator.clipboard.writeText(address()); toast('弹幕姬高清地址已复制：浏览器源宽高填 840 × 1440，再在 OBS 里拖小到合适大小，文字更清楚'); }
   catch { toast('复制失败，请手动复制：' + address(), true); }
 });
 const DEMO = [

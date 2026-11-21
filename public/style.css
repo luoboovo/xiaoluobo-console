@@ -30,3 +30,9 @@ body.dark .nav{background:#263c4f88;border-color:#ffffff18}body.dark .nav-item:h
 body.dark .feature-bar{background:#3d2f33;border-color:#5a4044}
 body.dark .feature-bar.on{background:#2d4038;border-color:#47645a}
 body.dark .feature-switch{background:#4a5560}
+
+/* 公网只读访问 */
+.public-view-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center}
+.public-view-row label{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.public-view-port{width:6em;padding:4px 6px;border:1px solid #d0d5dd;border-radius:8px;font:inherit}
+#public-view-links code{word-break:break-all;user-select:all}

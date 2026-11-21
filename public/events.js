@@ -3,7 +3,7 @@ class LuoboEvents extends EventTarget {
   static OPEN=1;
   constructor(url){super();this.url=url;this.readyState=0;this.closed=false;this.connect();}
   connect(){
-    const url=new URL(this.url,location.href);url.protocol='ws:';url.pathname='/api/events/socket';
+    const url=new URL(this.url,location.href);url.protocol=location.protocol==='https:'?'wss:':'ws:';url.pathname='/api/events/socket';
     const socket=this.socket=new WebSocket(url);
     socket.onopen=()=>{this.readyState=1;const event=new Event('open');this.dispatchEvent(event);this.onopen?.(event);};
     socket.onmessage=event=>{for(const frame of event.data.split('\n\n')){const type=frame.match(/^event: (.+)$/m)?.[1],data=frame.match(/^data: ([^\n]+)$/m)?.[1];if(type&&data)this.dispatchEvent(new MessageEvent(type,{data}));}};

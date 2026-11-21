@@ -1,7 +1,11 @@
 // 小萝卜弹幕姬：把弹幕排成微信聊天，礼物是红包，大额礼物和上舰是转账。
-// 设置、背景和定制气泡都存在控制台里（弹幕姬页），这个画面连上就自动拿到；地址只有 ?preview=1 一个参数（控制台预览用）。
+// 设置、背景和定制气泡都存在控制台里（弹幕姬页），这个画面连上就自动拿到。
+// 地址参数：?preview=1 控制台预览用；?hd=2 高清渲染——排版和 420 × 720 一样，但按 2 倍像素画，
+// 浏览器源设成 840 × 1440 再在 OBS 里缩小，字就不会因为小画面被拉大而发糊。
 (function () {
   const params = new URLSearchParams(location.search), preview = params.has('preview');
+  const hd = Math.min(4, Math.max(1, Number(params.get('hd')) || 1));
+  if (hd > 1) { document.documentElement.style.setProperty('--hd', String(hd)); document.documentElement.classList.add('hd'); }
   const chat = document.getElementById('chat'), backdrop = document.getElementById('backdrop'), more = document.getElementById('more'), off = document.getElementById('off');
   let config = { theme: 'wechat', bg: true, size: 15, max: 40, fade: 0, big: 50, enter: false, social: true, like: false, device: 'iphone', group: '', badges: true };
   let bubbles = new Map(), enabled = true, demoing = false, liveTitle = '';
