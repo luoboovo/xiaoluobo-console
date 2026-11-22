@@ -2,9 +2,9 @@ import {$,api,toast,escapeHtml,giftById,image} from './console-shared.js';
 import {switchView,state as consoleState} from './app.js';
 
 const settings=$('#mower-settings'),rulesForm=$('#mower-rules-form'),ruleList=$('#mower-rules');
-const NUMBERS=['hero_hp','hero_size','hero_speed','monster_growth_percent','likes_per_monster','blade_count','blade_damage','blade_radius','blade_speed','auto_spawn_per_second','pickup_interval_seconds','boss_damage','chat_spawn_count','chat_heal_value','user_cooldown_seconds'];
+const NUMBERS=['hero_hp','hero_size','hero_speed','monster_growth_percent','level_speed_percent','likes_per_monster','blade_count','blade_damage','blade_radius','blade_speed','auto_spawn_per_second','pickup_interval_seconds','boss_damage','chat_spawn_count','chat_heal_value','user_cooldown_seconds'];
 const TEXTS=['control_mode','hero_name','chat_spawn_keyword','chat_heal_keyword','chat_match_mode'];
-const VALUE_LABEL={boss:'BOSS血量/个',monster:'怪物等级 1～5',hurt:'扣血/个',disarm:'缴械秒/个',swarm:'小怪数/个',heal:'回血/个',blade:'加刀/个',weapon:'',nuke:''};
+const VALUE_LABEL={boss:'BOSS血量/个',monster:'怪物等级 1～8',hurt:'扣血/个',disarm:'缴械秒/个',swarm:'小怪数/个',heal:'回血/个',blade:'加刀/个',weapon:'',nuke:''};
 let heroImage='',game,pending=false,settingsDirty=false,rulesDirty=false,settingsStamp='',rulesStamp='',duelsStamp='',picking=null;
 const note=document.createElement('div');note.className='feeding-pick-note';note.hidden=true;note.innerHTML='正在为萝卜割草选择礼物。<button class="text-button" data-view="mower">返回萝卜割草</button>';$('#gifts-view').prepend(note);
 
@@ -16,7 +16,7 @@ function render(next){
   $('#mower-start').textContent=s.mode==='paused'?'继续游戏':'开始游戏';$('#mower-start').hidden=s.mode==='running';$('#mower-start').disabled=pending;
   $('#mower-pause').hidden=s.mode!=='running';$('#mower-pause').disabled=pending;$('#mower-reset').disabled=pending;
   const ss=JSON.stringify(c);
-  if(!settingsDirty&&settingsStamp!==ss){settingsStamp=ss;for(const key of [...NUMBERS,...TEXTS])settings.elements[key].value=c[key];settings.elements.auto_spawn.checked=c.auto_spawn;settings.elements.pickups.checked=c.pickups;settings.elements.like_spawn.checked=c.like_spawn;heroImage=c.hero_image;heroPreview();}
+  if(!settingsDirty&&settingsStamp!==ss){settingsStamp=ss;for(const key of [...NUMBERS,...TEXTS])settings.elements[key].value=c[key];settings.elements.auto_spawn.checked=c.auto_spawn;settings.elements.pickups.checked=c.pickups;settings.elements.like_spawn.checked=c.like_spawn;heroImage=c.hero_image;heroPreview();levelSpeedText();}
   const rs=JSON.stringify(c.gift_rules);
   if(!rulesDirty&&rulesStamp!==rs){rulesStamp=rs;ruleList.replaceChildren();for(const rule of c.gift_rules)addRule(rule);}
   $('#mower-rule-count').textContent=ruleList.children.length;
@@ -31,7 +31,7 @@ function addRule(rule={gift_id:0,gift_name:'',effect:'boss',value:1500}){
   const row=document.createElement('div');row.className='mower-rule';row.dataset.giftId=rule.gift_id||0;row.dataset.giftName=rule.gift_name||'';
   row.innerHTML=`<button type="button" class="gift-binding mower-gift"></button><select aria-label="礼物作用">${Object.entries(effects).map(([key,name])=>`<option value="${key}"${key===rule.effect?' selected':''}>${name}</option>`).join('')}</select><input type="number" min="1" step="1" value="${Number(rule.value)||1}" required><button type="button" class="text-button mower-test-rule">试送</button><button type="button" class="text-button mower-remove" aria-label="删除这条规则">删除</button>`;
   ruleList.append(row);binding(row);
-  const sync=()=>{const effect=row.querySelector('select').value,input=row.querySelector('input');input.disabled=effect==='nuke'||effect==='weapon';input.title=VALUE_LABEL[effect];input.setAttribute('aria-label',VALUE_LABEL[effect]||'数值');input.max={boss:1000000,monster:5,swarm:200,heal:100000,hurt:100000,disarm:60,blade:12,nuke:1}[effect]??1;};
+  const sync=()=>{const effect=row.querySelector('select').value,input=row.querySelector('input');input.disabled=effect==='nuke'||effect==='weapon';input.title=VALUE_LABEL[effect];input.setAttribute('aria-label',VALUE_LABEL[effect]||'数值');input.max={boss:1000000,monster:8,swarm:200,heal:100000,hurt:100000,disarm:60,blade:12,nuke:1}[effect]??1;};
   row.querySelector('select').addEventListener('change',()=>{const effect=row.querySelector('select').value;row.querySelector('input').value={boss:1500,monster:3,swarm:12,heal:100,hurt:100,disarm:5,blade:1,weapon:1,nuke:1}[effect];sync();});sync();
   $('#mower-rule-count').textContent=ruleList.children.length;
 }
@@ -42,7 +42,8 @@ async function action(input){
   finally{pending=false;render();}
 }
 const run=work=>async event=>{event?.preventDefault();try{await work(event);}catch(error){toast(error.message,true);}};
-settings.addEventListener('input',event=>{if(event.target.id==='mower-hero-file')return;settingsDirty=true;liveNote();});
+const levelSpeedText=()=>{$('#mower-level-speed-value').textContent=settings.elements.level_speed_percent.value+'%';};
+settings.addEventListener('input',event=>{if(event.target.name==='level_speed_percent')levelSpeedText();if(event.target.id==='mower-hero-file')return;settingsDirty=true;liveNote();});
 function heroPreview(){const img=$('#mower-hero-preview img');img.hidden=!heroImage;if(heroImage)img.src=heroImage;else img.removeAttribute('src');$('#mower-hero-preview').classList.toggle('empty',!heroImage);$('#mower-hero-default').hidden=!heroImage;}
 $('#mower-hero-file').addEventListener('change',run(async event=>{
   const file=event.target.files[0];event.target.value='';if(!file)return;

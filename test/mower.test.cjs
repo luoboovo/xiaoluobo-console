@@ -58,7 +58,7 @@ test('主角图片、操作方式与新设置的校验',()=>{
   const image='/api/feeding/assets/'+'a'.repeat(64)+'.gif';
   assert.equal(normalizeConfig({hero_image:image}).hero_image,image);
   for(const input of [{hero_image:'https://evil.com/a.png'},{hero_image:'/api/feeding/assets/../x.png'},{hero_image:'/api/feeding/assets/'+'a'.repeat(64)+'.mp3'},{control_mode:'mouse'},{hero_size:30},{hero_speed:1000},{monster_growth_percent:-1},{likes_per_monster:0},{like_spawn:'on'},
-    {gift_rules:[{...BOSS,effect:'monster',value:6}]},{gift_rules:[{...BOSS,effect:'disarm',value:61}]}])
+    {gift_rules:[{...BOSS,effect:'monster',value:9}]},{gift_rules:[{...BOSS,effect:'disarm',value:61}]}])
     assert.throws(()=>normalizeConfig(input),JSON.stringify(input));
 });
 

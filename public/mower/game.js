@@ -141,6 +141,12 @@ function bladeCount(){return Math.min(12,cfg().blade_count+world.extraBlades);}
 const levelHp=()=>1+.12*(world.heroLevel-1),levelDamage=()=>1+.1*(world.heroLevel-1),levelSpeed=()=>Math.min(2.5,1+.05*(world.heroLevel-1));
 const bladeSpeed=()=>cfg().blade_speed*world.speedMul*levelSpeed(),bladeRadius=()=>cfg().blade_radius+world.radiusAdd;
 const bladeDamage=()=>Math.max(1,Math.round(cfg().blade_damage*WEAPONS[world.weapon].damage*world.damageMul*levelDamage()));
+// 主角强度：每把刀对同一个敌人每 0.22 秒最多砍中一次，所以「全力输出」的每秒伤害上限 = 每刀伤害 × 刀数 ÷ 0.22。
+// 小怪按主角的伤害/刀数/转速放大血量，BOSS 按全力输出算血量，并且有保底：开打后每秒最多掉 1/32 的血，任何情况下都能撑过 30 秒。
+const HIT_GAP=.22,BOSS_HP_SECONDS=7,BOSS_MIN_SECONDS=32;
+const heroDps=()=>bladeDamage()*bladeCount()/HIT_GAP;
+const heroScale=()=>{const c=cfg(),dmg=bladeDamage()/Math.max(1,c.blade_damage),cover=bladeCount()/Math.max(1,c.blade_count)*bladeSpeed()/Math.max(.1,c.blade_speed);return Math.max(1,dmg**.85*cover**.35);};
+const heroToughness=()=>1+(levelHp()-1)*.8;
 // 地图道具：增幅 buff 和武器
 const BUFFS={
   blade:{label:'+1刀',color:'#5aa9ff',weight:30},speed:{label:'转速',color:'#ffb547',weight:25},range:{label:'范围',color:'#b07cff',weight:15},
@@ -211,10 +217,10 @@ function background(){
 // —— 状态 ——
 let game=null,lastSeq=null,round=null,uid=0;
 const world={};
-const cfg=()=>game?.config||{hero_name:'小萝卜',hero_image:'',hero_size:72,hero_hp:1000,control_mode:'keyboard',hero_speed:220,blade_count:1,blade_damage:30,blade_radius:95,blade_speed:3.5,auto_spawn:true,auto_spawn_per_second:1.5,pickups:true,pickup_interval_seconds:10,monster_growth_percent:20,like_spawn:true,boss_damage:40,gift_rules:[]};
+const cfg=()=>game?.config||{hero_name:'小萝卜',hero_image:'',hero_size:72,hero_hp:1000,control_mode:'keyboard',hero_speed:220,blade_count:1,blade_damage:30,blade_radius:95,blade_speed:3.5,auto_spawn:true,auto_spawn_per_second:1.5,pickups:true,pickup_interval_seconds:10,monster_growth_percent:20,level_speed_percent:100,like_spawn:true,boss_damage:40,gift_rules:[]};
 function resetWorld(){
   Object.assign(world,{t:0,hero:{x:W/2,y:H/2+30,vx:0,vy:0,hp:cfg().hero_hp,maxHp:cfg().hero_hp,hurt:0,shield:0,down:0,orbit:1,orbitFlip:4},
-    enemies:[],bullets:[],particles:[],texts:[],feed:[],pickups:[],bossQueue:[],boss:null,banner:null,kills:0,downs:0,run:1,spawnAcc:0,pickupAcc:0,nextBossAt:0,flash:0,clock:0,disarm:0,xp:0,heroLevel:1,gems:[],levelGlow:0});
+    enemies:[],bullets:[],hazards:[],particles:[],texts:[],feed:[],pickups:[],bossQueue:[],boss:null,banner:null,kills:0,downs:0,run:1,spawnAcc:0,pickupAcc:0,nextBossAt:0,flash:0,clock:0,disarm:0,xp:0,heroLevel:1,gems:[],levelGlow:0});
   resetBuffs();
 }
 function resetBuffs(){Object.assign(world,{weapon:'sickle',extraBlades:0,speedMul:1,radiusAdd:0,damageMul:1});}
@@ -224,34 +230,40 @@ function feed(cue,text,color='#fff'){world.feed.unshift({face:cue?.face,name:cue
 function floatText(x,y,text,color='#fff',size=18){if(world.texts.length>160)world.texts.shift();world.texts.push({x,y,text,color,size,life:.9,vy:-60});}
 function burst(x,y,colors,n=10,speed=180){for(let i=0;i<n&&world.particles.length<600;i++){const a=rand(0,TAU),s=rand(.3,1)*speed;world.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(.4,.9),color:colors[i%colors.length],size:rand(2,5),spin:rand(-8,8),rot:rand(0,TAU)});}}
 function edgePoint(){const side=Math.floor(rand(0,4)),m=40;return side===0?{x:rand(0,W),y:-m}:side===1?{x:W+m,y:rand(0,H)}:side===2?{x:rand(0,W),y:H+m}:{x:-m,y:rand(0,H)};}
-// 怪物等级 1～5：点赞召唤 1 级小草；礼物可召唤高级怪；自动刷怪随时间解锁高等级。
+// 怪物等级 1～8：点赞召唤 1 级小草；礼物可召唤高级怪；自动刷怪随时间解锁高等级。
 const MONSTERS=[null,
   {name:'小草',hp:30,speed:[50,70],damage:6,r:[14,18],color:'#5fae43',dark:'#2f6a22'},
   {name:'蘑菇',hp:90,speed:[58,68],damage:10,r:[18,20],color:'#e0503f',dark:'#8a2a20'},
   {name:'仙人掌',hp:180,speed:[40,50],damage:14,r:[21,23],color:'#3e9a5a',dark:'#1f5a32',shoot:3.2},
   {name:'石头怪',hp:450,speed:[32,38],damage:22,r:[27,29],color:'#9aa0a6',dark:'#4f555b',heavy:true},
-  {name:'树精',hp:1000,speed:[38,44],damage:30,r:[33,35],color:'#8a5a35',dark:'#4a2e18',dash:4.5,heavy:true}
+  {name:'树精',hp:1000,speed:[38,44],damage:30,r:[33,35],color:'#8a5a35',dark:'#4a2e18',dash:4.5,heavy:true},
+  // 6～8 级是跑得快、带位移的：兔子扑跳，蝙蝠走 Z 字并闪现到主角身后，狼先蓄力（地上有红色预警）再直线冲刺
+  {name:'跳跳兔',hp:55,speed:[100,120],damage:8,r:[15,17],color:'#f6f0ea',dark:'#b08f87',hop:1.5},
+  {name:'影蝠',hp:110,speed:[135,155],damage:11,r:[16,18],color:'#7a5bb5',dark:'#3d2a66',blink:3.4,zigzag:true},
+  {name:'疾风狼',hp:380,speed:[115,130],damage:20,r:[24,26],color:'#8d96a3',dark:'#454c57',charge:3}
 ];
 // 怪物强度：每分钟按设置的百分比变强；主角倒下后回落一些。
 const minutes=()=>world.clock/60,growth=()=>1+(cfg().monster_growth_percent??20)/100*minutes();
 function spawnMonster(level,at,extra={}){
   if(world.enemies.length>=320)return null;
-  const m=MONSTERS[level],p=at||edgePoint(),g=growth(),hp=Math.round(m.hp*g);
-  const e={id:++uid,kind:'mob',level,x:p.x,y:p.y,vx:0,vy:0,r:rand(...m.r),hp,maxHp:hp,speed:rand(...m.speed)*Math.min(1.5,1+(g-1)*.15),damage:Math.round(m.damage*(1+(g-1)*.6)),
-    hit:[],flash:0,wobble:rand(0,TAU),shootT:m.shoot?rand(1,m.shoot):0,dashT:m.dash?rand(2,m.dash):0,dashing:0,...extra};
+  const m=MONSTERS[level],p=at||edgePoint(),g=growth(),hp=Math.round(m.hp*g*heroScale());
+  const e={id:++uid,kind:'mob',level,x:p.x,y:p.y,vx:0,vy:0,r:rand(...m.r),hp,maxHp:hp,speed:rand(...m.speed)*Math.min(1.5,1+(g-1)*.15),damage:Math.round(m.damage*(1+(g-1)*.6)*heroToughness()),
+    hit:[],flash:0,wobble:rand(0,TAU),phase:rand(0,TAU),shootT:m.shoot?rand(1,m.shoot):0,dashT:m.dash?rand(2,m.dash):0,dashing:0,
+    hopT:m.hop?rand(.6,m.hop):0,blinkT:m.blink?rand(1.5,m.blink):0,chargeT:m.charge?rand(1.2,m.charge):0,windup:0,cdir:{x:0,y:1},...extra};
   world.enemies.push(e);return e;
 }
 const spawnGrass=(at,extra)=>spawnMonster(1,at,extra);
 function autoLevel(){
-  const t=minutes(),list=[[1,10],[2,t>=1?4+t:0],[3,t>=2.5?2+t*.8:0],[4,t>=4?1+t*.5:0],[5,t>=6?.5+t*.3:0]].filter(([,w])=>w>0);
+  const t=minutes(),list=[[1,10],[2,t>=1?4+t:0],[3,t>=2.5?2+t*.8:0],[4,t>=4?1+t*.5:0],[5,t>=6?.5+t*.3:0],[6,t>=.5?3+t*.5:0],[7,t>=1.5?2+t*.5:0],[8,t>=3?1+t*.4:0]].filter(([,w])=>w>0);
   return Number(pickWeighted(list));
 }
 function spawnViewer(cue,at){
   if(world.enemies.filter(e=>e.kind==='viewer').length>=120)return false;
-  const p=at?{x:at.x+rand(-50,50),y:at.y+rand(-50,50)}:edgePoint(),g=growth(),hp=Math.round(160*g);
-  world.enemies.push({id:++uid,kind:'viewer',x:p.x,y:p.y,vx:0,vy:0,r:22,hp,maxHp:hp,speed:rand(70,85),damage:Math.round(10*(1+(g-1)*.6)),hit:[],flash:0,face:cue.face,name:cue.user,wobble:0});
+  const p=at?{x:at.x+rand(-50,50),y:at.y+rand(-50,50)}:edgePoint(),g=growth(),hp=Math.round(160*g*heroScale());
+  world.enemies.push({id:++uid,kind:'viewer',x:p.x,y:p.y,vx:0,vy:0,r:22,hp,maxHp:hp,speed:rand(70,85),damage:Math.round(10*(1+(g-1)*.6)*heroToughness()),hit:[],flash:0,face:cue.face,name:cue.user,wobble:0});
   return true;
 }
+const untouchable=e=>e.kind==='boss'&&(e.hidden||e.state==='enter'||e.state==='leave');
 const MAX_BOSSES=5,liveBosses=()=>world.enemies.filter(e=>e.kind==='boss'&&!e.dead&&e.state!=='leave');
 const whoKey=cue=>cue.uid&&cue.uid!=='0'?'uid:'+cue.uid:'name:'+cue.user;
 
@@ -271,7 +283,7 @@ function apply(cue){
       break;
     }
     case 'monster':{
-      const level=clamp(cue.value,1,5),n=Math.min(30,cue.count),center=edgePoint(),m=MONSTERS[level];
+      const level=clamp(cue.value,1,8),n=Math.min(30,cue.count),center=edgePoint(),m=MONSTERS[level];
       for(let i=0;i<n;i++)spawnMonster(level,{x:center.x+rand(-90,90),y:center.y+rand(-90,90)},{name:cue.user,face:cue.face});
       feed(cue,`送出${cue.gift}×${cue.count}，召唤了 Lv.${level} ${m.name}${n>1?'×'+n:''}`,'#ffc48a');
       if(level>=4)floatText(W/2,140,`Lv.${level} ${m.name} 来袭！`,'#ffc48a',30);
@@ -310,22 +322,27 @@ function report(boss,result){
 }
 function summonBoss(){
   const next=world.bossQueue.shift();if(!next)return;
-  const c=next.cue,r=Math.min(90,58+Math.log10(Math.max(10,next.hp))*4);
+  const c=next.cue,power=heroDps(),hp=Math.round(next.hp+power*BOSS_HP_SECONDS),r=Math.min(90,58+Math.log10(Math.max(10,hp))*4);
   const taken=liveBosses().map(o=>o.x);let x=rand(160,W-160);for(let i=0;i<12&&taken.some(t=>Math.abs(t-x)<180);i++)x=rand(160,W-160);
-  const boss={id:++uid,kind:'boss',key:next.key,cueId:c.id,x,y:-r-20,vx:0,vy:0,r,hp:next.hp,maxHp:next.hp,count:next.count,gift:c.gift,face:c.face,name:c.user,
-    speed:72,damage:cfg().boss_damage,hit:[],flash:0,state:'enter',timer:1.4,lastAttack:'',dir:{x:0,y:1}};
+  const boss={id:++uid,kind:'boss',key:next.key,cueId:c.id,x,y:-r-20,vx:0,vy:0,r,hp,maxHp:hp,count:next.count,gift:c.gift,face:c.face,name:c.user,
+    speed:72,damage:Math.round(cfg().boss_damage*heroToughness()),hit:[],flash:0,state:'enter',timer:1.4,lastAttack:'',dir:{x:0,y:1},power,fight:0,hidden:false,raged:false};
   world.enemies.push(boss);
-  world.banner={title:`${c.user} 前来决斗！`,sub:`${c.gift} ×${c.count} · 血量 ${next.hp.toLocaleString()}`,face:c.face,name:c.user,life:3,color:'#ffcf5a'};
+  world.banner={title:`${c.user} 前来决斗！`,sub:`${c.gift} ×${c.count} · 血量 ${hp.toLocaleString()}`,face:c.face,name:c.user,life:3,color:'#ffcf5a'};
   announce(`${c.user}化身BOSS前来决斗`);
 }
 function damage(e,amount){
+  if(e.kind==='boss'){
+    const floor=e.maxHp*Math.max(0,1-e.fight/BOSS_MIN_SECONDS);amount=Math.min(amount,Math.floor(e.hp-floor));
+    if(amount<=0){if(Math.random()<.25)floatText(e.x+rand(-e.r*.5,e.r*.5),e.y-e.r*.4,'格挡','#9fd8ff',18);e.flash=.06;return;}
+  }
   e.hp-=amount;e.flash=.12;
   if(e.kind==='boss'){floatText(e.x+rand(-e.r*.6,e.r*.6),e.y-e.r*.4,String(amount),'#fff3a8',20);if(e.hp<=0)bossDefeated(e);}
   else if(e.hp<=0)killEnemy(e);
 }
 // 经验：怪物等级越高掉得越多；宝石掉在地上，主角靠近会被吸过来。
-const XP_BY_LEVEL=[0,1,3,6,15,30];
-const xpNeed=level=>8+level*6+level*level;
+const XP_BY_LEVEL=[0,1,3,6,15,30,2,4,12];
+// 升级所需经验：大约是以前的三倍，再按设置里的「主角升级速度」滑块缩放（100% 为默认，越大升得越快）
+const xpNeed=level=>Math.max(5,Math.round((25+20*level+3*level*level)*100/clamp(cfg().level_speed_percent??100,10,300)));
 function dropXp(x,y,value){
   if(!(value>0))return;
   if(world.gems.length>=250){const g=world.gems[0];g.v+=value;return;}
@@ -358,6 +375,7 @@ function bossDefeated(b){
   announce(`${cfg().hero_name}击败了${b.name}`);
   report(b,'win');world.nextBossAt=Math.max(world.nextBossAt,world.t+2);
   for(const e of world.enemies)if(e.summoned===b.id&&!e.dead)killEnemy(e);
+  world.hazards=world.hazards.filter(z=>z.from!==b.id);
 }
 // 主角倒下就重开一局：3 秒后清场，等级、经验、割草数和怪物强度都从头来；排队中的 BOSS（观众送的礼物）留到下一局。
 const clockText=t=>`${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')}`;
@@ -377,7 +395,7 @@ function heroDown(reason=''){
     announce(`${b.name}击倒了${cfg().hero_name}`);
     for(const o of list){report(o,'lose');o.state='leave';o.timer=2;floatText(o.x,o.y-o.r-24,'哈哈哈！','#ffdede',30);}world.nextBossAt=world.t+4;
   }else{world.banner={title:`${cfg().hero_name} 倒下了${reason?'：'+reason:''}`,sub:summary,life:3.2,color:'#ffd0a8'};announce(`${cfg().hero_name}倒下了`);}
-  world.bullets=[];world.disarm=0;
+  world.bullets=[];world.hazards=[];world.disarm=0;
 }
 
 // —— 每帧模拟 ——
@@ -416,8 +434,13 @@ function update(dt){
     const dx=h.x-e.x,dy=h.y-e.y,d=Math.hypot(dx,dy)||1,kind=e.kind==='mob'?MONSTERS[e.level]:null;
     if(kind?.shoot&&!h.down&&(e.shootT-=dt)<=0){e.shootT=kind.shoot+rand(-.5,.8);if(d<520){world.bullets.push({x:e.x+dx/d*e.r,y:e.y+dy/d*e.r,vx:dx/d*240,vy:dy/d*240,r:6,life:3,damage:Math.max(1,Math.round(e.damage*.7)),color:'#5fbf4a',glow:'rgba(95,191,74,.3)'});e.flash=.08;}}
     if(kind?.dash&&!h.down&&(e.dashT-=dt)<=0){e.dashT=kind.dash+rand(-.5,1);if(d<420){e.dashing=.5;e.vx=dx/d*300;e.vy=dy/d*300;}}
+    if(e.windup>0){e.windup-=dt;e.vx*=.85;e.vy*=.85;e.x+=e.vx*dt;e.y+=e.vy*dt;e.wobble+=dt*20;if(e.windup<=0){e.dashing=.42;e.vx=e.cdir.x*660;e.vy=e.cdir.y*660;}continue;}
     if(e.dashing>0){e.dashing-=dt;e.x+=e.vx*dt;e.y+=e.vy*dt;e.wobble+=dt*16;continue;}
+    if(kind?.hop&&!h.down&&(e.hopT-=dt)<=0){e.hopT=kind.hop+rand(-.4,.6);if(d<380){e.dashing=.24;e.vx=dx/d*560;e.vy=dy/d*560;burst(e.x,e.y+e.r*.6,['#e8f5d0','#ffffff'],4,90);continue;}}
+    if(kind?.blink&&!h.down&&(e.blinkT-=dt)<=0){e.blinkT=kind.blink+rand(-.6,1);const R=bladeRadius();if(d<720&&d>R+90){const a=Math.atan2(dy,dx)+rand(-1.2,1.2),r=R+rand(70,130);burst(e.x,e.y,['#b79cf0','#3d2a66'],10,160);e.x=clamp(h.x+Math.cos(a)*r,20,W-20);e.y=clamp(h.y+Math.sin(a)*r,80,H-20);e.vx=e.vy=0;burst(e.x,e.y,['#b79cf0','#ffffff'],10,160);e.flash=.1;continue;}}
+    if(kind?.charge&&!h.down&&(e.chargeT-=dt)<=0){e.chargeT=kind.charge+rand(-.5,1);if(d<460&&d>60){e.windup=.5;e.cdir={x:dx/d,y:dy/d};continue;}}
     let ax=dx/d*e.speed,ay=dy/d*e.speed;
+    if(kind?.zigzag){const z=Math.sin(world.t*5+e.phase)*e.speed*1.1;ax+=-dy/d*z;ay+=dx/d*z;}
     if(h.down){ax=-ax*.4;ay=-ay*.4;}
     const gx=(e.x/cell)|0,gy=(e.y/cell)|0;
     for(let ix=-1;ix<=1;ix++)for(let iy=-1;iy<=1;iy++){const list=grid.get((gx+ix)+','+(gy+iy));if(!list)continue;for(const o of list){if(o===e)continue;const ox=e.x-o.x,oy=e.y-o.y,od=Math.hypot(ox,oy),min=e.r+o.r;if(od>0&&od<min){ax+=ox/od*(min-od)*8;ay+=oy/od*(min-od)*8;}}}
@@ -430,7 +453,7 @@ function update(dt){
     for(let i=0;i<n;i++){
       const a=base+i*TAU/n,bx=h.x+Math.cos(a)*R,by=h.y+Math.sin(a)*R;
       for(const e of world.enemies){
-        if(e.dead||e.kind==='boss'&&['enter','leave'].includes(e.state))continue;
+        if(e.dead||untouchable(e))continue;
         const dx=e.x-bx,dy=e.y-by;if(dx*dx+dy*dy>(e.r+reach)**2)continue;
         if(now-(e.hit[i]??-1)<.22)continue;e.hit[i]=now;
         damage(e,hit);
@@ -440,7 +463,7 @@ function update(dt){
     }
     // 怪碰到主角
     for(const e of world.enemies){
-      if(e.dead||e.kind==='boss'&&['enter','leave'].includes(e.state))continue;
+      if(e.dead||untouchable(e))continue;
       if(dist(e,h)<e.r+HERO_R-2&&h.shield<=0){
         hurtHero(e.kind==='boss'?(e.state==='charge'?Math.round(e.damage*1.5):e.damage):e.damage,e.kind==='boss'?e.id:0);
         const kd=dist(e,h)||1;if(e.kind!=='boss'){e.vx=(e.x-h.x)/kd*300;e.vy=(e.y-h.y)/kd*300;}
@@ -452,6 +475,12 @@ function update(dt){
   // 子弹
   for(const b of world.bullets){b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;if(!h.down&&h.shield<=0&&Math.hypot(b.x-h.x,b.y-h.y)<b.r+HERO_R-4){b.life=0;hurtHero(b.damage,b.from);}}
   world.bullets=world.bullets.filter(b=>b.life>0&&b.x>-40&&b.x<W+40&&b.y>-40&&b.y<H+40);
+  // BOSS 技能留下的地面预警圈：倒计时结束时爆炸，主角在圈里就挨打
+  for(const z of world.hazards){
+    if(z.done){z.boom-=dt;continue;}
+    if((z.t-=dt)<=0){z.done=true;z.boom=.35;burst(z.x,z.y,z.kind==='slam'?['#ffcf5a','#ffffff','#ff7a59']:['#ff7a3c','#ffd27a','#5a2a1a'],z.kind==='slam'?30:14,z.r*2.4);if(!h.down&&h.shield<=0&&Math.hypot(z.x-h.x,z.y-h.y)<z.r+HERO_R*.4)hurtHero(z.damage,z.from);}
+  }
+  world.hazards=world.hazards.filter(z=>!z.done||z.boom>0);
 }
 function hurtHero(amount,from=0){
   const h=world.hero;if(h.down)return;if(from)world.lastHitBy=from;
@@ -459,7 +488,7 @@ function hurtHero(amount,from=0){
   if(h.hp<=0)heroDown();
 }
 function heroAI(dt){
-  const h=world.hero,R=bladeRadius(),fighting=liveBosses().filter(x=>x.state!=='enter');let b=null,bd=Infinity;for(const x of fighting){const d=dist(x,h);if(d<bd){bd=d;b=x;}}
+  const h=world.hero,R=bladeRadius(),fighting=liveBosses().filter(x=>x.state!=='enter'&&!x.hidden);let b=null,bd=Infinity;for(const x of fighting){const d=dist(x,h);if(d<bd){bd=d;b=x;}}
   let ax=0,ay=0;
   if(manual.active()||cfg().control_mode!=='auto'){ax=manual.x;ay=manual.y;}
   else{
@@ -483,6 +512,12 @@ function heroAI(dt){
       const closing=-(dx*bl.vx+dy*bl.vy)/(d||1);if(closing<=0)continue;
       const sv=Math.hypot(bl.vx,bl.vy)||1,side=Math.sign(dx*bl.vy/sv-dy*bl.vx/sv)||1;ax+=-bl.vy/sv*side*1.4;ay+=bl.vx/sv*side*1.4;
     }
+    for(const z of world.hazards){if(z.done)continue;const dx=h.x-z.x,dy=h.y-z.y,d=Math.hypot(dx,dy)||1,safe=z.r+HERO_R+25;if(d<safe){const k=(safe-d)/safe*5+1;ax+=dx/d*k;ay+=dy/d*k;}}
+    for(const w of fighting)if(w.state==='vortex'){const dx=h.x-w.x,dy=h.y-w.y,d=Math.hypot(dx,dy)||1;ax+=dx/d*2.5;ay+=dy/d*2.5;}
+    for(const w of world.enemies)if(w.windup>0){
+      const lx=h.x-w.x,ly=h.y-w.y,along=lx*w.cdir.x+ly*w.cdir.y,perp=lx*-w.cdir.y+ly*w.cdir.x;
+      if(along>0&&along<380&&Math.abs(perp)<w.r+HERO_R+20){const s=Math.sign(perp)||1;ax+=-w.cdir.y*s*3;ay+=w.cdir.x*s*3;}
+    }
     for(const w of fighting)if(w.state==='windup'){
       const lx=h.x-w.x,ly=h.y-w.y,along=lx*w.dir.x+ly*w.dir.y,perp=lx*-w.dir.y+ly*w.dir.x;
       if(along>0&&Math.abs(perp)<w.r+HERO_R+30){const s=Math.sign(perp)||1;ax+=-w.dir.y*s*4;ay+=w.dir.x*s*4;}
@@ -492,29 +527,65 @@ function heroAI(dt){
   const len=Math.hypot(ax,ay),speed=cfg().hero_speed||220,tx=len>.05?ax/Math.max(1,len)*speed:0,ty=len>.05?ay/Math.max(1,len)*speed:0;
   h.vx+=(tx-h.vx)*Math.min(1,dt*7);h.vy+=(ty-h.vy)*Math.min(1,dt*7);
 }
+// BOSS 技能：冲撞、环形弹幕、召唤小弟、螺旋弹幕、陨石雨、闪现砸地、黑洞吸引；血量低于 45% 狂暴（一次性召唤快怪，之后出招更快更狠）。
+const BOSS_SKILLS=['windup','volley','summon','spiral','meteor','vanish','vortex'];
+function bossBullet(b,a,sp,r=9,dmg=.6,color){world.bullets.push({x:b.x+Math.cos(a)*b.r*.8,y:b.y+Math.sin(a)*b.r*.8,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,r,life:3.5,damage:Math.max(1,Math.round(b.damage*dmg)),from:b.id,...(color?{color,glow:color+'55'}:{})});}
 function bossBrain(b,dt){
   const h=world.hero,enraged=b.hp<b.maxHp*.45;
   b.timer-=dt;
+  if(!['enter','leave'].includes(b.state))b.fight+=dt;
+  // 开打前 30 秒里主角变强了（升级/捡增幅）：BOSS 按剩余血量比例补一点血，避免被瞬间秒掉；之后不再补，免得越打越长
+  {const p=heroDps();if(p>b.power*1.05){if(b.fight<BOSS_MIN_SECONDS){const add=Math.round((p-b.power)*BOSS_HP_SECONDS*b.hp/b.maxHp);b.maxHp+=add;b.hp+=add;}b.power=p;}}
+  b.damage=Math.round(cfg().boss_damage*heroToughness()*(enraged?1.2:1));
   const toHero=()=>{const dx=h.x-b.x,dy=h.y-b.y,d=Math.hypot(dx,dy)||1;return {x:dx/d,y:dy/d,d};};
+  if(enraged&&!b.raged&&!['enter','leave'].includes(b.state)&&!b.hidden){
+    b.raged=true;world.flash=Math.max(world.flash,.35);floatText(b.x,b.y-b.r-30,'狂暴了！','#ff6b5a',34);burst(b.x,b.y,['#ff5a3c','#ffcf5a','#ffffff'],40,380);
+    for(let i=0;i<6;i++){const a=i*TAU/6;spawnMonster(i%2?7:8,{x:b.x+Math.cos(a)*(b.r+40),y:b.y+Math.sin(a)*(b.r+40)},{summoned:b.id});}
+    for(let i=0;i<24;i++)bossBullet(b,i*TAU/24,260,9,.5,'#ff7a3c');
+  }
   switch(b.state){
     case 'enter':b.y+=(170-b.y)*Math.min(1,dt*3);if(b.timer<=0){b.state='chase';b.timer=1.6;}return;
-    case 'leave':b.y-=260*dt;b.x+=Math.sin(world.t*6)*80*dt;if(b.y<-b.r-60)b.dead=true;return;
+    case 'leave':b.hidden=false;b.y-=260*dt;b.x+=Math.sin(world.t*6)*80*dt;if(b.y<-b.r-60)b.dead=true;return;
     case 'chase':{const v=toHero(),sp=b.speed*(enraged?1.35:1);b.vx+=(v.x*sp-b.vx)*Math.min(1,dt*3);b.vy+=(v.y*sp-b.vy)*Math.min(1,dt*3);
-      if(b.timer<=0){const options=['windup','volley','summon'].filter(o=>o!==b.lastAttack||Math.random()<.2);const pick=options[Math.floor(Math.random()*options.length)];b.lastAttack=pick;
-        if(pick==='windup'){b.state='windup';b.timer=enraged?.6:.85;const v2=toHero();b.dir={x:v2.x,y:v2.y};b.vx=b.vy=0;}
+      if(b.timer<=0){const options=BOSS_SKILLS.filter(o=>o!==b.lastAttack||Math.random()<.15);const pick=options[Math.floor(Math.random()*options.length)];b.lastAttack=pick;b.vx*=.3;b.vy*=.3;
+        if(pick==='windup'){b.state='windup';b.timer=enraged?.6:.85;const v2=toHero();b.dir={x:v2.x,y:v2.y};b.vx=b.vy=0;b.charges=enraged?2:1;}
         else if(pick==='volley'){b.state='volley';b.timer=enraged?1.2:.6;b.shots=enraged?3:1;b.shotTimer=0;}
+        else if(pick==='spiral'){b.state='spiral';b.timer=enraged?3:2.4;b.spin=rand(0,TAU);b.shotTimer=0;floatText(b.x,b.y-b.r-20,'旋风弹幕！','#ffd1f0',22);}
+        else if(pick==='meteor'){
+          b.state='meteor';b.timer=1;const n=enraged?9:6;floatText(b.x,b.y-b.r-20,'陨石雨！','#ffb070',24);
+          world.hazards.push({x:h.x,y:h.y,r:72,t:1.2,delay:1.2,damage:Math.round(b.damage*1.1),from:b.id,kind:'meteor'});
+          for(let i=1;i<n;i++){const a=rand(0,TAU),r=rand(90,260);world.hazards.push({x:clamp(h.x+Math.cos(a)*r,40,W-40),y:clamp(h.y+Math.sin(a)*r,100,H-30),r:rand(55,80),t:1.2+i*.12,delay:1.2+i*.12,damage:Math.round(b.damage*1.1),from:b.id,kind:'meteor'});}
+        }
+        else if(pick==='vanish'){b.state='vanish';b.timer=.45;floatText(b.x,b.y-b.r-20,'消失了…','#d9c8ff',22);burst(b.x,b.y,['#b79cf0','#3d2a66','#ffffff'],30,260);}
+        else if(pick==='vortex'){b.state='vortex';b.timer=enraged?3:2.4;b.shotTimer=.3;floatText(b.x,b.y-b.r-20,'黑洞吸引！','#c9b0ff',24);}
         else{b.state='summon';b.timer=.8;}}
       break;}
-    case 'windup':b.vx*=.8;b.vy*=.8;{const v=toHero();b.dir.x+=(v.x-b.dir.x)*dt*1.5;b.dir.y+=(v.y-b.dir.y)*dt*1.5;const l=Math.hypot(b.dir.x,b.dir.y)||1;b.dir.x/=l;b.dir.y/=l;}if(b.timer<=0){b.state='charge';b.timer=.65;b.vx=b.dir.x*(enraged?640:540);b.vy=b.dir.y*(enraged?640:540);}break;
-    case 'charge':if(Math.random()<.6)burst(b.x-b.dir.x*b.r,b.y-b.dir.y*b.r,['rgba(255,255,255,.8)','#d9f2c8'],1,60);if(b.timer<=0){b.state='recover';b.timer=.6;}break;
+    case 'windup':b.vx*=.8;b.vy*=.8;{const v=toHero();b.dir.x+=(v.x-b.dir.x)*dt*1.5;b.dir.y+=(v.y-b.dir.y)*dt*1.5;const l=Math.hypot(b.dir.x,b.dir.y)||1;b.dir.x/=l;b.dir.y/=l;}if(b.timer<=0){b.state='charge';b.timer=.65;b.vx=b.dir.x*(enraged?680:540);b.vy=b.dir.y*(enraged?680:540);}break;
+    case 'charge':if(Math.random()<.6)burst(b.x-b.dir.x*b.r,b.y-b.dir.y*b.r,['rgba(255,255,255,.8)','#d9f2c8'],1,60);
+      if(b.timer<=0){if(--b.charges>0){b.state='windup';b.timer=.45;const v=toHero();b.dir={x:v.x,y:v.y};b.vx=b.vy=0;}else{b.state='recover';b.timer=.6;}}break;
     case 'recover':b.vx*=.85;b.vy*=.85;if(b.timer<=0){b.state='chase';b.timer=enraged?1.1:1.8;}break;
     case 'volley':b.vx*=.85;b.vy*=.85;b.shotTimer-=dt;
-      if(b.shotTimer<=0&&b.shots>0){b.shots--;b.shotTimer=.4;const n=enraged?18:14,off=rand(0,TAU),sp=enraged?250:210;for(let i=0;i<n;i++){const a=off+i*TAU/n;world.bullets.push({x:b.x+Math.cos(a)*b.r*.8,y:b.y+Math.sin(a)*b.r*.8,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,r:9,life:3.5,damage:Math.max(1,Math.round(b.damage*.6)),from:b.id});}}
+      if(b.shotTimer<=0&&b.shots>0){b.shots--;b.shotTimer=.4;const n=enraged?18:14,off=rand(0,TAU),sp=enraged?250:210;for(let i=0;i<n;i++)bossBullet(b,off+i*TAU/n,sp);}
       if(b.timer<=0&&b.shots<=0){b.state='chase';b.timer=enraged?1.1:1.8;}break;
-    case 'summon':b.vx*=.85;b.vy*=.85;if(b.timer<=0){const n=enraged?8:5;for(let i=0;i<n;i++){const a=i*TAU/n;spawnMonster(enraged?2:1,{x:b.x+Math.cos(a)*(b.r+30),y:b.y+Math.sin(a)*(b.r+30)},{summoned:b.id});}floatText(b.x,b.y-b.r-20,'小的们，上！','#ffffff',22);b.state='chase';b.timer=1.8;}break;
+    case 'spiral':b.vx*=.85;b.vy*=.85;b.shotTimer-=dt;
+      if(b.shotTimer<=0){b.shotTimer=enraged?.07:.09;const arms=enraged?4:3;for(let i=0;i<arms;i++)bossBullet(b,b.spin+i*TAU/arms,200,7,.45,'#d77dff');b.spin+=.27;}
+      if(b.timer<=0){b.state='chase';b.timer=enraged?1:1.6;}break;
+    case 'meteor':b.vx*=.85;b.vy*=.85;if(b.timer<=0){b.state='chase';b.timer=enraged?1:1.6;}break;
+    case 'vanish':b.vx*=.7;b.vy*=.7;if(b.timer<=0){
+      b.hidden=true;b.state='lurk';b.timer=1;b.slam={x:clamp(h.x,b.r,W-b.r),y:clamp(h.y,b.r+60,H-b.r)};
+      world.hazards.push({x:b.slam.x,y:b.slam.y,r:b.r+70,t:1,delay:1,damage:Math.round(b.damage*1.4),from:b.id,kind:'slam'});}break;
+    case 'lurk':b.vx=b.vy=0;if(b.timer<=0){
+      b.hidden=false;b.x=b.slam.x;b.y=b.slam.y;b.state='recover';b.timer=.9;world.flash=Math.max(world.flash,.25);
+      const n=enraged?20:14,off=rand(0,TAU);for(let i=0;i<n;i++)bossBullet(b,off+i*TAU/n,enraged?240:200,8,.5,'#ffcf5a');}break;
+    case 'vortex':{b.vx*=.85;b.vy*=.85;const v=toHero();
+      if(!h.down&&v.d>b.r+HERO_R){const pull=(enraged?190:160)*dt;h.x=clamp(h.x-v.x*pull,HERO_R+6,W-HERO_R-6);h.y=clamp(h.y-v.y*pull,HERO_R+70,H-HERO_R-40);}
+      b.shotTimer-=dt;if(b.shotTimer<=0){b.shotTimer=.55;const n=enraged?10:8,off=rand(0,TAU);for(let i=0;i<n;i++)bossBullet(b,off+i*TAU/n,150,8,.45,'#9b7bff');}
+      if(b.timer<=0){b.state='chase';b.timer=enraged?1:1.6;}break;}
+    case 'summon':b.vx*=.85;b.vy*=.85;if(b.timer<=0){const n=enraged?8:5;for(let i=0;i<n;i++){const a=i*TAU/n,lv=enraged?[2,6,7,8][i%4]:[1,6,1,7,6][i%5];spawnMonster(lv,{x:b.x+Math.cos(a)*(b.r+30),y:b.y+Math.sin(a)*(b.r+30)},{summoned:b.id});}floatText(b.x,b.y-b.r-20,'小的们，上！','#ffffff',22);b.state='chase';b.timer=1.8;}break;
   }
+  if(b.hidden)return;
   b.x+=b.vx*dt;b.y+=b.vy*dt;
-  for(const o of world.enemies){if(o===b||o.kind!=='boss'||o.dead||o.state==='leave')continue;const dx=b.x-o.x,dy=b.y-o.y,d=Math.hypot(dx,dy)||1,min=b.r+o.r;if(d<min){b.x+=dx/d*(min-d)/2;b.y+=dy/d*(min-d)/2;}}
+  for(const o of world.enemies){if(o===b||o.kind!=='boss'||o.dead||o.state==='leave'||o.hidden)continue;const dx=b.x-o.x,dy=b.y-o.y,d=Math.hypot(dx,dy)||1,min=b.r+o.r;if(d<min){b.x+=dx/d*(min-d)/2;b.y+=dy/d*(min-d)/2;}}
   if(b.x<b.r){b.x=b.r;b.vx=Math.abs(b.vx);}if(b.x>W-b.r){b.x=W-b.r;b.vx=-Math.abs(b.vx);}
   if(b.y<b.r+60){b.y=b.r+60;b.vy=Math.abs(b.vy);}if(b.y>H-b.r){b.y=H-b.r;b.vy=-Math.abs(b.vy);}
 }
@@ -572,6 +643,27 @@ function drawMob(e){
       ctx.strokeStyle='rgba(60,64,70,.6)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-s*.5,-s*.6);ctx.lineTo(-s*.3,-s*.3);ctx.lineTo(-s*.45,0);ctx.moveTo(s*.4,s*.2);ctx.lineTo(s*.6,s*.5);ctx.stroke();
       ctx.fillStyle='#7a8086';ctx.beginPath();ctx.ellipse(s*.15,s*.5,s*.25,s*.12,0,0,TAU);ctx.fill();
       eyes(e,s,-s*.25,'#ffd34d','#3a2a10',true);
+    }else if(e.level===6){ // 跳跳兔：圆身 + 长耳朵，扑跳时拉长
+      if(e.dashing>0)ctx.scale(.82,1.2);
+      for(const sx of [-1,1]){ctx.fillStyle=fill;ctx.beginPath();ctx.ellipse(sx*s*.38,-s*1.05,s*.2,s*.62,sx*.22,0,TAU);ctx.fill();ctx.stroke();ctx.fillStyle='#ffb3c1';ctx.beginPath();ctx.ellipse(sx*s*.38,-s*1.0,s*.09,s*.42,sx*.22,0,TAU);ctx.fill();}
+      ctx.fillStyle=fill;ctx.beginPath();ctx.ellipse(0,0,s,s*.9,0,0,TAU);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#ff9fb0';ctx.beginPath();ctx.arc(0,s*.18,s*.11,0,TAU);ctx.fill();
+      eyes(e,s,-s*.12,'#3a2424','#ff6b81');
+    }else if(e.level===7){ // 影蝠：紫色圆身 + 扑扇的翅膀
+      const flap=Math.sin(world.t*22+e.phase)*.5;ctx.fillStyle=e.flash>0?'#fff':m.dark;
+      for(const sx of [-1,1]){ctx.save();ctx.scale(sx,1);ctx.rotate(flap*.6);ctx.beginPath();ctx.moveTo(s*.4,-s*.2);ctx.quadraticCurveTo(s*1.3,-s*1.1,s*1.9,-s*.3);ctx.quadraticCurveTo(s*1.5,-s*.1,s*1.45,s*.25);ctx.quadraticCurveTo(s*1.1,0,s*.95,s*.35);ctx.quadraticCurveTo(s*.7,s*.1,s*.4,s*.3);ctx.closePath();ctx.fill();ctx.restore();}
+      ctx.fillStyle=fill;ctx.beginPath();ctx.moveTo(-s*.55,-s*.45);ctx.lineTo(-s*.38,-s*1.05);ctx.lineTo(-s*.1,-s*.65);ctx.closePath();ctx.moveTo(s*.55,-s*.45);ctx.lineTo(s*.38,-s*1.05);ctx.lineTo(s*.1,-s*.65);ctx.closePath();ctx.fill();
+      ctx.beginPath();ctx.arc(0,0,s*.75,0,TAU);ctx.fill();ctx.stroke();
+      eyes(e,s*.9,-s*.08,'#ffe14d','#3a1a00',true);
+    }else if(e.level===8){ // 疾风狼：灰色狼头 + 尖耳 + 红眼；蓄力时前方有红色预警
+      if(e.windup>0){ctx.save();ctx.rotate(-w+Math.atan2(e.cdir.y,e.cdir.x));ctx.fillStyle=`rgba(255,70,70,${.22+.18*Math.sin(world.t*30)})`;ctx.fillRect(0,-s*.8,380,s*1.6);ctx.restore();}
+      ctx.fillStyle=fill;ctx.strokeStyle=m.dark;ctx.lineWidth=2;
+      for(const sx of [-1,1]){ctx.beginPath();ctx.moveTo(sx*s*.8,-s*.3);ctx.lineTo(sx*s*.62,-s*1.15);ctx.lineTo(sx*s*.15,-s*.72);ctx.closePath();ctx.fill();ctx.stroke();}
+      ctx.beginPath();ctx.ellipse(0,0,s*.95,s*.85,0,0,TAU);ctx.fill();ctx.stroke();
+      ctx.fillStyle=e.flash>0?'#fff':'#dfe3e8';ctx.beginPath();ctx.ellipse(0,s*.38,s*.45,s*.34,0,0,TAU);ctx.fill();
+      ctx.fillStyle='#222';ctx.beginPath();ctx.ellipse(0,s*.2,s*.13,s*.09,0,0,TAU);ctx.fill();
+      eyes(e,s,-s*.2,'#ffdddd','#d81e1e',true);
+      if(e.dashing>0){ctx.strokeStyle='rgba(255,255,255,.6)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,s*1.25,0,TAU);ctx.stroke();}
     }else{ // 树精：树干 + 树冠 + 发光的眼
       ctx.fillStyle=e.flash>0?'#fff':'#3f8a2e';
       for(const [x,y,r] of [[-.55,-.95,.55],[.55,-.95,.55],[0,-1.25,.6],[0,-.75,.55]]){ctx.beginPath();ctx.arc(x*s,y*s,r*s,0,TAU);ctx.fill();}
@@ -596,6 +688,13 @@ function drawViewer(e){
 }
 function drawBoss(b){
   const t=world.t,enraged=b.hp<b.maxHp*.45;
+  if(b.hidden)return;
+  if(b.state==='vortex'){
+    ctx.save();ctx.translate(b.x,b.y);ctx.lineWidth=4;
+    for(let i=0;i<4;i++){const rr=b.r+40+((t*120+i*60)%240);ctx.beginPath();ctx.arc(0,0,Math.max(b.r+10,b.r+280-rr),t*4+i,t*4+i+Math.PI*1.2);ctx.strokeStyle=`rgba(155,123,255,${.15+.12*i})`;ctx.stroke();}
+    ctx.restore();
+  }
+  ctx.save();if(b.state==='vanish')ctx.globalAlpha=clamp(b.timer/.45,0,1);
   if(b.state==='windup'){
     ctx.save();ctx.translate(b.x,b.y);ctx.rotate(Math.atan2(b.dir.y,b.dir.x));const a=.25+.25*Math.sin(t*30);
     ctx.fillStyle=`rgba(255,60,60,${a})`;ctx.fillRect(0,-b.r,420,b.r*2);ctx.restore();
@@ -609,6 +708,7 @@ function drawBoss(b){
   ctx.fillStyle='#ffcf3a';ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='#b8860b';ctx.stroke();
   ctx.fillStyle='#ff5a7a';ctx.beginPath();ctx.arc(cx,cy-9,4,0,TAU);ctx.fill();
   label(fit16(b.name,10),b.x,b.y+b.r+20,{size:18,color:'#ffe9a8'});
+  ctx.restore();
   if(b.state!=='leave'&&world.enemies.filter(e=>e.kind==='boss'&&!e.dead).length>1)bar(b.x-b.r,b.y-b.r-46,b.r*2,7,b.hp/b.maxHp,'#ff5a4a');
 }
 function drawHud(){
@@ -621,7 +721,7 @@ function drawHud(){
   label(`${Math.max(0,Math.ceil(h.hp))}/${h.maxHp}`,150,53,{size:11,stroke:null});
   label(`第${world.run}局 · 割草 ${world.kills}`,334,32,{size:15,align:'right',color:'#e7ffd9',stroke:null});
   label(`${WEAPONS[world.weapon].name} ×${bladeCount()}`,334,53,{size:13,align:'right',color:'#cfe8ff',stroke:null});
-  const chips=[[`怪物强度 ×${growth().toFixed(1)}`,'rgba(120,60,40,.75)']];if(world.disarm>0)chips.push([`缴械 ${Math.ceil(world.disarm)}s`,'#c8742e']);if(world.speedMul>1)chips.push(['转速×'+world.speedMul.toFixed(1),BUFFS.speed.color]);if(world.radiusAdd)chips.push(['范围+'+world.radiusAdd,BUFFS.range.color]);if(world.damageMul>1)chips.push(['攻击×'+world.damageMul.toFixed(1),BUFFS.power.color]);
+  const chips=[[`怪物强度 ×${(growth()*heroScale()).toFixed(1)}`,'rgba(120,60,40,.75)']];if(world.disarm>0)chips.push([`缴械 ${Math.ceil(world.disarm)}s`,'#c8742e']);if(world.speedMul>1)chips.push(['转速×'+world.speedMul.toFixed(1),BUFFS.speed.color]);if(world.radiusAdd)chips.push(['范围+'+world.radiusAdd,BUFFS.range.color]);if(world.damageMul>1)chips.push(['攻击×'+world.damageMul.toFixed(1),BUFFS.power.color]);
   let cx=16;for(const [text,color] of chips){ctx.font='bold 12px "Microsoft YaHei",sans-serif';const w=ctx.measureText(text).width+18;roundRect(cx,90,w,22,11);ctx.fillStyle=color;ctx.fill();label(text,cx+w/2,101,{size:12,stroke:null});cx+=w+6;}
   // BOSS 血条
   const bossList=world.enemies.filter(e=>e.kind==='boss'&&!e.dead&&e.state!=='leave');
@@ -677,6 +777,13 @@ function render(){
   const h=world.hero,t=world.t;
   for(const g of world.gems){const s=g.v>=30?9:g.v>=10?8:g.v>=3?6.5:5,col=g.v>=30?'#ffcf3a':g.v>=10?'#c77dff':g.v>=3?'#5fe08a':'#6ec8ff';ctx.beginPath();ctx.moveTo(g.x,g.y-s);ctx.lineTo(g.x+s*.7,g.y);ctx.lineTo(g.x,g.y+s);ctx.lineTo(g.x-s*.7,g.y);ctx.closePath();ctx.fillStyle=col;ctx.fill();ctx.lineWidth=1.5;ctx.strokeStyle='rgba(255,255,255,.85)';ctx.stroke();}
   for(const p of world.pickups)drawPickup(p,t);
+  for(const z of world.hazards){
+    if(z.done){const k=1-z.boom/.35;ctx.beginPath();ctx.arc(z.x,z.y,z.r*(.7+k*.5),0,TAU);ctx.fillStyle=z.kind==='slam'?`rgba(255,207,90,${.6*(1-k)})`:`rgba(255,122,60,${.65*(1-k)})`;ctx.fill();continue;}
+    const p=1-z.t/z.delay,col=z.kind==='slam'?'255,207,90':'255,70,50';
+    ctx.beginPath();ctx.arc(z.x,z.y,z.r,0,TAU);ctx.fillStyle=`rgba(${col},.14)`;ctx.fill();ctx.lineWidth=3;ctx.strokeStyle=`rgba(${col},${.5+.4*Math.sin(t*20)})`;ctx.stroke();
+    ctx.beginPath();ctx.arc(z.x,z.y,z.r*clamp(p,0,1),0,TAU);ctx.fillStyle=`rgba(${col},.28)`;ctx.fill();
+    if(z.kind==='slam'){ctx.save();ctx.globalAlpha=.35+.3*p;label('!',z.x,z.y,{size:40,color:'#ffcf5a'});ctx.restore();}
+  }
   for(const e of world.enemies)if(e.kind==='mob')drawMob(e);
   for(const e of world.enemies)if(e.kind==='viewer')drawViewer(e);
   for(const p of world.particles){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rot);ctx.globalAlpha=Math.min(1,p.life*2);ctx.fillStyle=p.color;ctx.fillRect(-p.size,-p.size/3,p.size*2,p.size*.7);ctx.restore();}

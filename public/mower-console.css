@@ -16,3 +16,4 @@
 
 .battle-names-group{margin:10px 0 4px;font-size:12px;font-weight:600;color:var(--muted)}.battle-names-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px}.battle-names-grid label{font-size:11px}
 #battle-frame{aspect-ratio:4/3;background:#1d2a1a}
+.lottery-card label.mower-slider{display:grid;grid-template-columns:1fr auto;align-items:center;margin:10px 0 4px;font-size:11px}.mower-slider output{font-weight:600;color:var(--text)}.mower-slider input{grid-column:1/-1}
