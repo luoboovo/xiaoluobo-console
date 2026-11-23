@@ -30,3 +30,77 @@
 /* 不显示标题时：标题位置不占地方；网页预览、OBS 里连整个标题栏都不要 */
 .overlay-header strong:empty{display:none}
 .preview .overlay-header:has(strong:empty),.capture .overlay-header:has(strong:empty){display:none}
+/* 送礼特效：礼物飞向时钟，砸中时「啪」+ 火花 + 时钟弹一下 + 飘字 */
+.gift-fx{position:fixed;inset:0;z-index:6;pointer-events:none;overflow:hidden}
+.gift-fx-gift{position:absolute;left:0;top:0;width:var(--size);height:var(--size);display:grid;place-items:center;will-change:transform;filter:drop-shadow(0 6px 10px #0b1d2e66)}
+.gift-fx-gift img{width:100%;height:100%;object-fit:contain}.gift-fx-gift span{font-size:calc(var(--size)*.8);line-height:1}
+.gift-fx-ring{position:absolute;width:var(--size);height:var(--size);margin:calc(var(--size)/-2) 0 0 calc(var(--size)/-2);border-radius:50%;border:4px solid #ffe28a;animation:gift-ring .5s ease-out forwards}
+.gift-fx-ring.down{border-color:#ff9aa8}
+.gift-fx-pa{position:absolute;transform:translate(-50%,-120%) rotate(var(--tilt));font-size:var(--size);font-weight:900;font-style:italic;color:#fff4c2;-webkit-text-stroke:calc(var(--size)*.08) #8a3b12;paint-order:stroke fill;animation:gift-pa .6s cubic-bezier(.2,1.8,.4,1) forwards;white-space:nowrap}
+.gift-fx-spark{position:absolute;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:#ffd166;box-shadow:0 0 8px #ffd166;animation:gift-spark .55s ease-out forwards}
+.gift-fx-spark:nth-child(odd){background:#ff7aa2;box-shadow:0 0 8px #ff7aa2}.gift-fx-spark.down{background:#ff8a8a;box-shadow:0 0 8px #ff5a6a}
+.gift-fx-label{position:absolute;display:flex;flex-direction:column;align-items:flex-start;transform:translate(-10%,-50%);animation:gift-label 1.7s ease-out forwards;white-space:nowrap}
+.gift-fx-label strong{font-size:var(--size);font-weight:900;line-height:1.1;color:#ffe066;-webkit-text-stroke:calc(var(--size)*.07) #6b3a00;paint-order:stroke fill;text-shadow:0 3px 10px #0006}
+.gift-fx-label.down strong{color:#ff9aa8;-webkit-text-stroke-color:#5a1020}
+.gift-fx-label small{font-size:calc(var(--size)*.34);font-weight:700;color:#fff;-webkit-text-stroke:calc(var(--size)*.05) #1e3a52;paint-order:stroke fill;margin-top:2px}
+.countdown.gift-hit{animation:gift-bump .45s cubic-bezier(.2,1.6,.4,1)}
+.countdown.gift-hit-down{animation:gift-squish .45s ease-out}
+@keyframes gift-ring{0%{transform:scale(.2);opacity:1}100%{transform:scale(1);opacity:0;border-width:1px}}
+@keyframes gift-pa{0%{transform:translate(-50%,-120%) rotate(var(--tilt)) scale(.2);opacity:0}30%{opacity:1}70%{transform:translate(-50%,-120%) rotate(var(--tilt)) scale(1.1);opacity:1}100%{transform:translate(-50%,-150%) rotate(var(--tilt)) scale(1);opacity:0}}
+@keyframes gift-spark{0%{transform:translate(0,0) scale(1);opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(.2);opacity:0}}
+@keyframes gift-label{0%{transform:translate(-10%,-20%) scale(.6);opacity:0}15%{transform:translate(-10%,-50%) scale(1.08);opacity:1}25%{transform:translate(-10%,-50%) scale(1)}75%{opacity:1}100%{transform:translate(-10%,-160%);opacity:0}}
+@keyframes gift-bump{0%{transform:scale(1)}35%{transform:scale(1.07)}70%{transform:scale(.98)}100%{transform:scale(1)}}
+@keyframes gift-squish{0%{transform:scale(1)}30%{transform:scale(.88,.92);filter:hue-rotate(-40deg) saturate(2)}100%{transform:scale(1)}}
+/* 加班机皮肤（控制台「外观设置」里选）。皮肤自带配色，背景/文字颜色只对「默认」生效。
+   装饰文字用 .timer-panel 的 ::before / ::after，倒计时 #time 自动缩放填满剩下的位置。 */
+.overtime-overlay[data-skin]:not([data-skin="default"]):not(.gift-panel-surface) .timer-panel{position:relative;gap:6px}
+.overtime-overlay[data-skin]:not([data-skin="default"]):not(.gift-panel-surface) .timer-panel::before,
+.overtime-overlay[data-skin]:not([data-skin="default"]):not(.gift-panel-surface) .timer-panel::after{flex:0 0 auto;font-size:13px;font-weight:700;letter-spacing:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.overtime-overlay[data-skin]:not([data-skin="default"]):not(.gift-panel-surface) .timer-panel:has(.finished)::before,
+.overtime-overlay[data-skin]:not([data-skin="default"]):not(.gift-panel-surface) .timer-panel:has(.finished)::after{visibility:hidden}
+
+/* 打卡机：灰色机身 + 绿色液晶屏 + 工牌 */
+.overtime-overlay[data-skin="punch"]:not(.gift-panel-surface){--overtime-text:#a6f0a8;background:linear-gradient(180deg,#4a5058,#2b2f35);border:3px solid #8b9096;box-shadow:inset 0 2px #ffffff40,inset 0 -4px #0005}
+.overtime-overlay[data-skin="punch"]:not(.gift-panel-surface) .timer-panel{padding:10px 18px;border-radius:12px;background:#142019;box-shadow:inset 0 3px 10px #000a,0 1px #ffffff30;background-image:repeating-linear-gradient(0deg,#ffffff06 0 2px,transparent 2px 4px)}
+.overtime-overlay[data-skin="punch"]:not(.gift-panel-surface) .timer-panel::before{content:'▣ PUNCH CLOCK · 加班中';color:#6fcf75}
+.overtime-overlay[data-skin="punch"]:not(.gift-panel-surface) .timer-panel::after{content:'工牌 No.0420 · 打卡下班请找主播';color:#7f9a86;font-weight:400}
+.overtime-overlay[data-skin="punch"]:not(.gift-panel-surface) .countdown:not(.urgent){font-family:Consolas,'Microsoft YaHei UI',monospace;text-shadow:0 0 12px #6fcf7577}
+
+/* 数码管：黑底红色 LED */
+.overtime-overlay[data-skin="led"]:not(.gift-panel-surface){--overtime-text:#ff3b3b;background:#0b0b0d;border:2px solid #2a2a2e;box-shadow:inset 0 0 30px #ff000014}
+.overtime-overlay[data-skin="led"]:not(.gift-panel-surface) .timer-panel::before{content:'● OVERTIME';color:#ff4545;animation:skin-blink 1s steps(2,start) infinite}
+.overtime-overlay[data-skin="led"]:not(.gift-panel-surface) .countdown,.overtime-overlay[data-skin="led"]:not(.gift-panel-surface) .done-text strong{font-family:Consolas,'Microsoft YaHei UI',monospace;color:#ff3b3b;text-shadow:0 0 6px #ff2a2a,0 0 20px #ff000099;letter-spacing:.04em}
+
+/* 便利贴：黄色横线纸 + 胶带 + 楷体 */
+.overtime-overlay[data-skin="sticky"]:not(.gift-panel-surface){--overtime-text:#4a3d08;position:relative;overflow:visible;border:0;border-radius:4px 4px 18px 4px;transform:rotate(-.8deg);background:#fff1a0 repeating-linear-gradient(180deg,transparent 0 31px,#e7d67a 31px 32px);box-shadow:0 12px 22px -8px #0006,inset 0 -18px 30px -20px #c9a93066}
+.overtime-overlay[data-skin="sticky"]:not(.gift-panel-surface)::before{content:'';position:absolute;top:-10px;left:50%;width:110px;height:26px;margin-left:-55px;background:#efe4c8cc;transform:rotate(2deg);box-shadow:0 1px 3px #0002}
+.overtime-overlay[data-skin="sticky"]:not(.gift-panel-surface) .timer-panel::before{content:'还要加班……';color:#8a7420;font-family:KaiTi,STKaiti,serif}
+.overtime-overlay[data-skin="sticky"]:not(.gift-panel-surface) .timer-panel::after{content:'别想跑 ✎';color:#a08a35;text-align:right;font-family:KaiTi,STKaiti,serif}
+.overtime-overlay[data-skin="sticky"]:not(.gift-panel-surface) .countdown,.overtime-overlay[data-skin="sticky"]:not(.gift-panel-surface) .done-text strong{font-family:KaiTi,STKaiti,'Microsoft YaHei UI',serif;color:#4a3d08;text-shadow:none}
+.overtime-overlay[data-skin="sticky"]:not(.gift-panel-surface) .countdown.urgent{color:#c0392b}
+
+/* 萝卜：橙绿品牌色 + 萝卜图标 */
+.overtime-overlay[data-skin="radish"]:not(.gift-panel-surface){--overtime-text:#d4621a;border:3px solid #f39a4a;background:url(/overtime/radish.svg) right 14px bottom 12px/clamp(40px,22%,110px) no-repeat,linear-gradient(160deg,#fff3e6,#ffd7b5);box-shadow:inset 0 2px #fff,0 0 0 4px #9dbc8055}
+.overtime-overlay[data-skin="radish"]:not(.gift-panel-surface) .timer-panel::before{content:'🥕 萝卜加班中';color:#3f8a46}
+.overtime-overlay[data-skin="radish"]:not(.gift-panel-surface) .timer-panel::after{content:'萝卜越拔越长～';color:#c47a3c;font-weight:400}
+.overtime-overlay[data-skin="radish"]:not(.gift-panel-surface) .countdown:not(.urgent),.overtime-overlay[data-skin="radish"]:not(.gift-panel-surface) .done-text strong{color:#d4621a;text-shadow:0 3px 0 #fff,0 5px 10px #d4621a33}
+.overtime-overlay[data-skin="radish"]:not(.gift-panel-surface) .countdown.urgent{color:#e0303f}
+
+/* 霓虹灯：深紫底 + 青色灯框 + 粉色发光字 */
+.overtime-overlay[data-skin="neon"]:not(.gift-panel-surface){--overtime-text:#ffe1fa;background:#140b26;border:2px solid #7ef3ff;box-shadow:0 0 10px #7ef3ff,inset 0 0 14px #7ef3ff88}
+.overtime-overlay[data-skin="neon"]:not(.gift-panel-surface) .timer-panel::before{content:'OPEN · 加班营业中';color:#aef8ff;text-shadow:0 0 6px #7ef3ff,0 0 14px #2fd9ff;animation:skin-flicker 4s linear infinite}
+.overtime-overlay[data-skin="neon"]:not(.gift-panel-surface) .countdown:not(.urgent),.overtime-overlay[data-skin="neon"]:not(.gift-panel-surface) .done-text strong{color:#ffe1fa;text-shadow:0 0 4px #fff,0 0 10px #ff4fd8,0 0 24px #ff4fd8,0 0 44px #c21fa8}
+
+/* 极简描边：没有底板，白字粗黑描边，可以直接压在摄像头画面上 */
+.overtime-overlay[data-skin="outline"]:not(.gift-panel-surface){--overtime-text:#fff;background:transparent;border-color:transparent;box-shadow:none}
+.overtime-overlay[data-skin="outline"]:not(.gift-panel-surface) .countdown,.overtime-overlay[data-skin="outline"]:not(.gift-panel-surface) .done-text strong{--o:#1f2a33;text-shadow:3px 0 var(--o),-3px 0 var(--o),0 3px var(--o),0 -3px var(--o),2px 2px var(--o),-2px -2px var(--o),2px -2px var(--o),-2px 2px var(--o),0 6px 0 var(--o),0 8px 14px #0008}
+.overtime-overlay[data-skin="outline"]:not(.gift-panel-surface) .countdown.urgent{color:#ffadb3}
+
+@keyframes skin-blink{to{visibility:hidden}}
+@keyframes skin-flicker{0%,18%,22%,62%,64%,100%{opacity:1}20%,63%{opacity:.35}}
+/* 自定义皮肤：自己上传的图片，排在标题和倒计时下面 */
+.overtime-overlay:not(.gift-panel-surface){position:relative}
+.look-images{position:absolute;inset:0;pointer-events:none;z-index:0}
+.look-images img{position:absolute;height:auto;max-width:none;user-select:none}
+.overtime-overlay:not(.gift-panel-surface)>.overlay-header,.overtime-overlay:not(.gift-panel-surface)>.timer-panel{position:relative;z-index:1}
+.overtime-overlay:not(.gift-panel-surface)>.timer-panel.placed{position:absolute;flex:none;min-height:0}

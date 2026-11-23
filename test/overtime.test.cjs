@@ -138,7 +138,12 @@ test('服务整合：真实新旧礼物共用直播连接，事件同步、跨�
     runtime.services.liveMessage({cmd:'SEND_GIFT',data:{uname:'直播观众',uid:123,giftId:1,giftName:'加班花',num:2,tid:'live-1'}});
     const update = new TextDecoder().decode((await reader.read()).value);
     // Overlays get the new time without the viewer list; the console and state API still carry viewers.
-    assert.match(update,/"remaining":"7200"/); assert.doesNotMatch(update,/直播观众|"people"|"history"/); controller.abort();
+    // 只有送礼特效用的最近几条记录带昵称（飘字里显示是谁送的）。
+    assert.match(update,/"remaining":"7200"/); assert.doesNotMatch(update,/"people"|"history"/);
+    assert.match(update,/"recent":\[\{[^\]]*"user":"直播观众"[^\]]*"gift_name":"加班花"/);
+    runtime.services.liveMessage({cmd:'SEND_GIFT',data:{uname:'小***',uid:124,giftId:1,giftName:'加班花',num:1,tid:'live-2'}});
+    assert.match(new TextDecoder().decode((await reader.read()).value),/"user":"小\*\*\*"/,'打码昵称显示成第一个字***');
+    controller.abort();
     const state = await (await fetch(runtime.url+'/api/overtime/state')).json(); assert.equal(state.people[0].uid,123); assert.equal(state.people[0].added,'3600');
     for (const page of ['/overtime/','/overtime/shared.js','/overtime/overlay.js','/overtime/overlay.css','/overtime/radish.svg','/overtime-console.js','/overtime-console.css']) assert.equal((await fetch(runtime.url+page)).status,200,page);
     assert.equal((await fetch(runtime.url+'/api/overtime/export')).status,200);

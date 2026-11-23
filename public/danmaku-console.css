@@ -48,3 +48,6 @@ dialog.danmaku-bubble-dialog{width:880px;max-width:94vw;text-align:left;padding:
 @media(max-width:760px){.danmaku-bubble-editor{grid-template-columns:1fr}}
 
 .danmaku-builtin{margin-left:6px;padding:1px 6px;border-radius:999px;background:#e8f1ff;color:#3a6fd8;font-size:11px;font-style:normal;font-weight:600;vertical-align:1px}
+
+.danmaku-custom-tip{border:0;background:#fdf0f4;color:#b0587a;font-size:11px;font-weight:500;border-radius:20px;padding:3px 9px;margin-left:6px;vertical-align:middle;cursor:pointer}.danmaku-custom-tip:hover{background:#fbe2eb}
+body.dark .danmaku-custom-tip{background:#4a3440;color:#e6aec4}body.dark .danmaku-custom-tip:hover{background:#573b4a}

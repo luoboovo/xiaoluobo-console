@@ -59,30 +59,28 @@ async function loadGifts() {
   $('#gift-preview').innerHTML = preview.slice(0, 4).map(g => `<button class="preview-gift" data-gift="${g.id}" title="${escapeHtml(g.name)}" aria-label="查看${escapeHtml(g.name)}"><img loading="lazy" src="${image(g)}" alt="${escapeHtml(g.name)}"></button>`).join('');
   renderGifts();
 }
-const navigation=$('.nav'),navMore=$('#nav-more'),navOverflow=$('#nav-overflow'),navItems=Array.from(navigation.querySelectorAll('.nav-item'));
-function layoutNavigation(){
-  const focused=document.activeElement,wasFocused=navigation.contains(focused);
-  for(const item of navItems)navigation.insertBefore(item,navMore);
-  navMore.hidden=true;
-  const style=getComputedStyle(navigation),gap=parseFloat(style.columnGap)||0,available=navigation.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight);
-  const widths=new Map(navItems.map(item=>[item,item.getBoundingClientRect().width]));
-  if(navItems.reduce((sum,item)=>sum+widths.get(item),0)+gap*(navItems.length-1)>available){
-    navMore.hidden=false;
-    const active=navItems.find(item=>item.classList.contains('active'))||navItems[0],visible=new Set();
-    let used=navMore.getBoundingClientRect().width;
-    for(const item of [active,...navItems.filter(item=>item!==active)]){
-      if(used+gap+widths.get(item)>available)break;
-      visible.add(item);used+=gap+widths.get(item);
-    }
-    for(const item of navItems)if(!visible.has(item))navOverflow.append(item);
-  }else navMore.open=false;
-  if(wasFocused&&focused.isConnected){if(focused.parentElement===navOverflow&&!navMore.open)navMore.querySelector('summary').focus();else focused.focus({preventScroll:true});}
+const navigation=$('.nav'),navGroups=Array.from(navigation.querySelectorAll('.nav-group')),navRecent=$('#nav-recent');
+let recentViews=[];try{recentViews=JSON.parse(localStorage.getItem('nav-recent')||'[]').filter(view=>typeof view==='string');}catch{}
+function closeNavGroups(except){for(const group of navGroups)if(group!==except)group.open=false;}
+function navButton(view){return navigation.querySelector(`.nav-menu [data-view="${CSS.escape(view)}"]`);}
+function renderNavigation(view){
+  for(const group of navGroups){
+    const active=group.querySelector(`.nav-menu [data-view="${CSS.escape(view)}"]`);
+    group.classList.toggle('active',!!active);
+    group.querySelector('.nav-group-current').textContent=active?active.textContent.trim():'';
+  }
+  if(navButton(view)){recentViews=[view,...recentViews.filter(item=>item!==view)].slice(0,6);try{localStorage.setItem('nav-recent',JSON.stringify(recentViews));}catch{}}
+  navRecent.replaceChildren(...recentViews.filter(item=>item!==view&&navButton(item)).slice(0,3).map(item=>{
+    const source=navButton(item),chip=document.createElement('button');
+    chip.type='button';chip.className='nav-recent-item';chip.dataset.view=item;chip.title='最近用过：'+source.textContent.trim();
+    chip.append(source.querySelector('svg').cloneNode(true),source.textContent.trim());return chip;
+  }));
 }
-new ResizeObserver(layoutNavigation).observe(navigation);
-new MutationObserver(layoutNavigation).observe(navigation,{characterData:true,subtree:true});
-document.fonts.ready.then(layoutNavigation);
-document.addEventListener('click',event=>{if(!navMore.contains(event.target))navMore.open=false;});
-document.addEventListener('keydown',event=>{if(event.key==='Escape'&&navMore.open){navMore.open=false;navMore.querySelector('summary').focus();event.preventDefault();}});
+for(const group of navGroups)group.addEventListener('toggle',()=>{if(group.open)closeNavGroups(group);});
+new MutationObserver(()=>renderNavigation(navigation.querySelector('.nav-item.active')?.dataset.view||'console')).observe(navigation.querySelector('[data-group="games"] .nav-menu'),{characterData:true,childList:true,subtree:true});
+document.addEventListener('click',event=>{if(!event.target.closest('.nav-group'))closeNavGroups();});
+document.addEventListener('keydown',event=>{const open=navGroups.find(group=>group.open);if(event.key==='Escape'&&open){open.open=false;open.querySelector('summary').focus();event.preventDefault();}});
+renderNavigation('console');
 function syncPreviewFrames(view) {
   for(const [id,target] of [['noodle-frame','noodle'],['feeding-frame','feeding'],['overtime-frame','overtime'],['overtime-media-frame','overtime'],['bomb-frame','number-bomb'],['mower-frame','mower'],['battle-frame','battle'],['lottery-frame','lottery'],['danmaku-frame','danmaku']]) {
     const frame=$('#'+id);
@@ -110,7 +108,7 @@ export function switchView(view) {
   $('#noodle-frame').contentWindow.postMessage({ type: 'noodle-preview-visibility', visible: view === 'noodle' }, location.origin);
   for(const id of ['#overtime-frame','#overtime-media-frame']) $(id).contentWindow.postMessage({type:'overtime-preview-visibility',visible:view==='overtime'},location.origin);
   document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === view));
-  navMore.open=false;layoutNavigation();
+  closeNavGroups();renderNavigation(view);
   if (view === 'gifts') { renderGifts(); window.scrollTo(0, 0); }
   else $('#gift-grid').replaceChildren();
   if (view === 'console') renderEvents();

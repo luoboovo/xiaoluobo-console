@@ -153,16 +153,121 @@ $('#overtime-add-rule').addEventListener('click', () => { addRule(); rulesDirty 
 // 外观设置：改了自动保存（停手 0.4 秒后），保存中途收到的推送不覆盖正在改的内容。
 let lookTimer, lookRevision = 0, lookPending = false;
 const lookForm = $('#overtime-look');
+// 自定义皮肤：自己上传的图片和倒计时时钟，都用鼠标拖动摆位置、拖右下角圆点缩放。
+// 数值都是占浮窗宽高的百分比：图片存 x / y / w（高度按原比例），时钟存 x / y / w / h（字号自动填满这个框）。
+const customStage = $('#overtime-custom-stage');
+const CLOCK_DEFAULT = { x:2.55, y:8, w:94.9, h:84 };
+let customImages = [], customClock = null, customSelected = -1, customDrag = null;
+const clockBox = () => customClock || CLOCK_DEFAULT;
+function lookSkinUi(skin) {
+  lookForm.classList.toggle('skinned',!['default','custom'].includes(skin));
+  $('#overtime-custom').hidden = skin !== 'custom';
+  const f = lookForm.elements, hex = f.background.value, alpha = Number(f.opacity.value) / 100;
+  customStage.style.setProperty('--stage-bg',`rgba(${[1,3,5].map(i => parseInt(hex.slice(i,i+2),16)).join(',')},${alpha})`);
+  customStage.style.setProperty('--stage-text',f.text_color.value);
+  if (skin === 'custom') requestAnimationFrame(fitCustomClock);
+}
+const handles = removable => (removable ? '<button type="button" class="overtime-custom-remove" aria-label="删除这张图片" title="删除">×</button>' : '') + '<span class="overtime-custom-resize" aria-hidden="true"></span>';
+function placeCustom(node, box) { node.style.left = `${box.x}%`; node.style.top = `${box.y}%`; node.style.width = `${box.w}%`; if (box.h !== undefined) node.style.height = `${box.h}%`; }
+// 时钟示意文字按框的大小自动缩放，和直播画面里一样。
+function fitCustomClock() {
+  const node = customStage.querySelector('.overtime-custom-clock'), text = node?.querySelector('p'); if (!text || !node.clientWidth) return;
+  // 浮窗里倒计时最大 110px（按 940 宽算），这里按摆放区的宽度等比换算。
+  let low = 4, high = Math.max(4,Math.round(110 * customStage.clientWidth / 940));
+  while (low < high) { const middle = Math.ceil((low + high) / 2); text.style.fontSize = `${middle}px`; if (text.scrollWidth <= node.clientWidth && text.scrollHeight <= node.clientHeight) low = middle; else high = middle - 1; }
+  text.style.fontSize = `${low}px`;
+}
+function drawCustom() {
+  for (const node of customStage.querySelectorAll('.overtime-custom-image,.overtime-custom-clock')) node.remove();
+  customImages.forEach((image,index) => {
+    const node = document.createElement('div'); node.className = 'overtime-custom-image' + (index === customSelected ? ' selected' : ''); node.dataset.index = index;
+    placeCustom(node,image);
+    const img = document.createElement('img'); img.src = `/api/overtime/media/${image.asset}`; img.alt = ''; img.draggable = false;
+    node.append(img);
+    if (index === customSelected) node.insertAdjacentHTML('beforeend',handles(true));
+    customStage.append(node);
+  });
+  const clock = document.createElement('div'); clock.className = 'overtime-custom-clock' + (customSelected === 'clock' ? ' selected' : ''); clock.dataset.index = 'clock'; clock.title = '倒计时时钟：拖动换位置，拖右下角圆点调大小';
+  placeCustom(clock,clockBox()); clock.innerHTML = '<p>59分 59秒</p>' + (customSelected === 'clock' ? handles(false) : '');
+  customStage.append(clock); fitCustomClock();
+}
+new ResizeObserver(fitCustomClock).observe(customStage);
+const saveCustom = () => lookForm.dispatchEvent(new Event('input'));
+const removeCustom = () => { if (typeof customSelected !== 'number' || customSelected < 0) return; customImages.splice(customSelected,1); customSelected = -1; drawCustom(); saveCustom(); };
+customStage.addEventListener('pointerdown', event => {
+  if (event.button !== 0) return;
+  if (event.target.closest('.overtime-custom-remove')) { removeCustom(); return; }
+  const node = event.target.closest('.overtime-custom-image,.overtime-custom-clock');
+  customStage.focus({preventScroll:true});
+  if (!node) { if (customSelected !== -1) { customSelected = -1; drawCustom(); } return; }
+  const index = node.dataset.index === 'clock' ? 'clock' : Number(node.dataset.index), box = index === 'clock' ? clockBox() : customImages[index], rect = customStage.getBoundingClientRect();
+  customSelected = index;
+  customDrag = { index, resize:!!event.target.closest('.overtime-custom-resize'), startX:event.clientX, startY:event.clientY, start:{...box}, width:rect.width, height:rect.height, moved:false };
+  drawCustom(); customStage.setPointerCapture(event.pointerId); event.preventDefault();
+});
+customStage.addEventListener('pointermove', event => {
+  if (!customDrag) return;
+  const d = customDrag;
+  if (!d.moved && Math.hypot(event.clientX - d.startX, event.clientY - d.startY) < 2) return;
+  d.moved = true;
+  const dx = (event.clientX - d.startX) / d.width * 100, dy = (event.clientY - d.startY) / d.height * 100, round = value => Math.round(value * 100) / 100, clamp = (value,min,max) => round(Math.max(min,Math.min(max,value)));
+  let box;
+  if (d.index === 'clock') {
+    // 时钟框宽高可以分别拉；位置不让整个拖出画面。
+    box = customClock = {...clockBox()};
+    if (d.resize) { box.w = clamp(d.start.w + dx,5,200); box.h = clamp(d.start.h + dy,5,200); }
+    else { box.x = clamp(d.start.x + dx,-50,150); box.y = clamp(d.start.y + dy,-50,150); }
+  } else {
+    // 图片缩放按原比例，只改宽度；位置允许拖出一点边，方便做出血效果。
+    box = customImages[d.index];
+    if (d.resize) box.w = clamp(d.start.w + dx,2,300);
+    else { box.x = clamp(d.start.x + dx,-100,200); box.y = clamp(d.start.y + dy,-100,200); }
+  }
+  placeCustom(customStage.querySelector(`[data-index="${d.index}"]`),box);
+  if (d.index === 'clock' && d.resize) fitCustomClock();
+});
+const endCustomDrag = () => { if (!customDrag) return; const moved = customDrag.moved; customDrag = null; if (moved) saveCustom(); };
+customStage.addEventListener('pointerup',endCustomDrag); customStage.addEventListener('pointercancel',endCustomDrag); customStage.addEventListener('lostpointercapture',endCustomDrag);
+customStage.addEventListener('keydown', event => {
+  if (customSelected === -1) return;
+  if (['Delete','Backspace'].includes(event.key)) { event.preventDefault(); removeCustom(); return; }
+  const box = customSelected === 'clock' ? (customClock = {...clockBox()}) : customImages[customSelected], step = event.shiftKey ? 5 : .5;
+  if (event.key === 'ArrowLeft') box.x -= step; else if (event.key === 'ArrowRight') box.x += step;
+  else if (event.key === 'ArrowUp') box.y -= step; else if (event.key === 'ArrowDown') box.y += step;
+  else return;
+  event.preventDefault(); drawCustom(); saveCustom();
+});
+$('#overtime-custom-reset-clock').addEventListener('click',() => { customClock = null; customSelected = -1; drawCustom(); saveCustom(); });
+$('#overtime-custom-add').addEventListener('click',() => $('#overtime-custom-upload').click());
+$('#overtime-custom-upload').addEventListener('change', async event => {
+  const files = [...event.target.files]; event.target.value = '';
+  const button = $('#overtime-custom-add'); button.disabled = true; button.textContent = '正在上传…';
+  try {
+    for (const file of files) {
+      if (customImages.length >= 10) throw new Error('自定义图片最多 10 张');
+      if (!/^image\/(png|jpeg|gif|webp)$/.test(file.type)) throw new Error(`「${file.name}」不是 PNG、JPG、GIF 或 WebP 图片`);
+      const response = await fetch(`/api/overtime/media?name=${encodeURIComponent(file.name)}`,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:file});
+      const media = await response.json(); if (!response.ok) throw new Error(media.error || '图片上传失败');
+      if (media.kind !== 'image') throw new Error('自定义只能放图片');
+      const offset = customImages.length * 4;
+      customImages.push({ asset:media.asset, x:30 + offset, y:15 + offset, w:25 }); customSelected = customImages.length - 1;
+    }
+  } catch (error) { toast(error.message,true); }
+  finally { button.disabled = false; button.textContent = '上传图片 ＋'; drawCustom(); saveCustom(); }
+});
 function renderLook() {
   const look = machine?.config.look; if (!look || lookPending) return;
+  lookForm.elements.skin.value = look.skin || 'default';
+  if (!customDrag) { const next = look.images || [], clock = look.clock || null; if (JSON.stringify([next,clock]) !== JSON.stringify([customImages,customClock])) { customImages = structuredClone(next); customClock = clock && {...clock}; if (typeof customSelected === 'number' && customSelected >= customImages.length) customSelected = -1; drawCustom(); } }
   lookForm.elements.background.value = look.background; lookForm.elements.text_color.value = look.text_color;
   lookForm.elements.opacity.value = look.opacity; $('#overtime-look-opacity-value').textContent = `${look.opacity}%`;
   if (document.activeElement !== lookForm.elements.done_text) lookForm.elements.done_text.value = look.done_text;
+  lookSkinUi(lookForm.elements.skin.value);
 }
 lookForm.addEventListener('submit', event => event.preventDefault());
 lookForm.addEventListener('input', () => {
-  const f = lookForm.elements, look = { background:f.background.value, text_color:f.text_color.value, opacity:Number(f.opacity.value), done_text:f.done_text.value.trim() };
-  $('#overtime-look-opacity-value').textContent = `${look.opacity}%`;
+  const f = lookForm.elements, look = { skin:f.skin.value || 'default', images:customImages.map(({asset,x,y,w}) => ({asset,x,y,w})), clock:customClock, background:f.background.value, text_color:f.text_color.value, opacity:Number(f.opacity.value), done_text:f.done_text.value.trim() };
+  $('#overtime-look-opacity-value').textContent = `${look.opacity}%`; lookSkinUi(look.skin);
   const revision = ++lookRevision; lookPending = true; clearTimeout(lookTimer);
   if (!look.done_text) return;
   lookTimer = setTimeout(async () => {

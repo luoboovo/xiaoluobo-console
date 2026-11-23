@@ -32,3 +32,26 @@
 .overtime-rule.is-random{grid-template-columns:minmax(0,1fr) 96px 190px 28px}
 .manual-row{grid-template-columns:1fr 70px auto auto}
 @media(max-width:650px){.overtime-rule.is-timed{grid-template-columns:1fr 88px 120px 24px}.overtime-rule.is-random{grid-template-columns:1fr 88px 170px 24px}}
+.overtime-skins{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:8px}
+.overtime-skin{position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;padding:6px;border:1px solid var(--line);border-radius:10px;background:var(--surface-soft);font-size:12px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.overtime-skin input{position:absolute;opacity:0;pointer-events:none}
+.overtime-skin-swatch{display:grid;place-items:center;width:100%;height:34px;border-radius:7px;font:700 14px Consolas,'Microsoft YaHei UI',monospace;box-shadow:inset 0 0 0 1px #0000000f}
+.overtime-skin:has(input:checked){border-color:#6999ba;box-shadow:0 0 0 2px #6999ba55}
+.overtime-skin:has(input:focus-visible){outline:2px solid #6d9cbe;outline-offset:2px}
+#overtime-look.skinned .overtime-look-colors,#overtime-look.skinned .overtime-look-opacity{opacity:.45}
+[data-skin=default].overtime-skin-swatch{background:linear-gradient(135deg,#8ea6b8,#314d63);color:#fff8e7}[data-skin=punch].overtime-skin-swatch{background:#142019;color:#a6f0a8;box-shadow:inset 0 0 0 2px #8b9096}[data-skin=led].overtime-skin-swatch{background:#0b0b0d;color:#ff3b3b;text-shadow:0 0 6px #ff2a2a}[data-skin=sticky].overtime-skin-swatch{background:#fff1a0;color:#4a3d08;font-family:KaiTi,STKaiti,serif}[data-skin=radish].overtime-skin-swatch{background:linear-gradient(160deg,#fff3e6,#ffd7b5);color:#d4621a;box-shadow:inset 0 0 0 2px #f39a4a}[data-skin=neon].overtime-skin-swatch{background:#140b26;color:#ffe1fa;text-shadow:0 0 6px #ff4fd8;box-shadow:inset 0 0 0 1px #7ef3ff}[data-skin=outline].overtime-skin-swatch{background:repeating-conic-gradient(#d9dde2 0 25%,#f1f3f5 0 50%) 0 0/8px 8px;color:#fff;text-shadow:2px 0 #1f2a33,-2px 0 #1f2a33,0 2px #1f2a33,0 -2px #1f2a33}
+
+[data-skin=custom].overtime-skin-swatch{background:repeating-conic-gradient(#e3e8ee 0 25%,#f6f8fa 0 50%) 0 0/8px 8px;color:#5f7489;font-family:'Microsoft YaHei UI',sans-serif;font-size:12px;border:1px dashed #9fb3c6}
+.overtime-custom{display:flex;flex-direction:column;gap:8px}
+.overtime-custom-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;color:var(--muted)}
+.overtime-custom-bar .text-button{flex-shrink:0}
+.overtime-custom-stage{--stage-bg:#526e82ed;--stage-text:#fff8e7;position:relative;container-type:inline-size;aspect-ratio:940/300;border-radius:12px;overflow:hidden;background:linear-gradient(var(--stage-bg),var(--stage-bg)),repeating-conic-gradient(#d9dde2 0 25%,#f1f3f5 0 50%) 0 0/14px 14px;outline-offset:3px;touch-action:none;user-select:none}
+.overtime-custom-actions{display:flex;gap:10px;flex-shrink:0}
+.overtime-custom-clock{position:absolute;z-index:1;cursor:move;outline:1px dashed #ffffff55;outline-offset:-1px}
+.overtime-custom-clock p{margin:0;font-weight:900;line-height:1.25;color:var(--stage-text);white-space:nowrap;pointer-events:none;overflow:hidden}
+.overtime-custom-clock.selected{z-index:3;outline:2px dashed #3d8bd0;outline-offset:2px}
+.overtime-custom-image{position:absolute;z-index:0;cursor:move}
+.overtime-custom-image img{display:block;width:100%;height:auto;pointer-events:none}
+.overtime-custom-image.selected{z-index:2;outline:2px dashed #3d8bd0;outline-offset:2px}
+.overtime-custom-remove{position:absolute;top:-12px;right:-12px;width:24px;height:24px;border:0;border-radius:50%;background:#e05561;color:#fff;font-size:16px;line-height:1;cursor:pointer;box-shadow:0 2px 6px #0004}
+.overtime-custom-resize{position:absolute;right:-8px;bottom:-8px;width:16px;height:16px;border:2px solid #fff;border-radius:50%;background:#3d8bd0;box-shadow:0 1px 4px #0005;cursor:nwse-resize}

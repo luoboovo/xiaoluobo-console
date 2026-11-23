@@ -30,12 +30,28 @@
   function applyLook(look) {
     if (!look) return;
     const surface = $('.overtime-overlay'), hex = look.background, alpha = look.opacity / 100;
+    // 皮肤自带配色：选了皮肤就不用控制台里的背景/文字颜色。
+    surface.dataset.skin = look.skin || 'default';
+    renderLookImages(surface.dataset.skin === 'custom' ? look.images || [] : []);
+    // 自定义皮肤里时钟可以挪位置、改大小（百分比）；字号由 fit() 按框自动填满。
+    const panel = $('.timer-panel'), box = surface.dataset.skin === 'custom' ? look.clock : null, place = box ? `${box.x},${box.y},${box.w},${box.h}` : '';
+    if (panel.dataset.place !== place) { panel.dataset.place = place; panel.classList.toggle('placed',!!box); for (const [key,value] of [['left',box?.x],['top',box?.y],['width',box?.w],['height',box?.h]]) value === undefined ? panel.style.removeProperty(key) : panel.style.setProperty(key,`${value}%`); requestAnimationFrame(fit); }
+    if (!['default','custom'].includes(surface.dataset.skin)) { surface.style.removeProperty('--overtime-background'); surface.style.removeProperty('--overtime-text'); delete surface.dataset.transparent; if (look.done_text !== doneText) { doneText = look.done_text; const time = $('#time'); if (time.classList.contains('finished')) { time.innerHTML = done(); fit(); } } return; }
     const rgb = [1,3,5].map(i => parseInt(hex.slice(i,i+2),16)), mix = (t,c) => rgb.map(v => Math.round(v + (c - v) * t));
     const rgba = c => `rgba(${c.join(',')},${alpha})`;
     surface.style.setProperty('--overtime-background', `linear-gradient(135deg,${rgba(mix(.28,255))},${rgba(mix(.32,0))})`);
     surface.style.setProperty('--overtime-text', look.text_color);
     surface.dataset.transparent = String(look.opacity === 0);
     if (look.done_text !== doneText) { doneText = look.done_text; const time = $('#time'); if (time.classList.contains('finished')) { time.innerHTML = done(); fit(); } }
+  }
+  // 自定义皮肤的图片：位置、宽度按浮窗大小的百分比，高度按图片原比例。排在倒计时文字下面。
+  let lookImagesStamp = '';
+  function renderLookImages(images) {
+    const stamp = JSON.stringify(images); if (stamp === lookImagesStamp) return; lookImagesStamp = stamp;
+    let layer = $('.look-images');
+    if (!images.length) { layer?.remove(); return; }
+    if (!layer) { layer = document.createElement('div'); layer.className = 'look-images'; layer.setAttribute('aria-hidden','true'); $('.overtime-overlay').prepend(layer); }
+    layer.replaceChildren(...images.map(image => { const img = document.createElement('img'); img.alt = ''; img.src = `/api/overtime/media/${image.asset}`; img.style.left = `${image.x}%`; img.style.top = `${image.y}%`; img.style.width = `${image.w}%`; return img; }));
   }
   function fitDone() {
     const box = $('#time'), done = box.querySelector('.done'); if (!done) return;
@@ -50,9 +66,23 @@
     while (low < high) { const middle = Math.ceil((low + high) / 2); el.style.fontSize = `${middle}px`; if (el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1) low = middle; else high = middle - 1; }
     el.style.fontSize = `${low}px`;
   }
+  // 送礼特效：礼物飞行途中时钟先停在旧时间，砸中那一下再跳到新时间。
+  let seenGifts = null, holding = false, holdTimer;
+  const release = () => { if (!holding) return; holding = false; clearTimeout(holdTimer); clock({}); };
+  function giftEffects(next) {
+    const recent = next.recent || [];
+    if (!seenGifts) { seenGifts = new Set(recent.map(record => record.id)); return; }
+    const fresh = recent.filter(record => !seenGifts.has(record.id)).reverse();
+    for (const record of recent) seenGifts.add(record.id);
+    if (seenGifts.size > 500) seenGifts = new Set(recent.map(record => record.id));
+    if (!fresh.length || !window.OvertimeGiftFx || document.visibilityState === 'hidden') return;
+    holding = true; clearTimeout(holdTimer); holdTimer = setTimeout(release,1600);
+    fresh.forEach((record,i) => setTimeout(() => OvertimeGiftFx.play(record,$('#time'),{onHit:release}), i * 160));
+  }
   function clock(next) {
     if (mediaOnly || panelId || !state) return;
     Object.assign(state,next);
+    if (holding) return;
     const finished = state.mode !== 'idle' && state.remaining === '0', time = $('#time');
     if (finished !== time.classList.contains('finished')) time.innerHTML = '';
     time.classList.toggle('finished', finished);
@@ -68,7 +98,7 @@
       return;
     }
     state = next;
-    if (!panelId) { applyLook(next.config.look); clock(next); return; }
+    if (!panelId) { applyLook(next.config.look); giftEffects(next); clock(next); return; }
     const panel = state.config.gift_panels.find(panel => panel.id === panelId);
     // 送礼高峰每 100ms 推送一次；面板内容不变时不重建，避免 OBS 浏览器源反复请求和解码全部礼物图片。
     const styleStamp = JSON.stringify([panel?.name, panel?.columns, panel?.style]);

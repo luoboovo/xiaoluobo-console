@@ -17,11 +17,17 @@ async function fixture(t) {
 }
 
 test('加班机外观：默认值、颜色 / 不透明度 / 下班文字的校验', () => {
-  assert.deepEqual(normalizeLook(), { background:'#526e82', opacity:93, text_color:'#fff8e7', done_text:'下班！' });
-  assert.deepEqual(normalizeLook({ background:'#FF00AA', opacity:0, text_color:'#000000', done_text:'  今天到此为止  ' }), { background:'#ff00aa', opacity:0, text_color:'#000000', done_text:'今天到此为止' });
+  assert.deepEqual(normalizeLook(), { skin:'default', images:[], clock:null, background:'#526e82', opacity:93, text_color:'#fff8e7', done_text:'下班！' });
+  assert.deepEqual(normalizeLook({ background:'#FF00AA', opacity:0, text_color:'#000000', done_text:'  今天到此为止  ' }), { skin:'default', images:[], clock:null, background:'#ff00aa', opacity:0, text_color:'#000000', done_text:'今天到此为止' });
   for (const bad of [{ background:'red' }, { text_color:'#12345' }, { opacity:-1 }, { opacity:101 }, { opacity:50.5 }, { opacity:'50' }, { done_text:'' }, { done_text:'   ' }, { done_text:'字'.repeat(21) }, { done_text:5 }, null, []])
     assert.throws(() => normalizeLook(bad), undefined, JSON.stringify(bad));
   assert.equal(normalizeLook({ done_text:'🎉'.repeat(20) }).done_text.length, 40, '按字数算，不按编码长度');
+  const asset = 'a'.repeat(64)+'.png';
+  assert.deepEqual(normalizeLook({ skin:'custom', images:[{ asset, x:12.345, y:-5, w:40, extra:1 }] }).images, [{ asset, x:12.35, y:-5, w:40 }], '自定义图片只存位置和宽度');
+  assert.deepEqual(normalizeLook({ skin:'custom', clock:{ x:10, y:20.123, w:50, h:40 } }).clock, { x:10, y:20.12, w:50, h:40 }, '时钟位置大小');
+  for (const clock of [{ x:10, y:20, w:1, h:40 }, { x:'1', y:0, w:50, h:50 }, [], 5]) assert.throws(() => normalizeLook({ clock }), /时钟/);
+  for (const images of [[{ asset:'x.png', x:0, y:0, w:10 }], [{ asset:'a'.repeat(64)+'.mp4', x:0, y:0, w:10 }], [{ asset, x:0, y:0, w:1 }], [{ asset, x:'1', y:0, w:10 }], Array(11).fill({ asset, x:0, y:0, w:10 }), 'x'])
+    assert.throws(() => normalizeLook({ skin:'custom', images }), /自定义图片/);
 });
 
 test('保存外观不影响倒计时；改时间设置、导入旧配置都保留外观；重启后还在', async t => {
@@ -29,9 +35,10 @@ test('保存外观不影响倒计时；改时间设置、导入旧配置都保�
   assert.deepEqual(machine.snapshot().config.look, normalizeLook(), '旧存档没有外观时用默认值');
   await machine.action({ action:'start' }); advance(90_000);
   const before = machine.snapshot();
-  const after = await machine.action({ action:'look', look:{ background:'#000000', opacity:0, text_color:'#ffd34a', done_text:'收工啦' } });
+  const after = await machine.action({ action:'look', look:{ skin:'neon', background:'#000000', opacity:0, text_color:'#ffd34a', done_text:'收工啦' } });
   assert.equal(after.mode, 'running'); assert.equal(after.remaining, before.remaining);
-  assert.deepEqual(after.config.look, { background:'#000000', opacity:0, text_color:'#ffd34a', done_text:'收工啦' });
+  assert.deepEqual(after.config.look, { skin:'neon', images:[], clock:null, background:'#000000', opacity:0, text_color:'#ffd34a', done_text:'收工啦' });
+  await assert.rejects(machine.action({ action:'look', look:{ ...after.config.look, skin:'nope' } }), /皮肤/);
   await assert.rejects(machine.action({ action:'look', look:{ done_text:'' } }), /下班文字/);
   assert.equal(machine.snapshot().config.look.done_text, '收工啦', '保存失败不改原来的外观');
   await machine.action({ action:'pause' });
