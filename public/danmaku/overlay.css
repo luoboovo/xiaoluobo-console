@@ -94,6 +94,7 @@ body.transparent { background: transparent; }
 .msg.has-skin .content { max-width: calc(100% - var(--font-size) * 3.2); }
 .skin-text { flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; overflow: hidden; line-height: 1.35; font-weight: 600; word-break: break-word; overflow-wrap: anywhere; white-space: pre-wrap; }
 .skin-text > span { display: block; max-height: 100%; }
+.skin-text.centered { justify-content: center; text-align: center; }
 .skin-text > span.clamped { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* 粉丝牌：微信「自己发的」那种绿色 */

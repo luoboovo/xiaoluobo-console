@@ -383,7 +383,7 @@
               <label class="danmaku-range">文字区 · 上<input type="range" name="top" min="0" max="90" step="0.5"><output></output></label>
               <label class="danmaku-range">文字区 · 下<input type="range" name="bottom" min="0" max="90" step="0.5"><output></output></label>
               <div class="lottery-field-pair"><label>最宽 / px<input name="width" type="number" min="120" max="600" step="10"></label><label>字号 / %<input name="font" type="number" min="50" max="200" step="5"></label></div>
-              <label class="danmaku-color">文字颜色<input name="color" type="color"></label>
+              <div class="danmaku-color"><span>文字颜色</span><input name="color" type="color" aria-label="调色盘选文字颜色"><input name="colorHex" class="danmaku-hex" maxlength="7" placeholder="#51435F" spellcheck="false" autocomplete="off" aria-label="文字颜色色号"></div>
             </div>
           </div>
           <div class="danmaku-dialog-actions"><button type="button" class="text-button danmaku-danger" id="danmaku-bubble-delete">删除这个气泡</button><span></span><button type="button" class="button white-button" id="danmaku-bubble-cancel">取消</button><button type="submit" class="button dark-button">保存</button></div>

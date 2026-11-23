@@ -102,7 +102,7 @@ function openEditor(bubble) {
   const f = bubbleForm.elements;
   f.name.value = editing.name; f.keyword.value = bubble ? editing.keyword : ''; f.who.value = editing.who;
   for (const side of ['left', 'right', 'top', 'bottom']) f[side].value = editing.box[side];
-  f.width.value = editing.width; f.font.value = editing.font; f.color.value = editing.color;
+  f.width.value = editing.width; f.font.value = editing.font; f.color.value = editing.color; f.colorHex.value = editing.color.toUpperCase();
   $('#danmaku-bubble-delete').hidden = !bubble;
   $('#danmaku-bubble-title').textContent = bubble ? `编辑「${bubble.name}」` : '新建定制气泡';
   drawEditor();
@@ -121,7 +121,7 @@ function drawEditor() {
   stage.classList.toggle('empty', !editing.image);
   if (editing.image) img.src = editing.image; else img.removeAttribute('src');
   stage.style.aspectRatio = String(editing.ratio);
-  Object.assign(box.style, { left: editing.box.left + '%', right: editing.box.right + '%', top: editing.box.top + '%', bottom: editing.box.bottom + '%', color: editing.color });
+  Object.assign(box.style, { left: editing.box.left + '%', right: editing.box.right + '%', top: editing.box.top + '%', bottom: editing.box.bottom + '%', color: editing.color, justifyContent: editing.fixed ? 'center' : '', textAlign: editing.fixed ? 'center' : '' });
   // 编辑框里按实际宽度比例显示字号。
   const scale = stage.clientWidth / editing.width || 1;
   let size = 15 * editing.font / 100 * (editing.width / 300) * scale;
@@ -129,14 +129,26 @@ function drawEditor() {
   while ((box.scrollHeight > box.clientHeight + 1) && size > 6) { size -= 0.5; box.style.fontSize = size + 'px'; }
   syncOutputs(bubbleForm);
 }
-bubbleForm.addEventListener('input', () => { readEditor(); drawEditor(); });
+// 文字颜色：调色盘和色号框任选一个填，两边同步。色号可以写 #51435F、51435F，或者简写 #abc。
+const hexOf = value => {
+  const raw = String(value).trim().replace(/^#/, '');
+  const full = /^[0-9a-f]{3}$/i.test(raw) ? raw.replace(/./g, c => c + c) : raw;
+  return /^[0-9a-f]{6}$/i.test(full) ? '#' + full.toLowerCase() : '';
+};
+bubbleForm.addEventListener('input', event => {
+  const f = bubbleForm.elements;
+  if (event.target === f.colorHex) { const hex = hexOf(f.colorHex.value); f.colorHex.classList.toggle('invalid', !hex && f.colorHex.value.trim() !== ''); if (!hex) return; f.color.value = hex; }
+  else if (event.target === f.color) { f.colorHex.value = f.color.value.toUpperCase(); f.colorHex.classList.remove('invalid'); }
+  readEditor(); drawEditor();
+});
+bubbleForm.elements.colorHex.addEventListener('blur', () => { const f = bubbleForm.elements; f.colorHex.value = f.color.value.toUpperCase(); f.colorHex.classList.remove('invalid'); });
 $('#danmaku-bubble-upload').addEventListener('click', () => $('#danmaku-bubble-file').click());
 $('#danmaku-bubble-file').addEventListener('change', async event => {
   const file = event.target.files[0]; event.target.value = '';
   if (!file) return;
   try {
     const url = await upload(file), { w, h } = await imageSize(url);
-    editing.image = url; editing.ratio = Math.round(w / h * 10000) / 10000; delete editing.cap; editing.tile = false; drawEditor();
+    editing.image = url; editing.ratio = Math.round(w / h * 10000) / 10000; delete editing.cap; editing.tile = false; editing.fixed = false; drawEditor();
   } catch (error) { toast(error.message, true); }
 });
 bubbleForm.addEventListener('submit', async event => {

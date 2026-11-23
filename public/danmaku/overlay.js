@@ -147,14 +147,15 @@
     const cap = { left: Math.max(left, bubble.cap?.left ?? left), right: Math.max(right, bubble.cap?.right ?? right) };
     let font = config.size * bubble.font / 100;
     const heightOf = f => f * 1.35 * 1.7 / Math.max(0.2, (100 - top - bottom) / 100);
-    const narrowest = f => { const unit = heightOf(f) * bubble.ratio / 100; return Math.max(unit * (cap.left + cap.right), unit * (left + right) + f * 2); };
+    // fixed：整张图原样，宽度就是图片本身的宽高比。
+    const narrowest = f => { if (bubble.fixed) return heightOf(f) * bubble.ratio; const unit = heightOf(f) * bubble.ratio / 100; return Math.max(unit * (cap.left + cap.right), unit * (left + right) + f * 2); };
     // 字号大、画面窄时两端放不下：整只气泡（连人物、装饰）等比缩小，不裁切、不压扁。
     const room = skinRoom(skin, bubble);
     if (narrowest(font) > room) font *= room / narrowest(font);
     const height = heightOf(font), unit = height * bubble.ratio / 100, capLeft = unit * cap.left, capRight = unit * cap.right;
     const px = v => Math.floor(v * 10) / 10 + 'px';
     Object.assign(skin.style, {
-      height: px(height), maxWidth: `min(100%, ${bubble.width}px)`, minWidth: px(narrowest(font)),
+      height: px(height), maxWidth: `min(100%, ${bubble.width}px)`, minWidth: px(narrowest(font)), width: bubble.fixed ? px(narrowest(font)) : '',
       borderWidth: `${px(height * top / 100)} ${px(capRight)} ${px(height * bottom / 100)} ${px(capLeft)}`,
       borderImageSource: `url("${bubble.image}")`, borderImageSlice: `${top}% ${cap.right}% ${bottom}% ${cap.left}% fill`,
       borderImageRepeat: bubble.tile ? 'round stretch' : 'stretch',
@@ -162,6 +163,7 @@
     });
     const text = skin.querySelector('.skin-text');
     text.style.margin = `0 ${px(-unit * (cap.right - right))} 0 ${px(-unit * (cap.left - left))}`;
+    text.classList.toggle('centered', bubble.fixed === true);
     skin.dataset.font = font;
     fitText(skin, bubble);
   }
