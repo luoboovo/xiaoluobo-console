@@ -136,7 +136,7 @@ $('#danmaku-bubble-file').addEventListener('change', async event => {
   if (!file) return;
   try {
     const url = await upload(file), { w, h } = await imageSize(url);
-    editing.image = url; editing.ratio = Math.round(w / h * 10000) / 10000; drawEditor();
+    editing.image = url; editing.ratio = Math.round(w / h * 10000) / 10000; delete editing.cap; editing.tile = false; drawEditor();
   } catch (error) { toast(error.message, true); }
 });
 bubbleForm.addEventListener('submit', async event => {

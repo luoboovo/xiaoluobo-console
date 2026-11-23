@@ -79,8 +79,9 @@ test('定制气泡：口令切换、换回默认、权限、名字口令不能�
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'xiaoluobo-danmaku-'));
   try {
     const board = await new DanmakuBoard(dir).init();
-    assert.deepEqual(board.state.bubbles.map(b => b.keyword), ['切换萝卜专属气泡'], '内置萝卜专属气泡');
+    assert.deepEqual(board.state.bubbles.map(b => b.keyword), ['切换萝卜专属气泡', '切换诉诉专属气泡'], '内置萝卜、诉诉专属气泡');
     await board.action({ action: 'delete_bubble', id: 'luobo' });
+    await board.action({ action: 'delete_bubble', id: 'susu' });
     assert.equal((await new DanmakuBoard(dir).init()).state.bubbles.length, 0, '删掉的内置气泡不会再冒出来');
     await assert.rejects(board.action({ action: 'save_bubble', bubble: { name: '没图' } }), /上传气泡图片/);
     await assert.rejects(board.action({ action: 'save_bubble', bubble: { name: '挤', image: IMAGE, box: { left: 60, right: 40 } } }), /文字区太小/);
@@ -112,5 +113,25 @@ test('定制气泡：口令切换、换回默认、权限、名字口令不能�
     assert.equal(again.bubbleFor({ uid: 0, user: '游客' }), '');
     await again.action({ action: 'background', background: { image: 'https://evil.com/x.png', fit: 'custom', scale: 999 } });
     assert.equal(again.state.background.image, ''); assert.equal(again.state.background.scale, 400);
+  } finally { await fs.rm(dir, { recursive: true, force: true }); }
+});
+
+test('诉诉专属气泡：老用户升级后补上并排在最前，两端固定、中段平铺的设置能存住', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'xiaoluobo-danmaku-'));
+  try {
+    await fs.writeFile(path.join(dir, 'danmaku.json'), JSON.stringify({ version: 1, bubbles: [{ id: 'luobo', name: '萝卜专属气泡', keyword: '切换萝卜专属气泡', image: '/danmaku/bubbles/luobo.png' }], seeded: ['luobo'] }));
+    const board = await new DanmakuBoard(dir).init();
+    assert.deepEqual(board.state.bubbles.map(b => b.id), ['susu', 'luobo']);
+    const susu = board.state.bubbles[0];
+    assert.equal(susu.image, '/danmaku/bubbles/susu.png'); assert.equal(susu.tile, true);
+    assert.ok(susu.cap.left > susu.box.left && susu.cap.right > susu.box.right, '两端（人物、小兔子）比文字区宽，文字可以伸进两端空着的气泡');
+    assert.ok(susu.cap.left + susu.cap.right < 95);
+    assert.equal(board.command({ type: 'chat', uid: 7, platform: 'douyin', user: '诉诉', text: '切换诉诉专属气泡' }).bubble, 'susu');
+    await board.action({ action: 'save_bubble', bubble: { ...susu, font: 120 } });
+    const again = await new DanmakuBoard(dir).init();
+    assert.deepEqual(again.state.bubbles[0].cap, susu.cap); assert.equal(again.state.bubbles[0].tile, true); assert.equal(again.state.bubbles[0].font, 120);
+    assert.equal(again.state.bubbles.length, 2, '删过或补过的内置气泡不会重复冒出来');
+    await assert.rejects(board.action({ action: 'save_bubble', bubble: { name: '太宽', image: IMAGE, cap: { left: 60, right: 50 } } }), /两端太宽/);
+    assert.ok(publicFile('/danmaku/bubbles/susu.png'));
   } finally { await fs.rm(dir, { recursive: true, force: true }); }
 });

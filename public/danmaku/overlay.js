@@ -139,22 +139,30 @@
     const font = config.size * bubble.font / 100, { left, right, top, bottom } = bubble.box;
     const height = font * 1.35 * 1.7 / Math.max(0.2, (100 - top - bottom) / 100);
     const px = v => Math.round(v * 10) / 10 + 'px';
-    const capLeft = height * bubble.ratio * left / 100, capRight = height * bubble.ratio * right / 100;
+    // cap：两端固定不动的部分（可以比文字区宽，文字伸进两端里空着的气泡）；tile：中段平铺而不是拉长。
+    const cap = { left: Math.max(left, bubble.cap?.left ?? left), right: Math.max(right, bubble.cap?.right ?? right) };
+    const unit = height * bubble.ratio / 100, capLeft = unit * cap.left, capRight = unit * cap.right;
     Object.assign(skin.style, {
-      height: px(height), maxWidth: `min(100%, ${bubble.width}px)`, minWidth: px(capLeft + capRight + font * 2),
+      height: px(height), maxWidth: `min(100%, ${bubble.width}px)`, minWidth: px(Math.max(capLeft + capRight, unit * (left + right) + font * 2)),
       borderWidth: `${px(height * top / 100)} ${px(capRight)} ${px(height * bottom / 100)} ${px(capLeft)}`,
-      borderImageSource: `url("${bubble.image}")`, borderImageSlice: `${top}% ${right}% ${bottom}% ${left}% fill`,
+      borderImageSource: `url("${bubble.image}")`, borderImageSlice: `${top}% ${cap.right}% ${bottom}% ${cap.left}% fill`,
+      borderImageRepeat: bubble.tile ? 'round stretch' : 'stretch',
       color: bubble.color
     });
+    const text = skin.querySelector('.skin-text');
+    text.style.margin = `0 ${px(-unit * (cap.right - right))} 0 ${px(-unit * (cap.left - left))}`;
     skin.dataset.font = font;
     fitText(skin, bubble);
   }
   function fitText(skin) {
     const box = skin.querySelector('.skin-text');
     if (!skin.isConnected || !box.clientHeight) return;
+    const span = box.firstElementChild;
     let size = Number(skin.dataset.font) || config.size;
-    box.style.fontSize = size + 'px';
+    box.style.fontSize = size + 'px'; span.classList.remove('clamped'); span.style.webkitLineClamp = '';
     while ((box.scrollHeight > box.clientHeight + 1 || box.scrollWidth > box.clientWidth + 1) && size > 9) { size -= 0.5; box.style.fontSize = size + 'px'; }
+    // 缩到最小还放不下：只显示放得下的几行，最后用「…」收尾，不让字被拦腰截断。
+    if (box.scrollHeight > box.clientHeight + 1) { span.classList.add('clamped'); span.style.webkitLineClamp = String(Math.max(1, Math.floor(box.clientHeight / (size * 1.35)))); }
   }
   const TIP_TYPES = { member: 'enter', social: 'social', like: 'like' };
   function tipRow(event, text) {
