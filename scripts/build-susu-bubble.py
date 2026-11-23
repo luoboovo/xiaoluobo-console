@@ -1,6 +1,7 @@
-# 用参考图生成弹幕姬「诉诉专属气泡」九宫格素材：public/danmaku/bubbles/susu-v2.png
-# 左端（狗耳少年 + 爱心）、右端（兔耳小女孩 + 骨头 + 蝴蝶结 + 云）原样保留，中间只留一小段能无缝平铺的气泡，
-# 弹幕变长时由 border-image 横向平铺这一段，虚线不会被拉长。狗耳少年按 BOY_SCALE 缩小，贴着气泡尾巴趴着。
+# 用参考图生成弹幕姬「诉诉专属气泡」九宫格素材：public/danmaku/bubbles/susu-v3.png
+# 左端（狗耳少年 + 头顶的兔耳小女孩 + 爱心）、右端（骨头 + 蝴蝶结 + 小花 + 爪印 + 云）原样保留，中间只留一小段能无缝平铺的气泡，
+# 弹幕变长时由 border-image 横向平铺这一段，虚线不会被拉长。狗耳少年按 BOY_SCALE 缩小贴着气泡尾巴趴着，
+# 兔耳小女孩从气泡上沿挪到少年头顶（BUNNY_SCALE）。改了图要换文件名（PNG 缓存一天），并在 lib/danmaku.cjs 的 RETIRED_IMAGES 里登记旧名字。
 # 需要 Pillow：python scripts/build-susu-bubble.py
 from pathlib import Path
 from PIL import Image, ImageDraw
@@ -10,9 +11,10 @@ src = Image.open(root / 'docs' / 'danmaku-bubbles' / 'susu-reference.webp').conv
 W, H = src.size  # 2000×667
 
 BOY_SCALE = 0.45
+BUNNY_SCALE = 0.75
 # 参考图里的位置：A..B 是虚线相位刚好对齐的三段虚线（平铺段），R 是右端开始的位置（和 B 相位一致），M 是接缝渐变宽度。
-A, B, R, M = 866, 994, 1325, 40
-RIGHT_END = 1945
+A, B, R, M = 866, 994, 1416, 40
+RIGHT_END = 1946  # 右端宽度取偶数
 
 # —— 拆图层：少年（含闪光、摇尾巴线）/ 爱心对话泡 / 气泡和右边所有东西 ——
 # 少年和气泡左端的分界线（y → x，分界线左边是少年），手工沿着头发尖、气泡尾巴和手臂之间的空隙描的。
@@ -33,6 +35,18 @@ ImageDraw.Draw(rest_mask).rectangle(heart_box, fill=0)
 ImageDraw.Draw(rest_mask).rectangle((630, 250, 688, 321), fill=0)
 ImageDraw.Draw(rest_mask).rectangle((688, 250, 745, 315), fill=0)
 rest = masked(rest_mask)
+# —— 兔耳小女孩（连旁边的感叹线）从气泡上沿抠下来：脚下那截描边留着当她站的地方，其余描边和气泡底色去掉 ——
+bunny = src.crop((1396, 176, 1600, 330))
+ImageDraw.Draw(bunny).rectangle((0, 309 - 176, bunny.width, bunny.height), fill=(0, 0, 0, 0))
+bunny.alpha_composite(src.crop((1503, 300, 1546, 323)), (1503 - 1396, 300 - 176))
+# 气泡上沿原来站她的地方（含鞋底，到 y=329，下面就是虚线）：用左边 300px 处同一高度的空白和描边补上，
+# 两头各渐变 16px（右头在她右边、骨头左边的空白里），描边接得平。
+P0, P1, PB, F = 1395, 1616, 329, 16
+patch = rest.crop((P0 - 300, 170, P1 - 300, PB))
+for j in list(range(F)) + list(range(patch.width - F, patch.width)):
+    t = (j + 0.5) / F if j < F else (patch.width - j - 0.5) / F
+    patch.paste(Image.blend(rest.crop((P0 + j, 170, P0 + j + 1, PB)), patch.crop((j, 0, j + 1, patch.height)), t), (j, 0))
+rest.paste(patch, (P0, 170))
 heart = src.crop(heart_box)
 
 # —— 缩小少年：以手臂右下角（贴着气泡尾巴的地方）为锚点等比缩小；爱心同比缩小，放在少年头顶右边 ——
@@ -42,9 +56,13 @@ small = boy.crop(bb).resize((round((bb[2] - bb[0]) * BOY_SCALE), round((bb[3] - 
 canvas = rest.copy()
 canvas.alpha_composite(small, (round(anchor[0] - (anchor[0] - bb[0]) * BOY_SCALE), round(anchor[1] - (anchor[1] - bb[1]) * BOY_SCALE)))
 hs = heart.resize((round(heart.width * BOY_SCALE), round(heart.height * BOY_SCALE)), Image.LANCZOS)
-# 爱心贴在少年头顶右上方（原图头顶最高处 y≈125），右边不碰气泡描边。
+# 兔耳小女孩站在少年头顶正中（脚踩进头发一点）；爱心放在她右边、气泡左上角外面。
 head_top = round(anchor[1] - (anchor[1] - 125) * BOY_SCALE)
-canvas.alpha_composite(hs, (660 - hs.width, head_top + 4 - hs.height))
+head_cx = round(anchor[0] - (anchor[0] - 400) * BOY_SCALE)
+bs = bunny.resize((round(bunny.width * BUNNY_SCALE), round(bunny.height * BUNNY_SCALE)), Image.LANCZOS)
+bx = round(head_cx - (1525 - 1396) * BUNNY_SCALE)
+canvas.alpha_composite(bs, (bx, head_top + 30 - bs.height))
+canvas.alpha_composite(hs, (bx + bs.width - 6, head_top + 40 - hs.height))
 src = canvas
 
 # —— 九宫格：左端 + 可平铺的中段 + 右端 ——
@@ -76,7 +94,7 @@ y1 += (y1 - y0) % 2
 out = out.crop((0, y0, out.width, y1))
 w, h = out.size
 # 缩到一半（各段宽度都是偶数，缩完切线仍落在整像素上），直播画面里足够清楚，文件小很多。
-out.resize((w // 2, h // 2), Image.LANCZOS).save(root / 'public' / 'danmaku' / 'bubbles' / 'susu-v2.png', optimize=True)
+out.resize((w // 2, h // 2), Image.LANCZOS).save(root / 'public' / 'danmaku' / 'bubbles' / 'susu-v3.png', optimize=True)
 # 文字只放在虚线框里面：上下按参考图里虚线内侧（y≈352 / 522），左边从气泡尾巴后面（x≈700），右边到爪印前面（x≈1570）。
 text_left, text_right = 700 - x0, left.width + tile.width + (1570 - R)
 print(f'size {w // 2}x{h // 2} ratio {w}/{h}')
