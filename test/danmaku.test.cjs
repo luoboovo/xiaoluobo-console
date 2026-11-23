@@ -123,7 +123,7 @@ test('诉诉专属气泡：老用户升级后补上并排在最前，两端固�
     const board = await new DanmakuBoard(dir).init();
     assert.deepEqual(board.state.bubbles.map(b => b.id), ['susu', 'luobo']);
     const susu = board.state.bubbles[0];
-    assert.equal(susu.image, '/danmaku/bubbles/susu.png'); assert.equal(susu.tile, true);
+    assert.equal(susu.image, '/danmaku/bubbles/susu-v2.png'); assert.equal(susu.tile, true);
     assert.ok(susu.cap.left > susu.box.left && susu.cap.right > susu.box.right, '两端（人物、小兔子）比文字区宽，文字可以伸进两端空着的气泡');
     assert.ok(susu.cap.left + susu.cap.right < 95);
     assert.equal(board.command({ type: 'chat', uid: 7, platform: 'douyin', user: '诉诉', text: '切换诉诉专属气泡' }).bubble, 'susu');
@@ -132,6 +132,21 @@ test('诉诉专属气泡：老用户升级后补上并排在最前，两端固�
     assert.deepEqual(again.state.bubbles[0].cap, susu.cap); assert.equal(again.state.bubbles[0].tile, true); assert.equal(again.state.bubbles[0].font, 120);
     assert.equal(again.state.bubbles.length, 2, '删过或补过的内置气泡不会重复冒出来');
     await assert.rejects(board.action({ action: 'save_bubble', bubble: { name: '太宽', image: IMAGE, cap: { left: 60, right: 50 } } }), /两端太宽/);
-    assert.ok(publicFile('/danmaku/bubbles/susu.png'));
+    assert.ok(publicFile('/danmaku/bubbles/susu-v2.png'));
+  } finally { await fs.rm(dir, { recursive: true, force: true }); }
+});
+
+test('诉诉专属气泡换了新图：老用户存的旧图自动换成新图和新切线，自己改过的口令和字号保留', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'xiaoluobo-danmaku-'));
+  try {
+    const old = { id: 'susu', name: '诉诉专属气泡', keyword: '换诉诉', image: '/danmaku/bubbles/susu.png', ratio: 777 / 233, box: { left: 41, right: 24.5, top: 50, bottom: 13.5 }, cap: { left: 51.87, right: 39.9 }, tile: true, width: 600, font: 120, who: 'fans' };
+    await fs.writeFile(path.join(dir, 'danmaku.json'), JSON.stringify({ version: 1, bubbles: [old], users: { 'bilibili:1': 'susu' }, seeded: ['luobo', 'susu'] }));
+    const board = await new DanmakuBoard(dir).init();
+    const susu = board.state.bubbles.find(b => b.id === 'susu');
+    assert.equal(susu.image, '/danmaku/bubbles/susu-v2.png');
+    assert.ok(Math.abs(susu.ratio - 622 / 200) < 0.001);
+    assert.deepEqual(susu.cap, { left: 39.87, right: 49.84 });
+    assert.equal(susu.keyword, '换诉诉'); assert.equal(susu.font, 120); assert.equal(susu.who, 'fans');
+    assert.equal(board.bubbleFor({ uid: 1, platform: 'bilibili', medalLevel: 3 }), 'susu', '观众已经换上的气泡还在');
   } finally { await fs.rm(dir, { recursive: true, force: true }); }
 });

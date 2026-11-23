@@ -134,16 +134,27 @@
   }
   // 定制气泡：整张图按比例缩放，文字放进图里框好的那一块，字多了自动缩小。
   // 定制气泡像普通气泡一样按字数伸缩：高度和两行字的普通气泡差不多，左右两头（人物、装饰）原样不变形，只拉长中间那段。
+  // 这一行留给气泡的宽度：聊天栏宽度减去头像和间距（和 .msg.has-skin .content 的 max-width 一致），再不超过气泡设定的最宽。
+  function skinRoom(skin, bubble) {
+    const row = skin.closest('.msg');
+    if (!row || !row.clientWidth) return bubble.width;
+    return Math.min(bubble.width, row.clientWidth - config.size * 3.2);
+  }
   function styleSkin(skin, bubble) {
     skin.querySelector('img')?.remove();
-    const font = config.size * bubble.font / 100, { left, right, top, bottom } = bubble.box;
-    const height = font * 1.35 * 1.7 / Math.max(0.2, (100 - top - bottom) / 100);
-    const px = v => Math.round(v * 10) / 10 + 'px';
+    const { left, right, top, bottom } = bubble.box;
     // cap：两端固定不动的部分（可以比文字区宽，文字伸进两端里空着的气泡）；tile：中段平铺而不是拉长。
     const cap = { left: Math.max(left, bubble.cap?.left ?? left), right: Math.max(right, bubble.cap?.right ?? right) };
-    const unit = height * bubble.ratio / 100, capLeft = unit * cap.left, capRight = unit * cap.right;
+    let font = config.size * bubble.font / 100;
+    const heightOf = f => f * 1.35 * 1.7 / Math.max(0.2, (100 - top - bottom) / 100);
+    const narrowest = f => { const unit = heightOf(f) * bubble.ratio / 100; return Math.max(unit * (cap.left + cap.right), unit * (left + right) + f * 2); };
+    // 字号大、画面窄时两端放不下：整只气泡（连人物、装饰）等比缩小，不裁切、不压扁。
+    const room = skinRoom(skin, bubble);
+    if (narrowest(font) > room) font *= room / narrowest(font);
+    const height = heightOf(font), unit = height * bubble.ratio / 100, capLeft = unit * cap.left, capRight = unit * cap.right;
+    const px = v => Math.floor(v * 10) / 10 + 'px';
     Object.assign(skin.style, {
-      height: px(height), maxWidth: `min(100%, ${bubble.width}px)`, minWidth: px(Math.max(capLeft + capRight, unit * (left + right) + font * 2)),
+      height: px(height), maxWidth: `min(100%, ${bubble.width}px)`, minWidth: px(narrowest(font)),
       borderWidth: `${px(height * top / 100)} ${px(capRight)} ${px(height * bottom / 100)} ${px(capLeft)}`,
       borderImageSource: `url("${bubble.image}")`, borderImageSlice: `${top}% ${cap.right}% ${bottom}% ${cap.left}% fill`,
       borderImageRepeat: bubble.tile ? 'round stretch' : 'stretch',
@@ -248,7 +259,7 @@
     }
   }
   function clear() { chat.replaceChildren(); lastGift = null; unread = 0; more.hidden = true; follow = true; }
-  new ResizeObserver(() => { for (const skin of chat.querySelectorAll('.skin')) { const b = bubbles.get(skin.dataset.bubble); if (b) fitText(skin, b); } if (follow) chat.scrollTop = chat.scrollHeight; }).observe(chat);
+  new ResizeObserver(() => { for (const skin of chat.querySelectorAll('.skin')) { const b = bubbles.get(skin.dataset.bubble); if (b) styleSkin(skin, b); } if (follow) chat.scrollTop = chat.scrollHeight; }).observe(chat);
 
   // 控制台预览：草稿即时生效，「发几条试试」塞演示消息。
   window.addEventListener('message', message => {
