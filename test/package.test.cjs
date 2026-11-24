@@ -58,6 +58,31 @@ test('礼物调色板、透明度和色彩元数据在压缩后保留', () => {
   assert.equal(checked, 1);
 });
 
+test('打包调色板压缩：插画转成 256 色调色板后明显变小、透明区保持透明；噪点图画质不够就原样返回', () => {
+  const { quantizePng } = require('../scripts/optimize-png.cjs');
+  const image = new PNG({ width: 128, height: 128 });
+  for (let y = 0; y < 128; y++) for (let x = 0; x < 128; x++) {
+    const i = (y * 128 + x) * 4, inside = (x - 64) ** 2 + (y - 64) ** 2 < 50 ** 2;
+    // 圆形渐变「插画」，带一点画笔纹理（真彩色存起来很大）；圆外完全透明。
+    const grain = ((x * 7919 + y * 104729) % 13) - 6;
+    image.data[i] = 240 - x + grain; image.data[i + 1] = 120 + y / 2 + grain; image.data[i + 2] = 60 + grain; image.data[i + 3] = inside ? 255 : 0;
+  }
+  const original = PNG.sync.write(image, { colorType: 6, deflateLevel: 9 });
+  const quantized = quantizePng(original), decoded = PNG.sync.read(quantized);
+  assert.equal(quantized[25], 3, '转成调色板 PNG');
+  assert.ok(quantized.length < original.length * 0.7);
+  assert.equal(decoded.width, 128); assert.equal(decoded.height, 128);
+  for (const [x, y] of [[0, 0], [127, 5], [64, 64]]) assert.equal(decoded.data[(y * 128 + x) * 4 + 3], x === 64 ? 255 : 0);
+  const centre = (64 * 128 + 64) * 4;
+  for (let c = 0; c < 3; c++) assert.ok(Math.abs(decoded.data[centre + c] - image.data[centre + c]) <= 12);
+  // 纯随机噪点 256 色表达不了：画质把关不过，原样返回。
+  const noise = new PNG({ width: 64, height: 64 });
+  for (let i = 0; i < noise.data.length; i++) noise.data[i] = i % 4 === 3 ? 255 : Math.random() * 256 | 0;
+  const noisy = PNG.sync.write(noise, { colorType: 6 });
+  assert.equal(quantizePng(noisy), noisy);
+  assert.equal(quantizePng(quantized), quantized, '已经是调色板的不再处理');
+});
+
 test('打包缩图：最长边按上限缩小，比例、透明度和色彩信息保留，小图原样返回', () => {
   const { resizePng } = require('../scripts/optimize-png.cjs');
   const image = new PNG({ width: 400, height: 200 });

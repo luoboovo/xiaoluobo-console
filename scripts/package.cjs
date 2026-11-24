@@ -2,7 +2,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { version } = require('../package.json');
-const { optimizePng, resizePng } = require('./optimize-png.cjs');
+const { optimizePng, resizePng, quantizePng } = require('./optimize-png.cjs');
 // Longest edge for shipped art: 1080p output at the largest layout scale, with headroom.
 // Wide scene art keeps its size; originals with their C2PA signatures stay in the project.
 const PNG_LIMITS = [
@@ -52,12 +52,13 @@ async function removeBuildPath(name, recursive = false) {
       const file = path.join(app, dir, name), original = await fs.readFile(file);
       if(!original.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))continue;
       const limit = dir === 'public' ? pngLimit(name) : Infinity;
-      const optimized = optimizePng(limit < Infinity ? resizePng(original, limit) : original);
+      // 缩图 → 转调色板（画质不够就保留真彩色）→ 无损重压。只改安装包里的副本，项目里的原图不动。
+      const optimized = optimizePng(quantizePng(limit < Infinity ? resizePng(original, limit) : original));
       if (optimized.length < original.length) { await fs.writeFile(file, optimized); groupSaved += original.length - optimized.length; }
       checked++;
     }
     saved += groupSaved;
-    console.log(`${dir}: PNG 缩放与压缩节省 ${(groupSaved / 1024 / 1024).toFixed(2)} MiB`);
+    console.log(`${dir}: PNG 缩放、调色板与压缩节省 ${(groupSaved / 1024 / 1024).toFixed(2)} MiB`);
   }
   const copied = new Set();
   async function copyDependency(name) {
