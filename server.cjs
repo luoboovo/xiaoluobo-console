@@ -1,5 +1,6 @@
 const http = require('node:http');
 const path = require('node:path');
+const { randomUUID } = require('node:crypto');
 const {Readable} = require('node:stream');
 const {pipeline} = require('node:stream/promises');
 const QRCode = require('qrcode');
@@ -26,7 +27,7 @@ const { roomId } = require('./lib/protocol.cjs');
 const { PublicView } = require('./lib/public-view.cjs');
 
 // Overlay pages subscribe to one channel; everything else is a console page.
-const CHANNELS = { bomb:new Set(['number-bomb']), mower:new Set(['mower']), battle:new Set(['battle']), lottery:new Set(['lottery']), feeding:new Set(['feeding','feeding-motion','feeding-physics']), overtime:new Set(['overtime','overtime-clock','overtime-media']), scene:new Set(['noodle','noodle-motion']), danmaku:new Set(['message','danmaku-history','danmaku']) };
+const CHANNELS = { bomb:new Set(['number-bomb']), mower:new Set(['mower']), battle:new Set(['battle']), lottery:new Set(['lottery']), feeding:new Set(['feeding','feeding-motion','feeding-physics']), overtime:new Set(['overtime','overtime-clock','overtime-media']), scene:new Set(['noodle','noodle-motion']), danmaku:new Set(['message','danmaku-history','danmaku','danmaku-demo']) };
 const MOTION = new Set(['noodle-motion','feeding-motion','feeding-physics']);
 // High-frequency frames bypass the 100ms state coalescing.
 const REALTIME = new Set([...MOTION,'overtime-clock','overtime-media']);
@@ -184,7 +185,15 @@ async function startServer(options = {}) {
   // 主直播间的专属进场视频：交给当前平台的加班机素材队列播（和礼物素材排队，加班机没开也播）。
   robot.on('entrance',cue=>overtime.playEntrance(cue.media).catch(error=>{cue.fail(error);diagnostics?.log('warn','robot.entrance_failed',{error});}));
   robotRooms.on('rooms',list=>broadcast('robot-rooms',list));
-  features.on('change',list=>{broadcast('features',list);broadcast('danmaku',danmakuState());});
+  // 弹幕姬的三个画面（控制台预览、「打开画面」的窗口、OBS 里的地址）共用服务器这一份消息：
+  // 真实弹幕 + 「发几条试试」的演示消息，「清空」对所有画面一起生效，后打开的画面也补上同样的消息。
+  let danmakuDemo=[], danmakuClearedAt=0, danmakuWasOn=features.isOn('danmaku');
+  const danmakuFeed=()=>[...services.events, ...danmakuDemo].filter(event=>event.time>danmakuClearedAt).sort((a,b)=>b.time-a.time).slice(0,100);
+  features.on('change',list=>{
+    broadcast('features',list);broadcast('danmaku',danmakuState());
+    // 总开关重新打开：所有画面一起补上最近的消息（和 danmaku 状态同一批送出，画面先知道已打开再收历史）。
+    const on=features.isOn('danmaku');if(on&&!danmakuWasOn)broadcast('danmaku-history',danmakuFeed());danmakuWasOn=on;
+  });
   services.on('event', event => robot.receive(event));
   services.on('event', event => {
     if(event.type==='system')diagnostics?.log('warn','system.message',{message:event.text,platform:services.platform});
@@ -293,7 +302,7 @@ async function startServer(options = {}) {
       if(!battleLeader||battleLeader.battlePreview&&!client.battlePreview)pickBattleLeader();else send(client,'battle-role',{leader:false});
       return;
     }
-    if(client.channel==='danmaku'){send(client,'danmaku',danmakuState());return send(client,'danmaku-history',services.events.slice(0,100));}
+    if(client.channel==='danmaku'){send(client,'danmaku',danmakuState());return send(client,'danmaku-history',danmakuFeed());}
     if(client.channel==='feeding')return send(client,'feeding',feeding.snapshot());
     if(client.channel==='lottery'){
       const key=url.searchParams.get('game')||'wheel';
@@ -367,6 +376,17 @@ async function startServer(options = {}) {
       throw new Error('未知更新操作');
     },
     '/api/number-bomb/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>numberBomb.action(input)))}),
+    '/api/danmaku/demo': input => {
+      const DEMO_TYPES=['chat','gift','member','social','like'];
+      const events=(Array.isArray(input?.events)?input.events:[]).slice(0,5).filter(event=>event&&typeof event==='object'&&DEMO_TYPES.includes(event.type));
+      for(const event of events){
+        const item={...event,id:`demo-${randomUUID()}`,time:Date.now(),demo:true,platform:services.platform};
+        danmakuDemo.push(item);if(danmakuDemo.length>60)danmakuDemo.shift();
+        deliver('danmaku-demo',item);
+      }
+      return {ok:true,count:events.length};
+    },
+    '/api/danmaku/clear': () => {danmakuDemo=[];danmakuClearedAt=Date.now();deliver('danmaku-history',[]);return {ok:true};},
     '/api/danmaku/action': async (input,scoped) => {const state=await enqueue(scoped(()=>danmaku.action(input)));schedulePrune();return {ok:true,state:{...state,enabled:features.isOn('danmaku')}};},
     '/api/mower/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>mower.action(input)))}),
     '/api/battle/action': async (input,scoped) => ({ok:true,state:await enqueue(scoped(()=>battle.action(input)))}),

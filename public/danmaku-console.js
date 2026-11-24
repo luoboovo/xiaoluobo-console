@@ -196,8 +196,10 @@ function demoEvents() {
     ...DEMO.slice(3)];
 }
 let demoTimers = [];
+// 演示消息和清空都走服务器：控制台预览、打开的画面窗口、OBS 里的地址三个画面一起显示、一起清空。
 $('#danmaku-demo').addEventListener('click', () => {
+  if (current?.enabled === false) { toast('弹幕姬总开关还关着，打开后再试', true); return; }
   demoTimers.forEach(clearTimeout);
-  demoTimers = demoEvents().map((event, index) => setTimeout(() => post({ type: 'danmaku-demo', events: [event] }), index * 380));
+  demoTimers = demoEvents().map((event, index) => setTimeout(() => api('/api/danmaku/demo', { events: [event] }).catch(error => toast(error.message, true)), index * 380));
 });
-$('#danmaku-clear').addEventListener('click', () => { demoTimers.forEach(clearTimeout); post({ type: 'danmaku-clear' }); });
+$('#danmaku-clear').addEventListener('click', () => { demoTimers.forEach(clearTimeout); api('/api/danmaku/clear', {}).catch(error => toast(error.message, true)); });

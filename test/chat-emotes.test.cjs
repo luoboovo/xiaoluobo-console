@@ -80,3 +80,36 @@ test('B站带表情的弹幕进事件时带上表情，文字照旧（游戏口�
   assert.equal(got[0].text, '打call'); assert.equal(got[0].sticker.url, 'https://i0.hdslb.com/bfs/live/call.png');
   assert.equal(got[1].text, '冲[dog]'); assert.equal(got[1].rich[1].img, 'https://i0.hdslb.com/bfs/live/dog.png');
 });
+
+// 弹幕姬三个画面（控制台预览、打开的窗口、OBS）共用服务器的一份消息。
+async function danmakuFrames(url, until) {
+  const abort = new AbortController(), response = await fetch(url + '/api/events?danmaku=1', { signal: abort.signal }), reader = response.body.getReader();
+  let text = '';
+  const deadline = Date.now() + 3000;
+  while (!until(text) && Date.now() < deadline) { const { value, done } = await reader.read(); if (done) break; text += new TextDecoder().decode(value); }
+  abort.abort();
+  return text.split('\n\n').filter(Boolean).map(block => ({ event: block.match(/^event: (.+)$/m)?.[1], data: JSON.parse(block.match(/^data: (.+)$/m)?.[1] || 'null') }));
+}
+test('弹幕姬：演示消息发给所有画面，后打开的画面也补上；清空对所有画面生效', async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'xiaoluobo-danmaku-sync-'));
+  const runtime = await startServer({ dataDir: dir, seedDir: dir });
+  t.after(async () => { await runtime.close(); await fs.rm(dir, { recursive: true, force: true }); });
+  const post = (route, body) => fetch(runtime.url + route, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json());
+  await post('/api/features', { id: 'danmaku', enabled: true });
+  runtime.services.liveMessage({ cmd: 'DANMU_MSG', info: [[0, 1, 25, 0, 0, 0, 0, '', 0, 0, 0, '', 0, '{}', '{}', {}], '真弹幕', [5, '萝卜']] });
+  // 已经打开的画面立刻收到演示消息。
+  const open = danmakuFrames(runtime.url, text => text.includes('event: danmaku-demo'));
+  await new Promise(resolve => setTimeout(resolve, 200));
+  assert.equal((await post('/api/danmaku/demo', { events: [{ type: 'chat', user: '路过的小鱼', text: '主播晚上好～' }, { type: 'bad', text: 'x' }] })).count, 1);
+  const live = (await open).find(frame => frame.event === 'danmaku-demo').data;
+  assert.equal(live.text, '主播晚上好～'); assert.match(live.id, /^demo-/); assert.ok(live.time > 0);
+  // 后打开的画面：历史里有真弹幕和演示消息，新的在前。
+  const later = (await danmakuFrames(runtime.url, text => text.includes('event: danmaku-history'))).find(frame => frame.event === 'danmaku-history').data;
+  assert.deepEqual(later.map(event => event.text), ['主播晚上好～', '真弹幕']);
+  // 清空：之后打开的画面也是空的，新弹幕照常进来。
+  await post('/api/danmaku/clear', {});
+  assert.deepEqual((await danmakuFrames(runtime.url, text => text.includes('event: danmaku-history'))).find(frame => frame.event === 'danmaku-history').data, []);
+  await new Promise(resolve => setTimeout(resolve, 5));
+  runtime.services.liveMessage({ cmd: 'DANMU_MSG', info: [[0, 1, 25, 0, 0, 0, 0, '', 0, 0, 0, '', 0, '{}', '{}', {}], '清空后的', [5, '萝卜']] });
+  assert.deepEqual((await danmakuFrames(runtime.url, text => text.includes('event: danmaku-history'))).find(frame => frame.event === 'danmaku-history').data.map(event => event.text), ['清空后的']);
+});

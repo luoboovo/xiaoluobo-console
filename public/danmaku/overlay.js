@@ -8,7 +8,7 @@
   if (hd > 1) { document.documentElement.style.setProperty('--hd', String(hd)); document.documentElement.classList.add('hd'); }
   const chat = document.getElementById('chat'), backdrop = document.getElementById('backdrop'), more = document.getElementById('more'), off = document.getElementById('off');
   let config = { theme: 'wechat', bg: true, size: 15, max: 40, fade: 0, big: 50, enter: false, social: true, like: false, device: 'iphone', group: '', badges: true };
-  let bubbles = new Map(), enabled = true, demoing = false, liveTitle = '';
+  let bubbles = new Map(), enabled = true, liveTitle = '';
 
   // 微信群名：控制台填了就用填的，没填用直播间标题。
   function applyGroupName() { document.getElementById('group-name').textContent = config.group || liveTitle || '直播间'; }
@@ -52,7 +52,8 @@
     if ('background' in state) applyBackground(state.background);
     if (state.bubbles) applyBubbles(state.bubbles);
     if (typeof state.enabled === 'boolean') {
-      if (enabled && !state.enabled && !preview) clear();
+      // 总开关关掉：三个画面（预览、窗口、OBS）一起清空；重新打开时服务器会一起补上最近的消息。
+      if (enabled && !state.enabled) clear();
       enabled = state.enabled;
       off.hidden = enabled || !preview;
     }
@@ -227,7 +228,10 @@
     fresh.event = prev.event; prev.row.replaceWith(fresh); prev.row = fresh; schedule(fresh);
     return true;
   }
+  // 消失倒计时从消息发出的时间（服务器打的时间）算起，几个画面同一时刻消失；补历史时已经过期的就不再显示。
+  const leftMs = event => config.fade ? config.fade * 1000 - Math.max(0, Date.now() - (Number(event.time) || Date.now())) : Infinity;
   function add(event, animate = true) {
+    if (leftMs(event) <= 0) return;
     if (event.id) { if (seen.has(event.id)) return; seen.add(event.id); if (seen.size > 1000) seen.delete(seen.values().next().value); }
     if (mergeGift(event)) return;
     const row = render(event);
@@ -245,7 +249,7 @@
   function schedule(row) {
     if (!config.fade) return;
     clearTimeout(row.fadeTimer);
-    row.fadeTimer = setTimeout(() => { row.classList.add('leaving'); setTimeout(() => row.remove(), 600); }, config.fade * 1000);
+    row.fadeTimer = setTimeout(() => { row.classList.add('leaving'); setTimeout(() => row.remove(), 600); }, Math.max(0, leftMs(row.event || {})));
   }
   function trim() { while (chat.children.length > config.max) chat.firstElementChild.remove(); }
   // 开关「显示身份标签」后，把已经在屏幕上的消息按新设置重画一遍。
@@ -260,16 +264,15 @@
       const skin = fresh.querySelector('.skin'); if (skin) styleSkin(skin, bubbles.get(skin.dataset.bubble));
     }
   }
-  function clear() { chat.replaceChildren(); lastGift = null; unread = 0; more.hidden = true; follow = true; }
+  // 清空时连「已显示过」的记录一起清掉，重连后补的历史消息才会重新画出来。
+  function clear() { chat.replaceChildren(); seen.clear(); lastGift = null; unread = 0; more.hidden = true; follow = true; }
   new ResizeObserver(() => { for (const skin of chat.querySelectorAll('.skin')) { const b = bubbles.get(skin.dataset.bubble); if (b) styleSkin(skin, b); } if (follow) chat.scrollTop = chat.scrollHeight; }).observe(chat);
 
-  // 控制台预览：草稿即时生效，「发几条试试」塞演示消息。
+  // 控制台预览：没存好的设置草稿先在预览里生效（存好后服务器再推给所有画面）。
+  // 「发几条试试」「清空」走服务器，预览、打开的窗口和 OBS 一起收到。
   window.addEventListener('message', message => {
     if (message.origin !== location.origin || !message.data) return;
-    const data = message.data;
-    if (data.type === 'danmaku-draft') applyState(data.state);
-    if (data.type === 'danmaku-demo') { demoing = true; for (const event of data.events || []) add({ ...event, id: undefined, time: Date.now() }); }
-    if (data.type === 'danmaku-clear') clear();
+    if (message.data.type === 'danmaku-draft') applyState(message.data.state);
   });
 
   const connection = document.getElementById('connection');
@@ -277,10 +280,11 @@
   source.addEventListener('open', () => { connection.hidden = true; });
   source.addEventListener('danmaku', event => applyState(JSON.parse(event.data)));
   source.addEventListener('danmaku-history', event => {
-    if (!enabled || demoing) return;
+    if (!enabled) return;
     clear();
     for (const item of JSON.parse(event.data).slice().reverse()) add(item, false);
   });
   source.addEventListener('message', event => { if (enabled) add(JSON.parse(event.data)); });
+  source.addEventListener('danmaku-demo', event => { if (enabled) add(JSON.parse(event.data)); });
   source.onerror = () => { if (preview) return; connection.hidden = false; connection.textContent = '连接中断，正在重连…'; };
 })();
