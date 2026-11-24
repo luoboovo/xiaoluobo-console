@@ -1,10 +1,10 @@
-# 用参考图生成弹幕姬「诉诉专属气泡」九宫格素材：public/danmaku/bubbles/susu-v3.png
+# 用参考图生成弹幕姬「诉诉专属气泡」九宫格素材：public/danmaku/bubbles/susu-v4.png
 # 左端（狗耳少年 + 头顶的兔耳小女孩 + 爱心）、右端（骨头 + 蝴蝶结 + 小花 + 爪印 + 云）原样保留，中间只留一小段能无缝平铺的气泡，
 # 弹幕变长时由 border-image 横向平铺这一段，虚线不会被拉长。狗耳少年按 BOY_SCALE 缩小贴着气泡尾巴趴着，
 # 兔耳小女孩从气泡上沿挪到少年头顶（BUNNY_SCALE）。改了图要换文件名（PNG 缓存一天），并在 lib/danmaku.cjs 的 RETIRED_IMAGES 里登记旧名字。
 # 需要 Pillow：python scripts/build-susu-bubble.py
 from pathlib import Path
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 root = Path(__file__).resolve().parent.parent
 src = Image.open(root / 'docs' / 'danmaku-bubbles' / 'susu-reference.webp').convert('RGBA')
@@ -12,6 +12,7 @@ W, H = src.size  # 2000×667
 
 BOY_SCALE = 0.45
 BUNNY_SCALE = 0.75
+BONE_SCALE = 0.75  # 右上角骨头
 # 参考图里的位置：A..B 是虚线相位刚好对齐的三段虚线（平铺段），R 是右端开始的位置（和 B 相位一致），M 是接缝渐变宽度。
 A, B, R, M = 866, 994, 1416, 40
 RIGHT_END = 1946  # 右端宽度取偶数
@@ -47,6 +48,37 @@ for j in list(range(F)) + list(range(patch.width - F, patch.width)):
     t = (j + 0.5) / F if j < F else (patch.width - j - 0.5) / F
     patch.paste(Image.blend(rest.crop((P0 + j, 170, P0 + j + 1, PB)), patch.crop((j, 0, j + 1, patch.height)), t), (j, 0))
 rest.paste(patch, (P0, 170))
+# —— 右上角的骨头缩小（BONE_SCALE）：骨头尾巴塞在蝴蝶结的结下面，以结为锚点缩小，蝴蝶结和小花原样盖回去 ——
+# 骨头、蝴蝶结、小花的白色内部各自洪水填充出来，外扩 OUTLINE 像素连描边一起；骨头让开蝴蝶结和小花，免得把它们的描边带走。
+OUTLINE = 10
+def interior(seed, threshold=150):
+    light = src.convert('L').point(lambda v: 255 if v > threshold else 0)
+    light = ImageChops.multiply(light, src.getchannel('A').point(lambda v: 255 if v > 200 else 0))
+    ImageDraw.floodfill(light, seed, 128)
+    return light.point(lambda v: 255 if v == 128 else 0)
+grow = lambda mask, px: mask.filter(ImageFilter.MaxFilter(px * 2 + 1))
+keep = grow(interior((1760, 270)), OUTLINE)  # 小花
+for seed in [(1880, 315), (1817, 345), (1790, 395), (1880, 395)]:  # 蝴蝶结的四片和中间的结（灰色排线，阈值低一点）
+    keep = ImageChops.lighter(keep, grow(interior(seed, 120), OUTLINE))
+bone_mask = ImageChops.subtract(grow(interior((1700, 325)), OUTLINE), keep)
+bone_layer = Image.new('RGBA', (W, H), (0, 0, 0, 0)); bone_layer.paste(rest, (0, 0), bone_mask)
+on_top = Image.new('RGBA', (W, H), (0, 0, 0, 0)); on_top.paste(rest, (0, 0), keep)
+# 骨头底下原来是气泡的直上沿、白底和虚线：用左边 300px 处同样的一段补上（新骨头会盖住大部分）。
+# 虚线那一条（y 325..365）的接缝往左挪到两段虚线中间的空白，免得接出半截虚线。
+bx0, by0, bx1, by1 = bone_mask.getbbox()
+gray = rest.convert('L')
+dashless = lambda x: all(gray.getpixel((x, y)) >= 110 and gray.getpixel((x - 300, y)) >= 110 for y in range(325, 366))
+seam = next(x for x in range(bx0, bx0 - 80, -1) if dashless(x))
+fill_mask = bone_mask.copy(); ImageDraw.Draw(fill_mask).rectangle((seam, 325, bx0 + 2 * OUTLINE, 365), fill=255)
+fill = Image.new('RGBA', (W, H), (0, 0, 0, 0)); fill.paste(rest.crop((seam - 300, by0, bx1 - 300, by1)), (seam, by0))
+rest.paste(Image.new('RGBA', (W, H), (0, 0, 0, 0)), (0, 0), fill_mask)
+rest.alpha_composite(Image.composite(fill, Image.new('RGBA', (W, H), (0, 0, 0, 0)), fill_mask))
+bone_anchor = (1805, 348)
+bb = bone_mask.getbbox()
+small_bone = bone_layer.crop(bb)
+small_bone = small_bone.resize((round(small_bone.width * BONE_SCALE), round(small_bone.height * BONE_SCALE)), Image.LANCZOS)
+rest.alpha_composite(small_bone, (round(bone_anchor[0] - (bone_anchor[0] - bb[0]) * BONE_SCALE), round(bone_anchor[1] - (bone_anchor[1] - bb[1]) * BONE_SCALE)))
+rest.alpha_composite(on_top)
 heart = src.crop(heart_box)
 
 # —— 缩小少年：以手臂右下角（贴着气泡尾巴的地方）为锚点等比缩小；爱心同比缩小，放在少年头顶右边 ——
@@ -94,7 +126,7 @@ y1 += (y1 - y0) % 2
 out = out.crop((0, y0, out.width, y1))
 w, h = out.size
 # 缩到一半（各段宽度都是偶数，缩完切线仍落在整像素上），直播画面里足够清楚，文件小很多。
-out.resize((w // 2, h // 2), Image.LANCZOS).save(root / 'public' / 'danmaku' / 'bubbles' / 'susu-v3.png', optimize=True)
+out.resize((w // 2, h // 2), Image.LANCZOS).save(root / 'public' / 'danmaku' / 'bubbles' / 'susu-v4.png', optimize=True)
 # 文字只放在虚线框里面：上下按参考图里虚线内侧（y≈352 / 522），左边从气泡尾巴后面（x≈700），右边到爪印前面（x≈1570）。
 text_left, text_right = 700 - x0, left.width + tile.width + (1570 - R)
 print(f'size {w // 2}x{h // 2} ratio {w}/{h}')

@@ -141,7 +141,7 @@
     return Math.min(bubble.width, row.clientWidth - config.size * 3.2);
   }
   function styleSkin(skin, bubble) {
-    skin.querySelector('img')?.remove();
+    // 气泡图用 border-image 画，里面的 <img> 只有弹幕里的小表情，别动它们。
     const { left, right, top, bottom } = bubble.box;
     // cap：两端固定不动的部分（可以比文字区宽，文字伸进两端里空着的气泡）；tile：中段平铺而不是拉长。
     const cap = { left: Math.max(left, bubble.cap?.left ?? left), right: Math.max(right, bubble.cap?.right ?? right) };
