@@ -72,7 +72,7 @@ function clock(next) {
   $('#overtime-lock').textContent = machine.clear_locked ? '🔒 清空已锁定' : '🔓 清空未锁定';
 }
 function render(next) {
-  machine = next; clock(next); renderLook();
+  machine = next; clock(next); renderLook(); window.dispatchEvent(new CustomEvent('overtime-rendered',{detail:next}));
   if (!volumePending) {$('#overtime-volume').value=machine.config.media_volume;$('#overtime-volume-value').textContent=`${machine.config.media_volume}%`;}
   const stamp = JSON.stringify([machine.config.initial_text,machine.config.time_unit,machine.config.clear_lock_default_unlocked]);
   if (!timeDirty && stamp !== timeStamp) {
@@ -294,8 +294,9 @@ $('#overtime-test').addEventListener('submit', async event => {
   event.preventDefault();
   try { if (!machine || machine.mode === 'idle') throw new Error('请先开机加班，再模拟礼物'); await action({ action:'simulate', rule:Number($('#overtime-test-rule').value), user:$('#overtime-test-user').value.trim(), count:Number($('#overtime-test-count').value) }); toast('模拟礼物已结算，统计标记为测试'); } catch (error) { toast(error.message,true); }
 });
-for(const [id,query,label,size] of [['#overtime-copy-url','capture=1','加班机','960 × 320'],['#overtime-copy-media-url','media=1&capture=1','素材','640 × 360']]) $(id).addEventListener('click',async()=>{
-  const url = `${location.origin}/overtime/?${query}`;
+for(let [id,query,label,size] of [['#overtime-copy-url','capture=1','加班机','960 × 320'],['#overtime-copy-media-url','media=1&capture=1','素材','640 × 360']]) $(id).addEventListener('click',async()=>{
+  const url = `${location.origin}/overtime/?${query}`, combo = machine?.config.combo;
+  if (id === '#overtime-copy-url' && combo?.enabled) size = `${combo.width} × ${combo.height}`;
   try {await navigator.clipboard.writeText(url);toast(`${label}地址已复制，网页素材建议${size}`);}
   catch {$('#obs-url-value').value=url;$('#obs-url-dialog').showModal();}
 });

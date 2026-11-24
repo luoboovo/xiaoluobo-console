@@ -79,11 +79,12 @@
     },delay);
   }
   window.OvertimeGiftFx = {
-    play(record, time, { onHit } = {}) {
+    play(record, time, { onHit, label:showLabel = true } = {}) {
       const shots = Math.max(1,Math.min(PER_GIFT,Number(record.count) || 1));
       let hit = false;
       for (let i = 0; i < shots; i++) setTimeout(() => fly(record,time,() => { if (!hit) { hit = true; onHit?.(); } }), i * STAGGER);
-      label(record,time,700);
+      // 合体模式有飘字条，不再重复飘一遍。
+      if (showLabel) label(record,time,700);
     },
   };
 })();

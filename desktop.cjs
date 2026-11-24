@@ -65,6 +65,9 @@ else {
       return ['x','y','width','height'].every(key => Number.isInteger(bounds[key])) && bounds.width > 0 && bounds.height > 0 && screen.getAllDisplays().some(({workArea:r}) => bounds.x < r.x+r.width && bounds.x+bounds.width > r.x && bounds.y < r.y+r.height && bounds.y+30 > r.y) ? bounds : {};
     };
     let overtimeBounds = await loadBounds(boundsPath);
+    // 合体模式的浮窗比例不一样，大小位置单独记。
+    const comboBoundsPath = path.join(dataDir, 'overtime-combo-window.json');
+    let comboBounds = await loadBounds(comboBoundsPath), overtimeCombo = false;
     const panelBounds = new Map();
     for (const panel of runtime.overtime.state.config.gift_panels) panelBounds.set(panel.id,await loadBounds(path.join(dataDir,`gift-panel-${panel.id}-window.json`)));
     const mediaBoundsPath = path.join(dataDir,'overtime-media-window.json');
@@ -106,8 +109,11 @@ else {
       }
       if (url === runtime.url + '/overtime/') {
         if (overtimeWindow && !overtimeWindow.isDestroyed()) { overtimeWindow.show(); overtimeWindow.focus(); return { action:'deny' }; }
-        overtimeSize = {width:overtimeBounds.width || 960,height:overtimeBounds.height || 320};
-        return { action:'allow', overrideBrowserWindowOptions:{ title:'巨无霸加班机 · 浮窗', ...overtimeBounds, ...overtimeSize, useContentSize:true, minWidth:320, minHeight:180, frame:false, thickFrame:false, transparent:true, alwaysOnTop:true, resizable:true, autoHideMenuBar:true, backgroundColor:'#00000000', webPreferences:{ contextIsolation:true, nodeIntegration:false, sandbox:true, backgroundThrottling:false, autoplayPolicy:'no-user-gesture-required', preload:path.join(__dirname,'overtime-preload.cjs') } } };
+        const combo = runtime.overtime.state.config.combo, area = screen.getPrimaryDisplay().workArea;
+        overtimeCombo = combo.enabled;
+        const savedBounds = overtimeCombo ? comboBounds : overtimeBounds, fit = overtimeCombo ? Math.min(1,area.width * .9 / combo.width,area.height * .9 / combo.height) : 1;
+        overtimeSize = {width:savedBounds.width || (overtimeCombo ? Math.round(combo.width * fit) : 960),height:savedBounds.height || (overtimeCombo ? Math.round(combo.height * fit) : 320)};
+        return { action:'allow', overrideBrowserWindowOptions:{ title:'巨无霸加班机 · 浮窗', ...savedBounds, ...overtimeSize, useContentSize:true, minWidth:320, minHeight:180, frame:false, thickFrame:false, transparent:true, alwaysOnTop:true, resizable:true, autoHideMenuBar:true, backgroundColor:'#00000000', webPreferences:{ contextIsolation:true, nodeIntegration:false, sandbox:true, backgroundThrottling:false, autoplayPolicy:'no-user-gesture-required', preload:path.join(__dirname,'overtime-preload.cjs') } } };
       }
       if(url===runtime.url+'/feeding/')return {action:'allow',overrideBrowserWindowOptions:{title:'小萝卜吃吃吃 · 网页操作',width:1280,height:760,useContentSize:true,autoHideMenuBar:true,backgroundColor:'#e8ede8',webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false,autoplayPolicy:'no-user-gesture-required'}}};
       if([runtime.url+'/mower/',runtime.url+'/mower/?play=1'].includes(url))return {action:'allow',overrideBrowserWindowOptions:{title:url.endsWith('?play=1')?'萝卜割草 · 操作窗口（WASD / 方向键）':'萝卜割草 · 直播画面',width:1280,height:720,useContentSize:true,autoHideMenuBar:true,backgroundColor:'#7fb35c',webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}}};
@@ -132,7 +138,7 @@ else {
       overtimeWindow = child;
       child.webContents.setWindowOpenHandler(() => ({ action:'deny' }));
       child.webContents.on('will-navigate', (event, url) => { if (url !== runtime.url + '/overtime/') event.preventDefault(); });
-      child.on('close', () => { overtimeBounds = {...child.getBounds(),...overtimeSize}; fs.writeFile(boundsPath, JSON.stringify(overtimeBounds)).catch(error => showError('浮窗位置保存失败', error)); });
+      child.on('close', () => { const bounds = {...child.getBounds(),...overtimeSize}; if (overtimeCombo) comboBounds = bounds; else overtimeBounds = bounds; fs.writeFile(overtimeCombo ? comboBoundsPath : boundsPath, JSON.stringify(bounds)).catch(error => showError('浮窗位置保存失败', error)); });
       child.on('closed', () => { overtimeWindow = null; if(drag?.target===child)drag=null; quitIfOnlyMedia(); });
     });
     window.webContents.on('will-navigate', (event, url) => { if (!url.startsWith(runtime.url + '/')) event.preventDefault(); });

@@ -1,12 +1,17 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><script src="/events.js"></script><script src="/diagnostics.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>加班机 · 浮窗</title><link rel="stylesheet" href="/overtime/overlay.css"><link rel="stylesheet" href="/overtime/panel-style.css"><script src="/overtime/shared.js" defer></script><script src="/overtime/green-screen.js" defer></script><script src="/overtime/media-player.js" defer></script><script src="/overtime/gift-fx.js" defer></script><script src="/overtime/overlay.js" defer></script></head>
+<head><script src="/events.js"></script><script src="/diagnostics.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>加班机 · 浮窗</title><link rel="stylesheet" href="/overtime/overlay.css"><link rel="stylesheet" href="/overtime/panel-style.css"><link rel="stylesheet" href="/overtime/combo.css"><script src="/overtime/shared.js" defer></script><script src="/overtime/green-screen.js" defer></script><script src="/overtime/media-player.js" defer></script><script src="/overtime/gift-fx.js" defer></script><script src="/overtime/combo.js" defer></script><script src="/overtime/overlay.js" defer></script></head>
 <body>
+  <div id="combo-stage">
   <main class="overtime-overlay">
     <header class="overlay-header"><strong id="title"></strong><button id="close" aria-label="关闭浮窗" title="关闭浮窗">×</button></header>
     <section class="timer-panel" aria-label="剩余加班时间"><div id="time" class="countdown">等待开机</div></section>
     <section id="rules" class="rules-panel" aria-label="礼物规则" hidden></section>
   </main>
+  <section id="combo-panel" class="combo-panel" aria-label="礼物面板" hidden></section>
+  <div id="combo-texts" hidden></div>
+  <div id="combo-float" class="combo-float" aria-hidden="true" hidden></div>
+  </div>
   <button id="resize" class="resize-handle" aria-label="拖动调整浮窗大小" title="拖动调整浮窗大小">◢</button>
   <div id="media-stage" class="media-stage" hidden><img id="media-image" alt="礼物触发图片" hidden><video id="media-video" playsinline preload="auto" hidden></video><canvas id="media-canvas" aria-label="已去除绿幕的视频" hidden></canvas></div>
   <p id="media-error" class="media-error" role="alert" hidden></p>

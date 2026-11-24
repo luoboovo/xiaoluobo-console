@@ -1,0 +1,49 @@
+.combo-form{margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--line)}
+.combo-form .overtime-rule-title{margin-top:0}
+.combo-switch,.overtime-card .combo-check{display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer}
+.overtime-card .combo-form input[type=checkbox]{width:auto;flex:none}
+.combo-form details{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.combo-form summary{cursor:pointer;font-size:13px;font-weight:600;margin-bottom:12px}
+.combo-presets{display:flex;align-items:center;gap:8px;font-size:12px;margin:10px 0;flex-wrap:wrap}
+.combo-presets .text-button{border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px}
+.combo-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0}
+.combo-fields label{display:grid;gap:5px;font-size:11px;min-width:0}
+.overtime-card .combo-form input[type=color]{width:100%;height:34px;padding:3px;cursor:pointer}
+.combo-range{display:flex;align-items:center;gap:10px;font-size:12px;margin:8px 0}
+.overtime-card .combo-range input{flex:1;padding:0;border:0;background:none;accent-color:#6999ba}
+.combo-range output{width:44px;text-align:right}.combo-range.is-off{opacity:.45}
+.combo-checks{display:grid;gap:8px}
+.combo-themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;margin-bottom:10px}
+.combo-theme{position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;padding:6px;border:1px solid var(--line);border-radius:10px;font-size:11px;cursor:pointer}
+.combo-theme input{position:absolute;opacity:0;pointer-events:none}
+.combo-theme span{display:grid;place-items:center;width:100%;height:36px;border-radius:7px;font-weight:800;font-size:12px}
+.combo-theme:has(input:checked){border-color:#6999ba;box-shadow:0 0 0 2px #6999ba55}.combo-theme:has(input:focus-visible){outline:2px solid #6d9cbe;outline-offset:2px}
+[data-preview=bare] span{color:#fff;text-shadow:1px 0 #16191d,-1px 0 #16191d,0 1px #16191d,0 -1px #16191d;background:repeating-conic-gradient(#cfd6dc 0 25%,#eef1f4 0 50%) 0 0/10px 10px}
+[data-preview=glass] span{color:#fff;background:linear-gradient(150deg,#426f95,#122436)}[data-preview=candy] span{color:#e0577f;background:linear-gradient(160deg,#ffdbe7,#ffeccd)}
+[data-preview=night] span{color:#aef8ff;background:#150c2b;box-shadow:inset 0 0 0 1.5px #7ef3ff}[data-preview=paper] span{color:#a0622b;background:#fdf7e4;box-shadow:inset 0 0 0 1px #dcc998}
+.combo-order{display:grid;gap:6px;max-height:340px;overflow:auto}
+.combo-order-row{display:flex;align-items:center;gap:7px;padding:5px 7px;border:1px solid var(--line);border-radius:9px;background:var(--surface-soft);font-size:12px}
+.combo-order-row.dragging{opacity:.5}.combo-grip{cursor:grab;color:var(--muted)}
+.combo-order-row img{width:24px;height:24px;object-fit:contain;flex:none}
+.combo-order-name{flex:1 1 60px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.overtime-card .combo-order-row input[type=text]{flex:1 1 80px;width:80px;padding:6px 8px;font-size:11px}
+.combo-order-row .icon-button{width:24px;height:24px;flex:none}
+.combo-text-row{display:grid;grid-template-columns:1fr 28px;gap:7px;padding:9px;margin-bottom:9px;border:1px solid var(--line);border-radius:10px;background:var(--surface-soft)}
+.combo-text-row textarea{width:100%;resize:vertical;font:inherit;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:7px;background:var(--input);color:var(--text)}
+.combo-text-style{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.combo-text-style label{display:grid;gap:4px;font-size:11px;min-width:0}.combo-text-style .combo-check{display:flex}
+/* 预览：按画面比例显示，上面盖可拖动的虚线框 */
+.overtime-preview-stage{position:relative;background:#415f74}
+.overtime-preview-stage.is-combo{width:min(100%,calc(76vh*var(--ratio-number)));margin:0 auto;aspect-ratio:var(--ratio);background:repeating-conic-gradient(#7d8b97 0 25%,#909da8 0 50%) 0 0/24px 24px}
+.overtime-preview .overtime-preview-stage.is-combo #overtime-frame{height:100%;background:transparent;color-scheme:dark}
+.combo-editor{position:absolute;inset:0;overflow:hidden;touch-action:none;user-select:none}
+.combo-box{position:absolute;outline:1px dashed #ffffff8c;outline-offset:-1px;cursor:move}
+.combo-box em{position:absolute;left:2px;top:2px;padding:1px 6px;border-radius:5px;background:#16304acc;color:#fff;font:normal 10px/1.5 'Microsoft YaHei UI',sans-serif;opacity:0;transition:opacity .15s;pointer-events:none}
+.combo-editor:hover em,.combo-box.selected em{opacity:1}
+.combo-box.selected{z-index:2;outline:2px dashed #ffd34a}
+.combo-box-resize{position:absolute;right:2px;bottom:2px;width:14px;height:14px;border:2px solid #fff;border-radius:50%;background:#3d8bd0;cursor:nwse-resize;opacity:0}
+.combo-editor:hover .combo-box-resize,.combo-box.selected .combo-box-resize{opacity:1}
+/* 合体模式的设置比较长，往下翻时预览跟着走 */
+@media(min-width:1051px){.overtime-preview:has(.is-combo){position:sticky;top:12px;z-index:2}}
+#overtime-test{margin:16px 0 20px;padding:14px 20px;display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+#overtime-test .overtime-rule-title{margin:0}#overtime-test .overtime-simulate{flex:1 1 320px;margin:0}#overtime-test .overtime-note{flex-basis:100%;margin:0}

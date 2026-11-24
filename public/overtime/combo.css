@@ -1,0 +1,86 @@
+/* 加班机合体模式：固定尺寸画布整体缩放，里面的尺寸不受窗口大小影响 */
+#combo-stage{display:contents}
+#combo-stage [hidden],#combo-stage>[hidden]{display:none!important}
+body.combo{padding:0;overflow:hidden}
+body.combo #combo-stage{display:block;position:fixed;left:0;top:0;transform-origin:0 0;overflow:hidden}
+body.combo #combo-stage>.overtime-overlay{position:absolute;height:auto;padding:16px 22px;gap:10px}
+body.combo.preview #combo-stage>.overtime-overlay{border-radius:24px;border:1px solid #ffffff66}
+body.combo #combo-stage .overtime-overlay .overlay-header{display:contents}
+body.combo #combo-stage .overlay-header #close{position:absolute;right:10px;top:10px;z-index:4;opacity:0;transition:opacity .2s}
+body.combo:hover #combo-stage .overlay-header #close,body.combo #combo-stage .overlay-header #close:focus-visible{opacity:1}
+body.combo #combo-stage .overtime-overlay[data-transparent=true],body.combo #combo-stage .overtime-overlay[data-skin=outline]{border-color:transparent}
+body.combo .countdown:not(.finished){display:grid;place-content:center;text-align:center}
+.combo-panel,.combo-text,.combo-float{position:absolute}
+.combo-panel{display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:22px;overflow:hidden;isolation:isolate;--ink:#fff;--random:#a77bff;--special:#f5a623;--card-size:20px}
+.combo-panel::before{content:'';position:absolute;inset:0;border-radius:inherit;opacity:var(--plate,1);z-index:-1}
+.desktop-drag .combo-panel,.desktop-drag .combo-text{cursor:move;touch-action:none;user-select:none}
+.combo-title{margin:0;flex:none;text-align:center;font-size:24px;line-height:1.35;font-weight:900;letter-spacing:3px;color:var(--ink)}
+.combo-list{flex:1;min-height:0;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:var(--gap);font-size:var(--card-size);color:var(--ink);overflow:hidden}
+.combo-line{display:flex;gap:var(--gap);min-width:0;justify-content:center}
+[data-align=left] .combo-line{justify-content:flex-start}[data-align=right] .combo-line{justify-content:flex-end}
+.combo-line>.combo-card{flex:0 0 calc((100% - var(--gap)*(var(--per-line) - 1))/var(--per-line))}
+[data-flow=column] .combo-list{flex-direction:row;align-items:center}
+[data-flow=column] .combo-line{flex:1 1 0;flex-direction:column;align-self:center;justify-content:center}
+[data-flow=column] .combo-line>.combo-card{flex:none}
+.combo-card{--kind:var(--special);--light:#ffd894;position:relative;display:flex;align-items:center;gap:.55em;min-width:0;padding:.42em .6em;border-radius:.8em;line-height:1.3}
+.combo-card[data-kind=add]{--kind:var(--add);--light:var(--add-light)}.combo-card[data-kind=reduce]{--kind:var(--reduce);--light:var(--reduce-light)}.combo-card[data-kind=random]{--kind:var(--random);--light:#dccbff}
+.combo-icon{flex:none;width:2.7em;height:2.7em;display:grid;place-items:center}
+.combo-icon img{width:100%;height:100%;object-fit:contain}
+.combo-words{display:flex;flex-direction:column;align-items:flex-start;gap:.12em;min-width:0}
+.combo-name{font-size:.95em;font-weight:700;max-width:100%;white-space:nowrap}
+.combo-effect{font-size:1.05em;font-weight:900;white-space:nowrap;font-variant-numeric:tabular-nums}
+[data-names=false] .combo-name{display:none}
+[data-card=stack] .combo-card{flex-direction:column;gap:.25em;text-align:center;padding:.6em .5em}[data-card=stack] .combo-words{align-items:center}[data-card=stack] .combo-icon{width:3.3em;height:3.3em}
+[data-card=pill] .combo-card{border-radius:3em;padding:.25em .8em .25em .35em}[data-card=pill] .combo-icon{width:1.9em;height:1.9em}[data-card=pill] .combo-words{flex:1;flex-direction:row;align-items:center;justify-content:space-between;gap:.6em}
+.combo-empty{margin:auto;opacity:.75;font-size:18px}
+
+/* 透明描边：没有底板，白字黑描边，直接压在直播画面上 */
+[data-theme=bare]{padding:4px}
+[data-theme=bare] .combo-card{padding:.2em .3em;justify-content:center}
+[data-theme=bare] .combo-title,[data-theme=bare] .combo-name,[data-theme=bare] .combo-effect,.combo-text span{--o:var(--stroke,#16191d);text-shadow:.06em 0 var(--o),-.06em 0 var(--o),0 .06em var(--o),0 -.06em var(--o),.045em .045em var(--o),-.045em .045em var(--o),.045em -.045em var(--o),-.045em -.045em var(--o),0 .1em .2em #0009}
+[data-theme=bare] .combo-icon img{filter:drop-shadow(0 2px 4px #0008)}
+[data-theme=bare] .combo-effect{font-size:1.1em}
+/* 列宽固定，文字宽窄不一时让图标上下对齐 */
+[data-theme=bare][data-card=side][data-flow=row] .combo-words{flex:0 1 5.6em;min-width:min-content}
+
+/* 深海玻璃 */
+[data-theme=glass]{box-shadow:inset 0 0 0 1px #ffffff2e}
+[data-theme=glass]::before{background:radial-gradient(120% 90% at 0 0,#4c7ea899,transparent 60%),linear-gradient(150deg,#1d3b57,#122436)}
+[data-theme=glass] .combo-card{background:linear-gradient(180deg,#ffffff26,#ffffff12);box-shadow:inset 0 1px #ffffff40,inset 0 0 0 1px #ffffff14}
+[data-theme=glass] .combo-effect,[data-theme=candy] .combo-effect{padding:.02em .5em;border-radius:1em;color:#fff;background:var(--kind);text-shadow:0 1px 2px #0005}
+[data-theme=glass] .combo-title{text-shadow:0 2px 10px #0008}
+
+/* 奶油糖果 */
+[data-theme=candy]{--ink:#6a4353;box-shadow:inset 0 0 0 4px #fff}
+[data-theme=candy]::before{background:radial-gradient(circle at 14px 14px,#ffffffb0 4px,transparent 5px) 0 0/34px 34px,linear-gradient(160deg,#ffdbe7,#ffeccd)}
+[data-theme=candy] .combo-card{background:#fff;box-shadow:0 .16em 0 #f2b6c8}
+[data-theme=candy] .combo-icon{border-radius:50%;background:#fff1f5}
+[data-theme=candy] .combo-title{color:#e0577f;text-shadow:0 2px #fff}
+
+/* 霓虹夜场 */
+[data-theme=night]{box-shadow:inset 0 0 0 2px #7ef3ff,inset 0 0 22px #7ef3ff55}
+[data-theme=night]::before{background:linear-gradient(160deg,#1a0f33,#0b0817)}
+[data-theme=night] .combo-card{background:#ffffff0a;box-shadow:inset 0 0 0 1.5px var(--kind),inset 0 0 .7em -.2em var(--kind)}
+[data-theme=night] .combo-effect{color:var(--light);text-shadow:0 0 .5em var(--kind)}
+[data-theme=night] .combo-title{color:#ffe1fa;text-shadow:0 0 6px #ff4fd8,0 0 18px #ff4fd8}
+
+/* 手帐便签 */
+[data-theme=paper]{--ink:#4d4130;border-radius:8px}
+[data-theme=paper]::before{background:repeating-linear-gradient(0deg,transparent 0 23px,#b5cfe055 23px 24px),#fdf7e4;box-shadow:inset 0 0 0 1px #d9c99e}
+[data-theme=paper] .combo-card{background:#fffdf6;border-radius:.3em;box-shadow:inset 0 0 0 1.5px #dcc998,0 2px 4px #6b562622;border-left:.3em solid var(--kind)}
+[data-theme=paper] .combo-effect{color:var(--kind)}
+[data-theme=paper] .combo-title{font-family:KaiTi,STKaiti,'Microsoft YaHei UI',serif;color:#a0622b}
+
+/* 常显文字：框里放不下会换行，自己换行也保留 */
+.combo-text{display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.3;white-space:pre-wrap;overflow-wrap:anywhere}
+.combo-text[data-align=left]{justify-content:flex-start;text-align:left}.combo-text[data-align=right]{justify-content:flex-end;text-align:right}
+
+/* 飘字 */
+.combo-float{overflow:hidden;pointer-events:none;z-index:5;font-size:var(--size)}
+.combo-float-item{--kind:var(--add);position:absolute;left:0;top:0;display:flex;align-items:center;gap:.4em;height:1.7em;margin:.15em 0;padding:0 .75em 0 .5em;border-radius:1em;white-space:nowrap;line-height:1;font-weight:700;color:#fff;background:linear-gradient(90deg,#101b29e0,#101b2999);box-shadow:inset 0 0 0 2px var(--kind);will-change:transform}
+.combo-float-item[data-kind=reduce]{--kind:var(--reduce)}
+.combo-float[data-style=rise] .combo-float-item{left:50%}
+.combo-float-item img{width:1.4em;height:1.4em;object-fit:contain}
+.combo-float-item .who{color:#ffe7a6}.combo-float-item .verb{opacity:.7;font-size:.8em;font-weight:400}
+.combo-float-item b{font-weight:900;font-size:1.12em;color:var(--add-light)}.combo-float-item b[data-kind=reduce]{color:var(--reduce-light)}
+.combo-icon:empty{display:none}

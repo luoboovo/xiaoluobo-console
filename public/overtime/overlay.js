@@ -11,7 +11,7 @@
   let state, panelStyleStamp, rulesMarkup;
   if (window.overtimeWindow) {
     document.body.classList.add('desktop-drag');
-    for (const region of document.querySelectorAll('.overlay-header,.timer-panel,#rules,#resize,#media-stage')) {
+    for (const region of document.querySelectorAll('.overlay-header,.timer-panel,#rules,#combo-panel,#combo-texts,#resize,#media-stage')) {
       let dragging = false, frame;
       const resize = region.id === 'resize';
       region.addEventListener('pointerdown', event => {
@@ -77,7 +77,7 @@
     if (seenGifts.size > 500) seenGifts = new Set(recent.map(record => record.id));
     if (!fresh.length || !window.OvertimeGiftFx || document.visibilityState === 'hidden') return;
     holding = true; clearTimeout(holdTimer); holdTimer = setTimeout(release,1600);
-    fresh.forEach((record,i) => setTimeout(() => OvertimeGiftFx.play(record,$('#time'),{onHit:release}), i * 160));
+    fresh.forEach((record,i) => setTimeout(() => OvertimeGiftFx.play(record,$('#time'),{onHit:release,label:!(state.config.combo?.enabled && state.config.combo.float.enabled)}), i * 160));
   }
   function clock(next) {
     if (mediaOnly || panelId || !state) return;
@@ -98,7 +98,7 @@
       return;
     }
     state = next;
-    if (!panelId) { applyLook(next.config.look); giftEffects(next); clock(next); return; }
+    if (!panelId) { applyLook(next.config.look); if (window.OvertimeCombo?.render(next)) requestAnimationFrame(fit); giftEffects(next); clock(next); return; }
     const panel = state.config.gift_panels.find(panel => panel.id === panelId);
     // 送礼高峰每 100ms 推送一次；面板内容不变时不重建，避免 OBS 浏览器源反复请求和解码全部礼物图片。
     const styleStamp = JSON.stringify([panel?.name, panel?.columns, panel?.style]);

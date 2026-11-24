@@ -130,7 +130,7 @@ async function startServer(options = {}) {
   // 浮窗只要最近几条送礼，用来播「礼物飞向时钟」的特效；完整流水和观众榜只给控制台。
   // 昵称：拿得到完整昵称就显示；平台只给打码昵称（带 *）时显示「第一个字***」；完全没有昵称显示「神秘观众」。
   const giftUser = user => { const name = String(user || '').trim(); if (!name || name === '未知观众') return '神秘观众'; return name.includes('*') ? [...name][0] + '***' : name; };
-  const overlayOvertime = state => ({...state, people:undefined, history:undefined, recent:(state.history || []).slice(0,12).filter(record => record.id && (record.added !== '0' || record.reduced !== '0')).map(({id,time,user,gift_id,gift_name,count,operation,added,reduced}) => ({id,time,user:giftUser(user),gift_id,gift_name,count,operation,added,reduced}))});
+  const overlayOvertime = state => ({...state, people:undefined, history:undefined, floats:(state.floats || []).map(({key,...item}) => ({...item,user:item.source === 'gift' ? giftUser(item.user) : ''})), recent:(state.history || []).slice(0,12).filter(record => record.id && (record.added !== '0' || record.reduced !== '0')).map(({id,time,user,gift_id,gift_name,count,operation,added,reduced}) => ({id,time,user:giftUser(user),gift_id,gift_name,count,operation,added,reduced}))});
   const deliverOvertime = state => {
     if (!clients.size) return;
     let overlay, consoleFrame, consoleHasPeople = false;
