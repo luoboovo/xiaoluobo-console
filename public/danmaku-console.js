@@ -64,11 +64,15 @@ $('#danmaku-bg-file').addEventListener('change', async event => {
 $('#danmaku-bg-remove').addEventListener('click', () => act({ action: 'background', background: { image: '' } }).then(() => toast('已去掉背景图'), () => {}));
 
 // —— 定制气泡列表 ——
+const LENGTHS = { auto: '自动', short: '短', long: '长' };
+const lengthSwitch = b => b.length ? `<span class="danmaku-length" role="group" aria-label="${escapeHtml(b.name)}长短">${Object.entries(LENGTHS).map(([key, label]) => `<button type="button" data-bubble-length="${key}" data-id="${escapeHtml(b.id)}" aria-pressed="${b.length === key}">${label}</button>`).join('')}</span>` : '';
 const WHO = { all: '所有观众', fans: '粉丝牌 / 粉丝团', guard: '舰长及以上' };
 function renderBubbles(list) {
-  $('#danmaku-bubbles').innerHTML = list.length ? list.map(b => `<li><span class="danmaku-bubble-thumb"><img src="${escapeHtml(b.image)}" alt=""></span><span class="danmaku-bubble-info"><b>${escapeHtml(b.name)}${b.builtin ? '<em class="danmaku-builtin">内置</em>' : ''}</b><span>口令「${escapeHtml(b.keyword)}」· ${WHO[b.who]} · ${b.users} 人在用</span></span><button type="button" class="text-button" data-bubble-edit="${escapeHtml(b.id)}">编辑</button></li>`).join('') : '<li class="danmaku-empty">还没有定制气泡</li>';
+  $('#danmaku-bubbles').innerHTML = list.length ? list.map(b => `<li><span class="danmaku-bubble-thumb"><img src="${escapeHtml(b.image)}" alt=""></span><span class="danmaku-bubble-info"><b>${escapeHtml(b.name)}${b.builtin ? '<em class="danmaku-builtin">内置</em>' : ''}</b><span>口令「${escapeHtml(b.keyword)}」· ${WHO[b.who]} · ${b.users} 人在用</span>${lengthSwitch(b)}</span><button type="button" class="text-button" data-bubble-edit="${escapeHtml(b.id)}">编辑</button></li>`).join('') : '<li class="danmaku-empty">还没有定制气泡</li>';
 }
 $('#danmaku-bubbles').addEventListener('click', event => {
+  const length = event.target.closest('[data-bubble-length]');
+  if (length) { act({ action: 'bubble_length', id: length.dataset.id, length: length.dataset.bubbleLength }, false).catch(() => {}); return; }
   const id = event.target.closest('[data-bubble-edit]')?.dataset.bubbleEdit;
   if (id) openEditor(current.bubbles.find(b => b.id === id));
 });

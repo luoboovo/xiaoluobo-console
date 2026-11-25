@@ -31,6 +31,9 @@
 .danmaku-bubble-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .danmaku-bubble-info b{font-size:12px}.danmaku-bubble-info span{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .danmaku-legend-note{margin:12px 0 0}
+.danmaku-bubble-info .danmaku-length{display:flex;align-self:flex-start;margin-top:4px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.danmaku-length button{border:0;background:none;padding:3px 12px;font:inherit;font-size:11px;color:var(--muted);cursor:pointer}
+.danmaku-length button[aria-pressed=true]{background:#07c160;color:#fff}
 dialog.danmaku-bubble-dialog{width:880px;max-width:94vw;text-align:left;padding:26px}
 .danmaku-bubble-editor{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:18px;margin-top:14px}
 .danmaku-bubble-canvas{display:flex;flex-direction:column;gap:12px;align-items:stretch;min-width:0}

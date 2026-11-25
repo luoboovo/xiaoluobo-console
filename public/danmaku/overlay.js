@@ -155,8 +155,14 @@
     if (narrowest(font) > room) font *= room / narrowest(font);
     const height = heightOf(font), unit = height * bubble.ratio / 100, capLeft = unit * cap.left, capRight = unit * cap.right;
     const px = v => Math.floor(v * 10) / 10 + 'px';
+    // 长短切换：短气泡固定留 8 个字宽的文字区，长气泡固定撑满这一行；自动（或没有切换的气泡）按字数伸缩。
+    const lengthWidth = () => {
+      if (bubble.length === 'long') return px(room);
+      if (bubble.length === 'short') return px(Math.min(room, Math.max(narrowest(font), unit * (left + right) + font * 8)));
+      return '';
+    };
     Object.assign(skin.style, {
-      height: px(height), maxWidth: `min(100%, ${bubble.width}px)`, minWidth: px(narrowest(font)), width: bubble.fixed ? px(narrowest(font)) : '',
+      height: px(height), maxWidth: `min(100%, ${bubble.width}px)`, minWidth: px(narrowest(font)), width: bubble.fixed ? px(narrowest(font)) : lengthWidth(),
       borderWidth: `${px(height * top / 100)} ${px(capRight)} ${px(height * bottom / 100)} ${px(capLeft)}`,
       borderImageSource: `url("${bubble.image}")`, borderImageSlice: `${top}% ${cap.right}% ${bottom}% ${cap.left}% fill`,
       borderImageRepeat: bubble.tile ? 'round stretch' : 'stretch',
